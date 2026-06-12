@@ -31,6 +31,7 @@ export default function HomePage() {
   useEffect(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
+
       if (saved) {
         setItems(JSON.parse(saved));
       }
@@ -44,7 +45,10 @@ export default function HomePage() {
   }, [items]);
 
   const totals = useMemo(() => {
-    const totalExpense = items.reduce((sum, item) => sum + Number(item.amount || 0), 0);
+    const totalExpense = items.reduce(
+      (sum, item) => sum + Number(item.amount || 0),
+      0
+    );
 
     return {
       totalIncome: 0,
@@ -119,7 +123,7 @@ export default function HomePage() {
 
           <Link
             href="/egitim-notlari"
-            className="secondary-button inline-flex items-center justify-center gap-2 px-5 py-4"
+            className="primary-button inline-flex items-center justify-center gap-2 px-5 py-4"
           >
             <BookOpen size={19} />
             Eğitim Notları
@@ -188,7 +192,7 @@ export default function HomePage() {
                   </div>
 
                   <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-                    <label className="block xl:col-span-1">
+                    <label className="block">
                       <span className="mb-2 block text-sm font-bold text-slate-300">
                         Gider Adı
                       </span>
@@ -200,7 +204,7 @@ export default function HomePage() {
                       />
                     </label>
 
-                    <label className="block xl:col-span-1">
+                    <label className="block">
                       <span className="mb-2 block text-sm font-bold text-slate-300">
                         Kategori
                       </span>
@@ -212,7 +216,7 @@ export default function HomePage() {
                       />
                     </label>
 
-                    <label className="block xl:col-span-1">
+                    <label className="block">
                       <span className="mb-2 block text-sm font-bold text-slate-300">
                         Tutar
                       </span>
@@ -225,7 +229,7 @@ export default function HomePage() {
                       />
                     </label>
 
-                    <label className="block xl:col-span-1">
+                    <label className="block">
                       <span className="mb-2 block text-sm font-bold text-slate-300">
                         Tarih
                       </span>
@@ -237,7 +241,7 @@ export default function HomePage() {
                       />
                     </label>
 
-                    <div className="flex items-end xl:col-span-1">
+                    <div className="flex items-end">
                       <button
                         type="button"
                         onClick={handleAddExpense}
@@ -257,7 +261,9 @@ export default function HomePage() {
                       className="input-field min-h-[90px] resize-none"
                       placeholder="İstersen açıklama ekleyebilirsin."
                       value={form.description}
-                      onChange={(event) => handleChange("description", event.target.value)}
+                      onChange={(event) =>
+                        handleChange("description", event.target.value)
+                      }
                     />
                   </label>
                 </div>
@@ -285,8 +291,7 @@ export default function HomePage() {
                         Henüz gider kaydı yok
                       </h4>
                       <p className="mx-auto mt-2 max-w-xl text-sm leading-7 text-slate-400">
-                        İlk giderini eklediğinde burada görünecek. Bu ekran artık boş
-                        başlangıç mantığıyla çalışıyor.
+                        İlk giderini eklediğinde burada görünecek.
                       </p>
                     </div>
                   ) : (
@@ -332,25 +337,6 @@ export default function HomePage() {
                 </div>
               </div>
             ) : null}
-          </div>
-        </section>
-
-        <section className="mt-6 grid gap-5 lg:grid-cols-2">
-          <div className="glass-card rounded-[28px] p-6">
-            <h2 className="text-2xl font-black text-white">Yatırım Alanı</h2>
-            <p className="mt-3 text-sm leading-7 text-slate-400">
-              Bu alan sonraki adımda ayrı modül olarak açılacak. Kripto, altın, BES,
-              BIST ve nakit dağılımı burada yönetilecek.
-            </p>
-          </div>
-
-          <div className="glass-card rounded-[28px] p-6">
-            <h2 className="text-2xl font-black text-white">Veri Mantığı</h2>
-            <p className="mt-3 text-sm leading-7 text-slate-400">
-              Şu an veriler tarayıcıda kullanıcıya özel saklanır. Supabase bağlantısını
-              aktif ettiğimizde her kayıt giriş yapan kullanıcıya özel olarak veritabanına
-              yazılacak.
-            </p>
           </div>
         </section>
       </div>
