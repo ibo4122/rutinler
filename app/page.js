@@ -1,16 +1,29 @@
 "use client";
 
-import { useEffect, use(false);import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+
+const STORAGE_KEY = "kisisel-panel-giderler-v1";
+
+const emptyForm = {
+  title: "",
+  category: "",
+  amount: "",
+  date: "",
+  description: "",
+};
+
+export default function HomePage() {
+  const [expensesOpen, setExpensesOpen] = useState(false);
   const [expenses, setExpenses] = useState([]);
   const [form, setForm] = useState(emptyForm);
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
     try {
-      const savedData = localStorage.getItem(STORAGE_KEY);
+      const saved = window.localStorage.getItem(STORAGE_KEY);
 
-      if (savedData) {
-        setExpenses(JSON.parse(savedData));
+      if (saved) {
+        setExpenses(JSON.parse(saved));
       }
     } catch {
       setExpenses([]);
@@ -21,7 +34,7 @@ import { useEffect, use(false);import { useEffect, useMemo, useState } from "rea
 
   useEffect(() => {
     if (loaded) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(expenses));
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(expenses));
     }
   }, [expenses, loaded]);
 
@@ -30,6 +43,8 @@ import { useEffect, use(false);import { useEffect, useMemo, useState } from "rea
       return total + Number(item.amount || 0);
     }, 0);
   }, [expenses]);
+
+  const balance = 0 - totalExpense;
 
   const formatMoney = (value) => {
     return new Intl.NumberFormat("tr-TR", {
@@ -70,36 +85,27 @@ import { useEffect, use(false);import { useEffect, useMemo, useState } from "rea
   };
 
   const deleteExpense = (id) => {
-    setExpenses((currentExpenses) => {
-      return currentExpenses.filter((item) => item.id !== id);
-    });
+    setExpenses((currentExpenses) =>
+      currentExpenses.filter((item) => item.id !== id)
+    );
   };
 
   return (
     <main className="min-h-screen p-5 md:p-8">
       <div className="mx-auto max-w-7xl">
-        <header className="mb-8 flex flex-col justify-between gap-5 md:flex-row md:items-center">
-          <div>
-            <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-sky-300/20 bg-sky-400/10 px-4 py-2 text-sm font-bold text-sky-100">
-              Kişisel Yönetim Paneli
-            </div>
-
-            <h1 className="text-4xl font-black tracking-tight text-white md:text-6xl">
-              Finans panelin hazır.
-            </h1>
-
-            <p className="mt-4 max-w-3xl text-base leading-8 text-slate-300">
-              Bu ekran kullanıcıya özel finans alanıdır. İlk açılışta tüm veriler
-              boş gelir. Gider ekledikçe toplamlar otomatik hesaplanır.
-            </p>
+        <header className="mb-8">
+          <div className="mb-3 inline-flex rounded-full border border-sky-300/20 bg-sky-400/10 px-4 py-2 text-sm font-bold text-sky-100">
+            Kişisel Yönetim Paneli
           </div>
 
-          <a
-            href="/egitim-notlari"
-            className="primary-button inline-flex items-center justify-center gap-2 px-5 py-4"
-          >
-            Eğitim Notları
-          </a>
+          <h1 className="text-4xl font-black tracking-tight text-white md:text-6xl">
+            Finans panelin hazır.
+          </h1>
+
+          <p className="mt-4 max-w-3xl text-base leading-8 text-slate-300">
+            Bu ekran kullanıcıya özel finans alanıdır. İlk açılışta tüm veriler
+            boş gelir. Gider ekledikçe toplamlar otomatik hesaplanır.
+          </p>
         </header>
 
         <section className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
@@ -112,12 +118,12 @@ import { useEffect, use(false);import { useEffect, useMemo, useState } from "rea
           <SummaryCard
             title="Toplam Gider"
             value={formatMoney(totalExpense)}
-            detail={`${expenses.length} gider kaydı`}
+            detail={expenses.length + " gider kaydı"}
           />
 
           <SummaryCard
             title="Kalan Tutar"
-            value={formatMoney(0 - totalExpense)}
+            value={formatMoney(balance)}
             detail="Gelir - gider sonucu"
           />
 
@@ -275,10 +281,12 @@ import { useEffect, use(false);import { useEffect, useMemo, useState } from "rea
                             <div className="font-black text-white">
                               {item.title}
                             </div>
+
                             <div className="mt-1 flex flex-wrap gap-2 text-sm text-slate-400">
                               <span>{item.category}</span>
                               <span>•</span>
                               <span>{item.date}</span>
+
                               {item.description ? (
                                 <>
                                   <span>•</span>
@@ -328,15 +336,3 @@ function SummaryCard({ title, value, detail }) {
     </div>
   );
 }
-
-const STORAGE_KEY = "kisisel-panel-finans-v1";
-
-const emptyForm = {
-  title: "",
-  category: "",
-  amount: "",
-  date: "",
-  description: "",
-};
-
-export default function HomePage() {
