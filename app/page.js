@@ -1,8 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-
-const STORAGE_KEY = "kisisel-finans-panel-v4";
+import STORAGE_KEY = "kisisel-finans-panel-v5";import { useEffect, useMemo, useState } from "react";
 
 const emptyIncome = {
   salary: "",
@@ -40,6 +38,7 @@ export default function HomePage() {
   const [income, setIncome] = useState(emptyIncome);
   const [extraIncomes, setExtraIncomes] = useState([]);
   const [extraIncomeForm, setExtraIncomeForm] = useState(emptyExtraIncome);
+  const [editingExtraIncomeId, setEditingExtraIncomeId] = useState(null);
 
   const [credits, setCredits] = useState([]);
   const [cardExpenses, setCardExpenses] = useState([]);
@@ -48,6 +47,10 @@ export default function HomePage() {
   const [creditForm, setCreditForm] = useState(emptyCredit);
   const [cardForm, setCardForm] = useState(emptyExpense);
   const [otherForm, setOtherForm] = useState(emptyExpense);
+
+  const [editingCreditId, setEditingCreditId] = useState(null);
+  const [editingCardId, setEditingCardId] = useState(null);
+  const [editingOtherId, setEditingOtherId] = useState(null);
 
   const [loaded, setLoaded] = useState(false);
 
@@ -154,7 +157,8 @@ export default function HomePage() {
       return sum + Number(item.amount || 0);
     }, 0);
 
-    const totalIncome = salary + mealAllowance + totalExtraIncome;
+    // Yemek parası toplam gelire dahil edilmez.
+    const totalIncome = salary + totalExtraIncome;
 
     const activeCreditTotal = credits.reduce((sum, item) => {
       if (!isCreditActive(item.paymentStartDate)) return sum;
@@ -235,12 +239,49 @@ export default function HomePage() {
     }));
   };
 
-  const addExtraIncome = () => {
+  const resetExtraIncomeEdit = () => {
+    setEditingExtraIncomeId(null);
+    setExtraIncomeForm(emptyExtraIncome);
+  };
+
+  const resetCreditEdit = () => {
+    setEditingCreditId(null);
+    setCreditForm(emptyCredit);
+  };
+
+  const resetCardEdit = () => {
+    setEditingCardId(null);
+    setCardForm(emptyExpense);
+  };
+
+  const resetOtherEdit = () => {
+    setEditingOtherId(null);
+    setOtherForm(emptyExpense);
+  };
+
+  const addOrUpdateExtraIncome = () => {
     const title = extraIncomeForm.title.trim();
     const amount = Number(extraIncomeForm.amount);
 
     if (!title || amount <= 0) {
       alert("Lütfen ek gelir adı ve geçerli tutar gir.");
+      return;
+    }
+
+    if (editingExtraIncomeId) {
+      setExtraIncomes((current) =>
+        current.map((item) =>
+          item.id === editingExtraIncomeId
+            ? {
+                ...item,
+                title,
+                amount,
+              }
+            : item
+        )
+      );
+
+      resetExtraIncomeEdit();
       return;
     }
 
@@ -254,7 +295,16 @@ export default function HomePage() {
     setExtraIncomeForm(emptyExtraIncome);
   };
 
-  const addCredit = () => {
+  const startEditExtraIncome = (item) => {
+    setEditingExtraIncomeId(item.id);
+    setExtraIncomeForm({
+      title: item.title || "",
+      amount: String(item.amount || ""),
+    });
+    setExtraIncomeOpen(true);
+  };
+
+  const addOrUpdateCredit = () => {
     const title = creditForm.title.trim();
     const monthlyPayment = Number(creditForm.monthlyPayment);
 
@@ -268,8 +318,7 @@ export default function HomePage() {
       return;
     }
 
-    const item = {
-      id: String(Date.now()),
+    const updatedCredit = {
       title,
       monthlyPayment,
       installmentText: creditForm.installmentText.trim(),
@@ -277,12 +326,48 @@ export default function HomePage() {
       paymentStartDate: creditForm.paymentStartDate,
     };
 
+    if (editingCreditId) {
+      setCredits((current) =>
+        current.map((item) =>
+          item.id === editingCreditId
+            ? {
+                ...item,
+                ...updatedCredit,
+              }
+            : item
+        )
+      );
+
+      resetCreditEdit();
+      return;
+    }
+
+    const item = {
+      id: String(Date.now()),
+      ...updatedCredit,
+    };
+
     setCredits((current) => [item, ...current]);
     setCreditForm(emptyCredit);
   };
 
-  const addSimpleExpense = (type) => {
+  const startEditCredit = (item) => {
+    setEditingCreditId(item.id);
+    setCreditForm({
+      title: item.title || "",
+      monthlyPayment: String(item.monthlyPayment || ""),
+      installmentText: item.installmentText || "",
+      remainingDebt: String(item.remainingDebt || ""),
+      paymentStartDate: item.paymentStartDate || "",
+    });
+    setCreditsOpen(true);
+    setExpensesOpen(true);
+  };
+
+  const addOrUpdateSimpleExpense = (type) => {
     const form = type === "card" ? cardForm : otherForm;
+    const editingId = type === "card" ? editingCardId : editingOtherId;
+
     const title = form.title.trim();
     const amount = Number(form.amount);
 
@@ -291,8 +376,7 @@ export default function HomePage() {
       return;
     }
 
-    const item = {
-      id: String(Date.now()),
+    const updatedItem = {
       title,
       category: form.category.trim() || (type === "card" ? "Kredi Kartı" : "Diğer"),
       amount,
@@ -300,12 +384,83 @@ export default function HomePage() {
     };
 
     if (type === "card") {
-      setCardExpenses((current) => [item, ...current]);
+      if (editingId) {
+        setCardExpenses((current) =>
+          current.map((item) =>
+            item.id === editingId
+              ? {
+                  ...item,
+                  ...updatedItem,
+                }
+              : item
+          )
+        );
+
+        resetCardEdit();
+        return;
+      }
+
+      setCardExpenses((current) => [
+        {
+          id: String(Date.now()),
+          ...updatedItem,
+        },
+        ...current,
+      ]);
+
       setCardForm(emptyExpense);
-    } else {
-      setOtherExpenses((current) => [item, ...current]);
-      setOtherForm(emptyExpense);
+      return;
     }
+
+    if (editingId) {
+      setOtherExpenses((current) =>
+        current.map((item) =>
+          item.id === editingId
+            ? {
+                ...item,
+                ...updatedItem,
+              }
+            : item
+        )
+      );
+
+      resetOtherEdit();
+      return;
+    }
+
+    setOtherExpenses((current) => [
+      {
+        id: String(Date.now()),
+        ...updatedItem,
+      },
+      ...current,
+    ]);
+
+    setOtherForm(emptyExpense);
+  };
+
+  const startEditCard = (item) => {
+    setEditingCardId(item.id);
+    setCardForm({
+      title: item.title || "",
+      category: item.category || "",
+      amount: String(item.amount || ""),
+      note: item.note || "",
+    });
+    setCardsOpen(true);
+    setExpensesOpen(true);
+  };
+
+  const startEditOther = (item) => {
+    setEditingOtherId(item.id);
+    setOtherForm({
+      title: item.title || "",
+      category: item.category || "",
+      amount: String(item.amount || ""),
+      note: item.note || "",
+    });
+    setOthersOpen(true);
+    setExpensesOpen(true);
   };
 
   return (
@@ -320,7 +475,7 @@ export default function HomePage() {
             tone="green"
             title="Toplam Gelir"
             value={money(totals.totalIncome)}
-            detail="Maaş + yemek parası + ek gelirler"
+            detail="Maaş + ek gelirler"
           />
 
           <SummaryCard
@@ -339,16 +494,16 @@ export default function HomePage() {
 
           <SummaryCard
             tone="purple"
-            title="Ertelenen Kredi"
-            value={money(totals.deferredCreditTotal)}
-            detail="Ödeme tarihi gelince giderlere eklenir"
+            title="Yemek Parası"
+            value={money(totals.mealAllowance)}
+            detail="Toplam gelire dahil edilmez"
           />
         </section>
 
         <Panel
           color="green"
           title="Gelirler"
-          subtitle="Maaş, yemek parası ve manuel ek gelirlerini bu alandan yönetebilirsin."
+          subtitle="Maaş ve manuel ek gelirlerini bu alandan yönetebilirsin. Yemek parası bilgi amaçlı tutulur."
           totalLabel="Toplam Gelir"
           totalValue={money(totals.totalIncome)}
           open={incomeOpen}
@@ -396,14 +551,29 @@ export default function HomePage() {
                 onChange={(value) => updateExtraIncomeForm("amount", value)}
               />
 
-              <button type="button" className="premiumButton" onClick={addExtraIncome}>
-                Ek Gelir Ekle
+              <button
+                type="button"
+                className="premiumButton"
+                onClick={addOrUpdateExtraIncome}
+              >
+                {editingExtraIncomeId ? "Ek Geliri Güncelle" : "Ek Gelir Ekle"}
               </button>
             </div>
+
+            {editingExtraIncomeId ? (
+              <button
+                type="button"
+                className="deleteButton"
+                onClick={resetExtraIncomeEdit}
+              >
+                Düzenlemeyi İptal Et
+              </button>
+            ) : null}
 
             <IncomeList
               items={extraIncomes}
               money={money}
+              onEdit={startEditExtraIncome}
               onDelete={(id) =>
                 setExtraIncomes((current) =>
                   current.filter((item) => item.id !== id)
@@ -473,16 +643,31 @@ export default function HomePage() {
                 onChange={(value) => updateCreditForm("paymentStartDate", value)}
               />
 
-              <button type="button" className="premiumButton wide" onClick={addCredit}>
-                Kredi Ekle
+              <button
+                type="button"
+                className="premiumButton wide"
+                onClick={addOrUpdateCredit}
+              >
+                {editingCreditId ? "Krediyi Güncelle" : "Kredi Ekle"}
               </button>
             </div>
+
+            {editingCreditId ? (
+              <button
+                type="button"
+                className="deleteButton"
+                onClick={resetCreditEdit}
+              >
+                Düzenlemeyi İptal Et
+              </button>
+            ) : null}
 
             <CreditList
               items={credits}
               money={money}
               parseInstallment={parseInstallment}
               isCreditActive={isCreditActive}
+              onEdit={startEditCredit}
               onDelete={(id) =>
                 setCredits((current) => current.filter((item) => item.id !== id))
               }
@@ -500,13 +685,20 @@ export default function HomePage() {
             <SimpleExpenseForm
               form={cardForm}
               onChange={updateCardForm}
-              onAdd={() => addSimpleExpense("card")}
-              buttonText="Kart Gideri Ekle"
+              onAdd={() => addOrUpdateSimpleExpense("card")}
+              buttonText={editingCardId ? "Kart Giderini Güncelle" : "Kart Gideri Ekle"}
             />
+
+            {editingCardId ? (
+              <button type="button" className="deleteButton" onClick={resetCardEdit}>
+                Düzenlemeyi İptal Et
+              </button>
+            ) : null}
 
             <SimpleExpenseList
               items={cardExpenses}
               money={money}
+              onEdit={startEditCard}
               onDelete={(id) =>
                 setCardExpenses((current) =>
                   current.filter((item) => item.id !== id)
@@ -526,13 +718,20 @@ export default function HomePage() {
             <SimpleExpenseForm
               form={otherForm}
               onChange={updateOtherForm}
-              onAdd={() => addSimpleExpense("other")}
-              buttonText="Diğer Gider Ekle"
+              onAdd={() => addOrUpdateSimpleExpense("other")}
+              buttonText={editingOtherId ? "Diğer Gideri Güncelle" : "Diğer Gider Ekle"}
             />
+
+            {editingOtherId ? (
+              <button type="button" className="deleteButton" onClick={resetOtherEdit}>
+                Düzenlemeyi İptal Et
+              </button>
+            ) : null}
 
             <SimpleExpenseList
               items={otherExpenses}
               money={money}
+              onEdit={startEditOther}
               onDelete={(id) =>
                 setOtherExpenses((current) =>
                   current.filter((item) => item.id !== id)
@@ -678,6 +877,7 @@ function CreditList({
   money,
   parseInstallment,
   isCreditActive,
+  onEdit,
   onDelete,
 }) {
   if (items.length === 0) {
@@ -748,13 +948,23 @@ function CreditList({
             <div className="recordFooter">
               <span>Başlangıç: {item.paymentStartDate || "Hemen aktif"}</span>
 
-              <button
-                type="button"
-                className="deleteButton"
-                onClick={() => onDelete(item.id)}
-              >
-                Sil
-              </button>
+              <div className="recordActions">
+                <button
+                  type="button"
+                  className="editButton"
+                  onClick={() => onEdit(item)}
+                >
+                  Düzenle
+                </button>
+
+                <button
+                  type="button"
+                  className="deleteButton"
+                  onClick={() => onDelete(item.id)}
+                >
+                  Sil
+                </button>
+              </div>
             </div>
           </div>
         );
@@ -763,7 +973,7 @@ function CreditList({
   );
 }
 
-function SimpleExpenseList({ items, money, onDelete }) {
+function SimpleExpenseList({ items, money, onEdit, onDelete }) {
   if (items.length === 0) {
     return <EmptyState text="Henüz kayıt bulunmuyor." />;
   }
@@ -785,6 +995,14 @@ function SimpleExpenseList({ items, money, onDelete }) {
 
             <button
               type="button"
+              className="editButton"
+              onClick={() => onEdit(item)}
+            >
+              Düzenle
+            </button>
+
+            <button
+              type="button"
               className="deleteButton"
               onClick={() => onDelete(item.id)}
             >
@@ -797,7 +1015,7 @@ function SimpleExpenseList({ items, money, onDelete }) {
   );
 }
 
-function IncomeList({ items, money, onDelete }) {
+function IncomeList({ items, money, onEdit, onDelete }) {
   if (items.length === 0) {
     return <EmptyState text="Henüz ek gelir kaydı bulunmuyor." />;
   }
@@ -813,6 +1031,14 @@ function IncomeList({ items, money, onDelete }) {
 
           <div className="simpleRecordRight">
             <strong>{money(item.amount)}</strong>
+
+            <button
+              type="button"
+              className="editButton"
+              onClick={() => onEdit(item)}
+            >
+              Düzenle
+            </button>
 
             <button
               type="button"
@@ -836,3 +1062,4 @@ function EmptyState({ text }) {
     </div>
   );
 }
+
