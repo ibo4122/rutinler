@@ -1,6 +1,8 @@
 "use client";
 
-import STORAGE_KEY = "kisisel-finans-panel-v5";import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+
+const STORAGE_KEY = "kisisel-finans-panel-v5";
 
 const emptyIncome = {
   salary: "",
@@ -157,7 +159,6 @@ export default function HomePage() {
       return sum + Number(item.amount || 0);
     }, 0);
 
-    // Yemek parası toplam gelire dahil edilmez.
     const totalIncome = salary + totalExtraIncome;
 
     const activeCreditTotal = credits.reduce((sum, item) => {
@@ -982,32 +983,34 @@ function SimpleExpenseList({ items, money, onEdit, onDelete }) {
     <div className="recordList">
       {items.map((item) => (
         <div key={item.id} className="simpleRecord">
-          <div>
-            <h4>{item.title}</h4>
-            <p>
-              {item.category}
-              {item.note ? ` • ${item.note}` : ""}
-            </p>
-          </div>
+          <div className="simpleRecordTop">
+            <div>
+              <h4>{item.title}</h4>
+              <p>
+                {item.category}
+                {item.note ? ` • ${item.note}` : ""}
+              </p>
+            </div>
 
-          <div className="simpleRecordRight">
-            <strong>{money(item.amount)}</strong>
+            <div className="simpleRecordRight">
+              <strong>{money(item.amount)}</strong>
 
-            <button
-              type="button"
-              className="editButton"
-              onClick={() => onEdit(item)}
-            >
-              Düzenle
-            </button>
+              <button
+                type="button"
+                className="editButton"
+                onClick={() => onEdit(item)}
+              >
+                Düzenle
+              </button>
 
-            <button
-              type="button"
-              className="deleteButton"
-              onClick={() => onDelete(item.id)}
-            >
-              Sil
-            </button>
+              <button
+                type="button"
+                className="deleteButton"
+                onClick={() => onDelete(item.id)}
+              >
+                Sil
+              </button>
+            </div>
           </div>
         </div>
       ))}
@@ -1024,29 +1027,31 @@ function IncomeList({ items, money, onEdit, onDelete }) {
     <div className="recordList">
       {items.map((item) => (
         <div key={item.id} className="simpleRecord">
-          <div>
-            <h4>{item.title}</h4>
-            <p>Ek gelir</p>
-          </div>
+          <div className="simpleRecordTop">
+            <div>
+              <h4>{item.title}</h4>
+              <p>Ek gelir</p>
+            </div>
 
-          <div className="simpleRecordRight">
-            <strong>{money(item.amount)}</strong>
+            <div className="simpleRecordRight">
+              <strong>{money(item.amount)}</strong>
 
-            <button
-              type="button"
-              className="editButton"
-              onClick={() => onEdit(item)}
-            >
-              Düzenle
-            </button>
+              <button
+                type="button"
+                className="editButton"
+                onClick={() => onEdit(item)}
+              >
+                Düzenle
+              </button>
 
-            <button
-              type="button"
-              className="deleteButton"
-              onClick={() => onDelete(item.id)}
-            >
-              Sil
-            </button>
+              <button
+                type="button"
+                className="deleteButton"
+                onClick={() => onDelete(item.id)}
+              >
+                Sil
+              </button>
+            </div>
           </div>
         </div>
       ))}
@@ -1062,4 +1067,3 @@ function EmptyState({ text }) {
     </div>
   );
 }
-
