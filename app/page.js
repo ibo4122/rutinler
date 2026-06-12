@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 
-const STORAGE_KEY = "kisisel-finans-panel-v5";
+const STORAGE_KEY = "kisisel-finans-panel";
 
 const emptyIncome = {
   salary: "",
