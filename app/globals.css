@@ -6,12 +6,20 @@ html,
 body {
   margin: 0;
   min-height: 100%;
-  color: #f8fafc;
-  background: #0f172a;
+  background:
+    radial-gradient(circle at top left, #dbeafe 0%, transparent 30%),
+    radial-gradient(circle at top right, #ede9fe 0%, transparent 25%),
+    linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+  color: #0f172a;
+  font-family:
+    Inter,
+    ui-sans-serif,
+    system-ui,
+    sans-serif;
 }
 
 body {
-  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  overflow-x: hidden;
 }
 
 button,
@@ -21,120 +29,461 @@ input {
 
 button {
   cursor: pointer;
+  transition: 0.2s ease;
 }
 
 .financePage {
   min-height: 100vh;
-  padding: 28px;
-  background:
-    radial-gradient(circle at 10% 10%, rgba(56, 189, 248, 0.24), transparent 30%),
-    radial-gradient(circle at 90% 0%, rgba(168, 85, 247, 0.22), transparent 28%),
-    radial-gradient(circle at 50% 100%, rgba(34, 197, 94, 0.12), transparent 32%),
-    linear-gradient(135deg, #0f172a 0%, #172554 45%, #111827 100%);
+  padding: 32px;
 }
 
 .financeShell {
-  max-width: 1440px;
+  max-width: 1500px;
   margin: 0 auto;
 }
 
 .topHeader {
-  margin-bottom: 22px;
+  margin-bottom: 26px;
 }
 
 .topBadge {
   display: inline-flex;
-  padding: 14px 20px;
+  align-items: center;
+  gap: 12px;
+  padding: 18px 28px;
   border-radius: 999px;
-  color: #e0f2fe;
-  background: rgba(14, 165, 233, 0.18);
-  border: 1px solid rgba(125, 211, 252, 0.35);
-  font-size: 15px;
-  font-weight: 950;
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(18px);
+  border: 1px solid rgba(255, 255, 255, 0.9);
+  box-shadow:
+    0 20px 50px rgba(59, 130, 246, 0.15),
+    inset 0 1px 0 rgba(255,255,255,0.9);
+  color: #0f172a;
+  font-size: 16px;
+  font-weight: 900;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  box-shadow: 0 18px 40px rgba(14, 165, 233, 0.16);
 }
 
 .summaryGrid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 18px;
+  gap: 20px;
 }
 
 .summaryCard {
-  min-height: 165px;
-  border-radius: 30px;
-  padding: 24px;
-  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 32px;
+  padding: 26px;
+  min-height: 180px;
+  position: relative;
+  overflow: hidden;
+  background: rgba(255,255,255,0.72);
+  backdrop-filter: blur(18px);
+  border: 1px solid rgba(255,255,255,0.8);
   box-shadow:
-    0 24px 62px rgba(0, 0, 0, 0.26),
-    inset 0 1px 0 rgba(255, 255, 255, 0.12);
+    0 25px 60px rgba(15,23,42,0.08),
+    inset 0 1px 0 rgba(255,255,255,0.9);
 }
 
 .summaryCard.green {
-  background: linear-gradient(145deg, rgba(52, 211, 153, 0.28), rgba(6, 95, 70, 0.38));
+  background:
+    linear-gradient(135deg, rgba(34,197,94,0.18), rgba(255,255,255,0.75));
 }
 
 .summaryCard.red {
-  background: linear-gradient(145deg, rgba(251, 113, 133, 0.28), rgba(159, 18, 57, 0.38));
+  background:
+    linear-gradient(135deg, rgba(248,113,113,0.18), rgba(255,255,255,0.75));
 }
 
 .summaryCard.blue {
-  background: linear-gradient(145deg, rgba(56, 189, 248, 0.3), rgba(37, 99, 235, 0.4));
+  background:
+    linear-gradient(135deg, rgba(59,130,246,0.18), rgba(255,255,255,0.75));
 }
 
 .summaryCard.purple {
-  background: linear-gradient(145deg, rgba(192, 132, 252, 0.3), rgba(109, 40, 217, 0.4));
+  background:
+    linear-gradient(135deg, rgba(168,85,247,0.18), rgba(255,255,255,0.75));
 }
 
 .summaryLabel {
-  color: #dbeafe;
   font-size: 12px;
-  font-weight: 950;
-  letter-spacing: 0.14em;
+  font-weight: 900;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
+  color: #475569;
 }
 
 .summaryValue {
-  margin-top: 14px;
-  color: #ffffff;
-  font-size: clamp(27px, 2.4vw, 38px);
+  margin-top: 18px;
+  font-size: clamp(28px, 2.5vw, 42px);
+  font-weight: 900;
+  color: #0f172a;
   line-height: 1;
-  font-weight: 950;
-  letter-spacing: -0.05em;
-  text-shadow: 0 12px 28px rgba(0, 0, 0, 0.36);
-  word-break: break-word;
+  letter-spacing: -0.04em;
 }
 
 .summaryDetail {
-  margin-top: 12px;
-  color: #dbeafe;
+  margin-top: 14px;
+  color: #64748b;
   font-size: 14px;
-  line-height: 1.55;
+  line-height: 1.7;
 }
 
 .panelCard {
-  margin-top: 22px;
-  border-radius: 34px;
-  padding: 22px;
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  background: rgba(248, 250, 252, 0.1);
+  margin-top: 24px;
+  border-radius: 36px;
+  padding: 24px;
+  background: rgba(255,255,255,0.68);
   backdrop-filter: blur(18px);
+  border: 1px solid rgba(255,255,255,0.85);
   box-shadow:
-    0 34px 90px rgba(0, 0, 0, 0.28),
-    inset 0 1px 0 rgba(255, 255, 255, 0.14);
+    0 30px 70px rgba(15,23,42,0.08),
+    inset 0 1px 0 rgba(255,255,255,0.9);
 }
 
-.panelCard.green {
-  background:
-    linear-gradient(145deg, rgba(16, 185, 129, 0.16), rgba(15, 23, 42, 0.68)),
-    rgba(248, 250, 252, 0.1);
+.panelHeader,
+.miniHeader {
+  width: 100%;
+  border: none;
+  background: transparent;
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+  align-items: center;
+  text-align: left;
+  padding: 0;
 }
 
-/* Kapanış parantezi eklenerek hata düzeltildi */
-.panelCard.blue {
-  background:
-    linear-gradient(145deg, rgba(59, 130, 246, 0.16), rgba(15, 23, 42, 0.68)),
-    rgba(248, 250, 252, 0.1);
+.panelHeader h2 {
+  margin: 0;
+  font-size: 34px;
+  font-weight: 900;
+  letter-spacing: -0.05em;
+  color: #0f172a;
+}
+
+.panelHeader p {
+  margin: 8px 0 0;
+  color: #64748b;
+  line-height: 1.7;
+}
+
+.panelRight,
+.miniRight {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.panelTotal,
+.miniTotal {
+  min-width: 220px;
+  padding: 14px 18px;
+  border-radius: 22px;
+  background: rgba(255,255,255,0.9);
+  border: 1px solid rgba(226,232,240,0.9);
+}
+
+.panelTotal span,
+.miniTotal span {
+  display: block;
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.panelTotal strong,
+.miniTotal strong {
+  display: block;
+  margin-top: 6px;
+  font-size: 22px;
+  font-weight: 900;
+  color: #0f172a;
+}
+
+.toggleButton,
+.miniToggle {
+  width: 54px;
+  height: 54px;
+  border-radius: 20px;
+  display: grid;
+  place-items: center;
+  background: white;
+  color: #0f172a;
+  font-size: 28px;
+  font-weight: 900;
+  border: 1px solid rgba(226,232,240,0.9);
+}
+
+.panelBody,
+.miniBody {
+  margin-top: 22px;
+  display: grid;
+  gap: 18px;
+}
+
+.miniPanel {
+  border-radius: 30px;
+  padding: 22px;
+  background: rgba(255,255,255,0.75);
+  border: 1px solid rgba(255,255,255,0.85);
+}
+
+.miniHeader h3 {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 900;
+  color: #0f172a;
+}
+
+.formGrid {
+  display: grid;
+  gap: 14px;
+}
+
+.formGrid.two {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.formGrid.three {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.formGrid.four {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.formGrid.five {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.inputBox span {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 13px;
+  font-weight: 800;
+  color: #334155;
+}
+
+.inputBox input {
+  width: 100%;
+  height: 56px;
+  border-radius: 18px;
+  border: 1px solid #dbeafe;
+  background: rgba(255,255,255,0.9);
+  padding: 0 16px;
+  outline: none;
+  color: #0f172a;
+  box-shadow: inset 0 1px 2px rgba(15,23,42,0.04);
+}
+
+.inputBox input:focus {
+  border-color: #60a5fa;
+  box-shadow: 0 0 0 4px rgba(96,165,250,0.15);
+}
+
+.premiumButton {
+  min-height: 56px;
+  border: none;
+  border-radius: 18px;
+  color: white;
+  font-weight: 900;
+  background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+  box-shadow: 0 20px 40px rgba(59,130,246,0.2);
+}
+
+.premiumButton:hover {
+  transform: translateY(-2px);
+}
+
+.premiumButton.wide {
+  grid-column: 1 / -1;
+}
+
+.recordList {
+  display: grid;
+  gap: 14px;
+}
+
+.creditRecord,
+.simpleRecord {
+  border-radius: 24px;
+  padding: 18px;
+  background: rgba(255,255,255,0.9);
+  border: 1px solid rgba(226,232,240,0.9);
+}
+
+.creditRecordTop,
+.simpleRecordTop {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.recordTitleRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.recordTitleRow h4,
+.simpleRecord h4 {
+  margin: 0;
+  font-size: 19px;
+  font-weight: 900;
+}
+
+.recordSubText,
+.simpleRecord p {
+  margin: 8px 0 0;
+  color: #64748b;
+}
+
+.recordAmount {
+  font-size: 22px;
+  font-weight: 900;
+}
+
+.progressTrack {
+  margin-top: 14px;
+  height: 14px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: #e2e8f0;
+}
+
+.progressBar {
+  height: 100%;
+  border-radius: 999px;
+}
+
+.progressBar.danger {
+  background: linear-gradient(90deg, #ef4444, #fb7185);
+}
+
+.progressBar.mid {
+  background: linear-gradient(90deg, #f59e0b, #facc15);
+}
+
+.progressBar.warm {
+  background: linear-gradient(90deg, #84cc16, #22c55e);
+}
+
+.progressBar.success {
+  background: linear-gradient(90deg, #16a34a, #4ade80);
+}
+
+.recordFooter,
+.simpleRecordRight,
+.recordActions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.editButton {
+  border: none;
+  border-radius: 14px;
+  padding: 10px 14px;
+  background: #dbeafe;
+  color: #1d4ed8;
+  font-weight: 800;
+}
+
+.deleteButton {
+  border: none;
+  border-radius: 14px;
+  padding: 10px 14px;
+  background: #fee2e2;
+  color: #dc2626;
+  font-weight: 800;
+}
+
+.emptyState {
+  padding: 26px;
+  border-radius: 24px;
+  background: rgba(255,255,255,0.8);
+  text-align: center;
+}
+
+.emptyState strong {
+  display: block;
+  font-size: 17px;
+}
+
+.emptyState span {
+  display: block;
+  margin-top: 8px;
+  color: #64748b;
+}
+
+.status {
+  padding: 7px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.status.done {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.status.waiting {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.status.deferred {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+@media (max-width: 1180px) {
+  .summaryGrid,
+  .formGrid.four,
+  .formGrid.five {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 720px) {
+  .financePage {
+    padding: 16px;
+  }
+
+  .summaryGrid,
+  .formGrid.two,
+  .formGrid.three,
+  .formGrid.four,
+  .formGrid.five {
+    grid-template-columns: 1fr;
+  }
+
+  .panelHeader,
+  .miniHeader,
+  .creditRecordTop,
+  .simpleRecordTop,
+  .recordFooter,
+  .simpleRecordRight {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .panelRight,
+  .miniRight {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .panelTotal,
+  .miniTotal,
+  .toggleButton,
+  .miniToggle {
+    width: 100%;
+    min-width: 0;
+  }
 }
