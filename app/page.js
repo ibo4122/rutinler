@@ -2,22 +2,24 @@
 
 import { useEffect, useMemo, useState } from "react";
 
-const STORAGE_KEY = "kisisel-panel-finans-clean-v1";
+const STORAGE_KEY = "kisisel-finans-panel-v4";
 
 const emptyIncome = {
   salary: "",
-  extraIncome: "",
   mealAllowance: "",
+};
+
+const emptyExtraIncome = {
+  title: "",
+  amount: "",
 };
 
 const emptyCredit = {
   title: "",
   monthlyPayment: "",
-  totalInstallments: "",
-  currentInstallment: "",
+  installmentText: "",
   remainingDebt: "",
   paymentStartDate: "",
-  note: "",
 };
 
 const emptyExpense = {
@@ -29,28 +31,42 @@ const emptyExpense = {
 
 export default function HomePage() {
   const [incomeOpen, setIncomeOpen] = useState(true);
-  const [expenseOpen, setExpenseOpen] = useState(true);
+  const [extraIncomeOpen, setExtraIncomeOpen] = useState(true);
+  const [expensesOpen, setExpensesOpen] = useState(true);
+  const [creditsOpen, setCreditsOpen] = useState(true);
+  const [cardsOpen, setCardsOpen] = useState(true);
+  const [othersOpen, setOthersOpen] = useState(true);
+
   const [income, setIncome] = useState(emptyIncome);
+  const [extraIncomes, setExtraIncomes] = useState([]);
+  const [extraIncomeForm, setExtraIncomeForm] = useState(emptyExtraIncome);
+
   const [credits, setCredits] = useState([]);
   const [cardExpenses, setCardExpenses] = useState([]);
   const [otherExpenses, setOtherExpenses] = useState([]);
+
   const [creditForm, setCreditForm] = useState(emptyCredit);
   const [cardForm, setCardForm] = useState(emptyExpense);
   const [otherForm, setOtherForm] = useState(emptyExpense);
+
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
     try {
       const saved = window.localStorage.getItem(STORAGE_KEY);
+
       if (saved) {
         const data = JSON.parse(saved);
+
         setIncome(data.income || emptyIncome);
+        setExtraIncomes(data.extraIncomes || []);
         setCredits(data.credits || []);
         setCardExpenses(data.cardExpenses || []);
         setOtherExpenses(data.otherExpenses || []);
       }
     } catch {
       setIncome(emptyIncome);
+      setExtraIncomes([]);
       setCredits([]);
       setCardExpenses([]);
       setOtherExpenses([]);
@@ -61,61 +77,120 @@ export default function HomePage() {
 
   useEffect(() => {
     if (!loaded) return;
+
     window.localStorage.setItem(
       STORAGE_KEY,
-      JSON.stringify({ income, credits, cardExpenses, otherExpenses })
+      JSON.stringify({
+        income,
+        extraIncomes,
+        credits,
+        cardExpenses,
+        otherExpenses,
+      })
     );
-  }, [income, credits, cardExpenses, otherExpenses, loaded]);
+  }, [income, extraIncomes, credits, cardExpenses, otherExpenses, loaded]);
 
   const isCreditActive = (dateText) => {
     if (!dateText) return true;
-    const now = new Date();
-    now.setHours(0, 0, 0, 0);
-    const start = new Date(dateText);
-    start.setHours(0, 0, 0, 0);
-    return start <= now;
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const startDate = new Date(dateText);
+    startDate.setHours(0, 0, 0, 0);
+
+    return startDate <= today;
+  };
+
+  const parseInstallment = (text) => {
+    if (!text) {
+      return {
+        current: 0,
+        total: 0,
+        percent: 0,
+        completed: false,
+      };
+    }
+
+    const cleanText = text.replace(/\s/g, "");
+    const parts = cleanText.split("/");
+
+    if (parts.length !== 2) {
+      return {
+        current: 0,
+        total: 0,
+        percent: 0,
+        completed: false,
+      };
+    }
+
+    const current = Number(parts[0] || 0);
+    const total = Number(parts[1] || 0);
+
+    if (!current || !total || total <= 0) {
+      return {
+        current: 0,
+        total: 0,
+        percent: 0,
+        completed: false,
+      };
+    }
+
+    const percent = Math.min(100, Math.round((current / total) * 100));
+
+    return {
+      current,
+      total,
+      percent,
+      completed: current >= total,
+    };
   };
 
   const totals = useMemo(() => {
-    const totalIncome =
-      Number(income.salary || 0) +
-      Number(income.extraIncome || 0) +
-      Number(income.mealAllowance || 0);
+    const salary = Number(income.salary || 0);
+    const mealAllowance = Number(income.mealAllowance || 0);
+
+    const totalExtraIncome = extraIncomes.reduce((sum, item) => {
+      return sum + Number(item.amount || 0);
+    }, 0);
+
+    const totalIncome = salary + mealAllowance + totalExtraIncome;
 
     const activeCreditTotal = credits.reduce((sum, item) => {
-      return isCreditActive(item.paymentStartDate)
-        ? sum + Number(item.monthlyPayment || 0)
-        : sum;
+      if (!isCreditActive(item.paymentStartDate)) return sum;
+
+      return sum + Number(item.monthlyPayment || 0);
     }, 0);
 
     const deferredCreditTotal = credits.reduce((sum, item) => {
-      return isCreditActive(item.paymentStartDate)
-        ? sum
-        : sum + Number(item.monthlyPayment || 0);
+      if (isCreditActive(item.paymentStartDate)) return sum;
+
+      return sum + Number(item.monthlyPayment || 0);
     }, 0);
 
-    const cardTotal = cardExpenses.reduce(
-      (sum, item) => sum + Number(item.amount || 0),
-      0
-    );
+    const cardTotal = cardExpenses.reduce((sum, item) => {
+      return sum + Number(item.amount || 0);
+    }, 0);
 
-    const otherTotal = otherExpenses.reduce(
-      (sum, item) => sum + Number(item.amount || 0),
-      0
-    );
+    const otherTotal = otherExpenses.reduce((sum, item) => {
+      return sum + Number(item.amount || 0);
+    }, 0);
 
-    const expenseTotal = activeCreditTotal + cardTotal + otherTotal;
+    const totalExpense = activeCreditTotal + cardTotal + otherTotal;
 
     return {
+      salary,
+      mealAllowance,
+      totalExtraIncome,
       totalIncome,
       activeCreditTotal,
       deferredCreditTotal,
       cardTotal,
       otherTotal,
-      expenseTotal,
-      balance: totalIncome - expenseTotal,
+      totalExpense,
+      balance: totalIncome - totalExpense,
     };
-  }, [income, credits, cardExpenses, otherExpenses]);
+  }, [income, extraIncomes, credits, cardExpenses, otherExpenses]);
 
   const money = (value) => {
     return new Intl.NumberFormat("tr-TR", {
@@ -126,41 +201,83 @@ export default function HomePage() {
   };
 
   const updateIncome = (field, value) => {
-    setIncome((current) => ({ ...current, [field]: value }));
+    setIncome((current) => ({
+      ...current,
+      [field]: value,
+    }));
   };
 
-  const updateCredit = (field, value) => {
-    setCreditForm((current) => ({ ...current, [field]: value }));
+  const updateExtraIncomeForm = (field, value) => {
+    setExtraIncomeForm((current) => ({
+      ...current,
+      [field]: value,
+    }));
   };
 
-  const updateCard = (field, value) => {
-    setCardForm((current) => ({ ...current, [field]: value }));
+  const updateCreditForm = (field, value) => {
+    setCreditForm((current) => ({
+      ...current,
+      [field]: value,
+    }));
   };
 
-  const updateOther = (field, value) => {
-    setOtherForm((current) => ({ ...current, [field]: value }));
+  const updateCardForm = (field, value) => {
+    setCardForm((current) => ({
+      ...current,
+      [field]: value,
+    }));
+  };
+
+  const updateOtherForm = (field, value) => {
+    setOtherForm((current) => ({
+      ...current,
+      [field]: value,
+    }));
+  };
+
+  const addExtraIncome = () => {
+    const title = extraIncomeForm.title.trim();
+    const amount = Number(extraIncomeForm.amount);
+
+    if (!title || amount <= 0) {
+      alert("Lütfen ek gelir adı ve geçerli tutar gir.");
+      return;
+    }
+
+    const item = {
+      id: String(Date.now()),
+      title,
+      amount,
+    };
+
+    setExtraIncomes((current) => [item, ...current]);
+    setExtraIncomeForm(emptyExtraIncome);
   };
 
   const addCredit = () => {
     const title = creditForm.title.trim();
     const monthlyPayment = Number(creditForm.monthlyPayment);
+
     if (!title || monthlyPayment <= 0) {
-      alert("Kredi adı ve geçerli taksit tutarı gir.");
+      alert("Lütfen kredi adı ve geçerli taksit tutarı gir.");
       return;
     }
-    setCredits((current) => [
-      {
-        id: String(Date.now()),
-        title,
-        monthlyPayment,
-        totalInstallments: Number(creditForm.totalInstallments || 0),
-        currentInstallment: Number(creditForm.currentInstallment || 0),
-        remainingDebt: Number(creditForm.remainingDebt || 0),
-        paymentStartDate: creditForm.paymentStartDate,
-        note: creditForm.note.trim(),
-      },
-      ...current,
-    ]);
+
+    if (!creditForm.installmentText.trim().includes("/")) {
+      alert("Taksit alanını 8/24 formatında gir.");
+      return;
+    }
+
+    const item = {
+      id: String(Date.now()),
+      title,
+      monthlyPayment,
+      installmentText: creditForm.installmentText.trim(),
+      remainingDebt: Number(creditForm.remainingDebt || 0),
+      paymentStartDate: creditForm.paymentStartDate,
+    };
+
+    setCredits((current) => [item, ...current]);
     setCreditForm(emptyCredit);
   };
 
@@ -168,17 +285,20 @@ export default function HomePage() {
     const form = type === "card" ? cardForm : otherForm;
     const title = form.title.trim();
     const amount = Number(form.amount);
+
     if (!title || amount <= 0) {
-      alert("Gider adı ve geçerli tutar gir.");
+      alert("Lütfen gider adı ve geçerli tutar gir.");
       return;
     }
+
     const item = {
       id: String(Date.now()),
       title,
-      category: form.category.trim() || (type === "card" ? "Kredi Kartı" : "Dier"),
+      category: form.category.trim() || (type === "card" ? "Kredi Kartı" : "Diğer"),
       amount,
       note: form.note.trim(),
     };
+
     if (type === "card") {
       setCardExpenses((current) => [item, ...current]);
       setCardForm(emptyExpense);
@@ -191,71 +311,235 @@ export default function HomePage() {
   return (
     <main className="financePage">
       <div className="financeShell">
-        <section className="heroCard">
-          <div className="heroBadge">Kiisel Finans Yönetimi</div>
-          <h1>Gelir ve giderlerini profesyonel ekilde yönet.</h1>
-          <p>
-            Kredilerini, kredi kartı giderlerini, nakit harcamalarını ve gelirlerini
-            tek panelde takip et. Ertelenmi krediler ödeme tarihi gelince otomatik
-            olarak aylık giderlere dahil edilir.
-          </p>
-        </section>
+        <header className="topHeader">
+          <div className="topBadge">Kişisel Finans Yönetimi</div>
+        </header>
 
         <section className="summaryGrid">
-          <SummaryCard tone="green" title="Toplam Gelir" value={money(totals.totalIncome)} detail="Maa + ek gelir + yemek parası" />
-          <SummaryCard tone="red" title="Toplam Gider" value={money(totals.expenseTotal)} detail="Aktif kredi + kart + dier giderler" />
-          <SummaryCard tone="blue" title="Aylık Kalan" value={money(totals.balance)} detail="Gelirlerden giderler düülür" />
-          <SummaryCard tone="purple" title="Ertelenen Kredi" value={money(totals.deferredCreditTotal)} detail="deme tarihi gelince giderlere eklenir" />
+          <SummaryCard
+            tone="green"
+            title="Toplam Gelir"
+            value={money(totals.totalIncome)}
+            detail="Maaş + yemek parası + ek gelirler"
+          />
+
+          <SummaryCard
+            tone="red"
+            title="Toplam Gider"
+            value={money(totals.totalExpense)}
+            detail="Kredi + kredi kartı + diğer giderler"
+          />
+
+          <SummaryCard
+            tone="blue"
+            title="Aylık Kalan"
+            value={money(totals.balance)}
+            detail="Gelirlerden giderler düşülür"
+          />
+
+          <SummaryCard
+            tone="purple"
+            title="Ertelenen Kredi"
+            value={money(totals.deferredCreditTotal)}
+            detail="Ödeme tarihi gelince giderlere eklenir"
+          />
         </section>
 
         <Panel
           color="green"
-          open={incomeOpen}
-          onToggle={() => setIncomeOpen((current) => !current)}
           title="Gelirler"
-          subtitle="Maa, ek gelir ve yemek parası bilgilerini buradan yönetebilirsin."
+          subtitle="Maaş, yemek parası ve manuel ek gelirlerini bu alandan yönetebilirsin."
           totalLabel="Toplam Gelir"
           totalValue={money(totals.totalIncome)}
+          open={incomeOpen}
+          onToggle={() => setIncomeOpen((current) => !current)}
         >
-          <div className="formGrid three">
-            <InputBox label="Maa" type="number" value={income.salary} onChange={(value) => updateIncome("salary", value)} />
-            <InputBox label="Ek Gelir" type="number" value={income.extraIncome} onChange={(value) => updateIncome("extraIncome", value)} />
-            <InputBox label="Yemek Parası" type="number" value={income.mealAllowance} onChange={(value) => updateIncome("mealAllowance", value)} />
+          <div className="formGrid two">
+            <InputBox
+              label="Maaş"
+              type="number"
+              value={income.salary}
+              placeholder="0"
+              onChange={(value) => updateIncome("salary", value)}
+            />
+
+            <InputBox
+              label="Yemek Parası"
+              type="number"
+              value={income.mealAllowance}
+              placeholder="0"
+              onChange={(value) => updateIncome("mealAllowance", value)}
+            />
           </div>
+
+          <MiniPanel
+            title="Ek Gelirler"
+            totalLabel="Total ek gelir"
+            totalValue={money(totals.totalExtraIncome)}
+            open={extraIncomeOpen}
+            onToggle={() => setExtraIncomeOpen((current) => !current)}
+            color="mint"
+          >
+            <div className="formGrid three">
+              <InputBox
+                label="Ek Gelir Adı"
+                value={extraIncomeForm.title}
+                placeholder="Örn: Prim"
+                onChange={(value) => updateExtraIncomeForm("title", value)}
+              />
+
+              <InputBox
+                label="Tutar"
+                type="number"
+                value={extraIncomeForm.amount}
+                placeholder="0"
+                onChange={(value) => updateExtraIncomeForm("amount", value)}
+              />
+
+              <button type="button" className="premiumButton" onClick={addExtraIncome}>
+                Ek Gelir Ekle
+              </button>
+            </div>
+
+            <IncomeList
+              items={extraIncomes}
+              money={money}
+              onDelete={(id) =>
+                setExtraIncomes((current) =>
+                  current.filter((item) => item.id !== id)
+                )
+              }
+            />
+          </MiniPanel>
         </Panel>
 
         <Panel
           color="blue"
-          open={expenseOpen}
-          onToggle={() => setExpenseOpen((current) => !current)}
           title="Giderler"
-          subtitle="Kredi, kredi kartı ve dier nakit giderlerini ayrı balıklarda takip edebilirsin."
+          subtitle="Giderler ana başlığı kapanabilir. Alt başlıklar da ayrı ayrı açılıp kapanır."
           totalLabel="Toplam Gider"
-          totalValue={money(totals.expenseTotal)}
+          totalValue={money(totals.totalExpense)}
+          open={expensesOpen}
+          onToggle={() => setExpensesOpen((current) => !current)}
         >
-          <ExpenseSection color="purple" title="Krediler" totalLabel="Total kredi ödemesi" totalValue={money(totals.activeCreditTotal)} description="Taksitli krediler burada tutulur. deme balangıç tarihi gelmeyen krediler toplam gidere eklenmez.">
-            <div className="formGrid four">
-              <InputBox label="Kredi Adı" value={creditForm.title} onChange={(value) => updateCredit("title", value)} />
-              <InputBox label="Taksit Tutarı" type="number" value={creditForm.monthlyPayment} onChange={(value) => updateCredit("monthlyPayment", value)} />
-              <InputBox label="Toplam Taksit" type="number" value={creditForm.totalInstallments} onChange={(value) => updateCredit("totalInstallments", value)} />
-              <InputBox label="Kaçıncı Taksit" type="number" value={creditForm.currentInstallment} onChange={(value) => updateCredit("currentInstallment", value)} />
-              <InputBox label="Kalan Borç" type="number" value={creditForm.remainingDebt} onChange={(value) => updateCredit("remainingDebt", value)} />
-              <InputBox label="deme Balangıç Tarihi" type="date" value={creditForm.paymentStartDate} onChange={(value) => updateCredit("paymentStartDate", value)} />
-              <InputBox label="Not" value={creditForm.note} onChange={(value) => updateCredit("note", value)} />
-              <button type="button" className="premiumButton" onClick={addCredit}>Kredi Ekle</button>
+          <MiniPanel
+            title="Krediler"
+            totalLabel="Total kredi ödemesi"
+            totalValue={money(totals.activeCreditTotal)}
+            open={creditsOpen}
+            onToggle={() => setCreditsOpen((current) => !current)}
+            color="purple"
+          >
+            <p className="sectionDescription">
+              Taksit alanını <strong>8/24</strong> formatında yaz. Ödeme başlangıç
+              tarihi gelmeyen krediler toplam gidere eklenmez.
+            </p>
+
+            <div className="formGrid five">
+              <InputBox
+                label="Kredi Adı"
+                value={creditForm.title}
+                placeholder="Örn: Garanti Kredi"
+                onChange={(value) => updateCreditForm("title", value)}
+              />
+
+              <InputBox
+                label="Taksit Tutarı"
+                type="number"
+                value={creditForm.monthlyPayment}
+                placeholder="0"
+                onChange={(value) => updateCreditForm("monthlyPayment", value)}
+              />
+
+              <InputBox
+                label="Taksit"
+                value={creditForm.installmentText}
+                placeholder="Örn: 8/24"
+                onChange={(value) => updateCreditForm("installmentText", value)}
+              />
+
+              <InputBox
+                label="Kalan Borç"
+                type="number"
+                value={creditForm.remainingDebt}
+                placeholder="0"
+                onChange={(value) => updateCreditForm("remainingDebt", value)}
+              />
+
+              <InputBox
+                label="Ödeme Başlangıç Tarihi"
+                type="date"
+                value={creditForm.paymentStartDate}
+                onChange={(value) => updateCreditForm("paymentStartDate", value)}
+              />
+
+              <button type="button" className="premiumButton wide" onClick={addCredit}>
+                Kredi Ekle
+              </button>
             </div>
-            <CreditList items={credits} money={money} isCreditActive={isCreditActive} onDelete={(id) => setCredits((current) => current.filter((item) => item.id !== id))} />
-          </ExpenseSection>
 
-          <ExpenseSection color="red" title="Kredi Kartı Giderleri" totalLabel="Total kredi kartı ödemesi" totalValue={money(totals.cardTotal)} description="Kredi kartı harcamaları veya ekstre tutarları için kullanılır. Bu alanda tarih tutulmaz.">
-            <SimpleExpenseForm form={cardForm} onChange={updateCard} onAdd={() => addSimpleExpense("card")} buttonText="Kart Gideri Ekle" />
-            <SimpleList items={cardExpenses} money={money} onDelete={(id) => setCardExpenses((current) => current.filter((item) => item.id !== id))} />
-          </ExpenseSection>
+            <CreditList
+              items={credits}
+              money={money}
+              parseInstallment={parseInstallment}
+              isCreditActive={isCreditActive}
+              onDelete={(id) =>
+                setCredits((current) => current.filter((item) => item.id !== id))
+              }
+            />
+          </MiniPanel>
 
-          <ExpenseSection color="orange" title="Dier Nakit Giderler" totalLabel="Total dier ödemeler" totalValue={money(totals.otherTotal)} description="Nakit, havale veya kart dıı harcamalarını buradan takip edebilirsin.">
-            <SimpleExpenseForm form={otherForm} onChange={updateOther} onAdd={() => addSimpleExpense("other")} buttonText="Dier Gider Ekle" />
-            <SimpleList items={otherExpenses} money={money} onDelete={(id) => setOtherExpenses((current) => current.filter((item) => item.id !== id))} />
-          </ExpenseSection>
+          <MiniPanel
+            title="Kredi Kartı Giderleri"
+            totalLabel="Total kredi kartı ödemesi"
+            totalValue={money(totals.cardTotal)}
+            open={cardsOpen}
+            onToggle={() => setCardsOpen((current) => !current)}
+            color="rose"
+          >
+            <SimpleExpenseForm
+              form={cardForm}
+              onChange={updateCardForm}
+              onAdd={() => addSimpleExpense("card")}
+              buttonText="Kart Gideri Ekle"
+            />
+
+            <SimpleExpenseList
+              items={cardExpenses}
+              money={money}
+              onDelete={(id) =>
+                setCardExpenses((current) =>
+                  current.filter((item) => item.id !== id)
+                )
+              }
+            />
+          </MiniPanel>
+
+          <MiniPanel
+            title="Diğer Nakit Giderler"
+            totalLabel="Total diğer ödemeler"
+            totalValue={money(totals.otherTotal)}
+            open={othersOpen}
+            onToggle={() => setOthersOpen((current) => !current)}
+            color="orange"
+          >
+            <SimpleExpenseForm
+              form={otherForm}
+              onChange={updateOtherForm}
+              onAdd={() => addSimpleExpense("other")}
+              buttonText="Diğer Gider Ekle"
+            />
+
+            <SimpleExpenseList
+              items={otherExpenses}
+              money={money}
+              onDelete={(id) =>
+                setOtherExpenses((current) =>
+                  current.filter((item) => item.id !== id)
+                )
+              }
+            />
+          </MiniPanel>
         </Panel>
       </div>
     </main>
@@ -272,7 +556,16 @@ function SummaryCard({ title, value, detail, tone }) {
   );
 }
 
-function Panel({ title, subtitle, totalLabel, totalValue, open, onToggle, color, children }) {
+function Panel({
+  title,
+  subtitle,
+  totalLabel,
+  totalValue,
+  open,
+  onToggle,
+  color,
+  children,
+}) {
   return (
     <section className={`panelCard ${color}`}>
       <button type="button" className="panelHeader" onClick={onToggle}>
@@ -280,33 +573,63 @@ function Panel({ title, subtitle, totalLabel, totalValue, open, onToggle, color,
           <h2>{title}</h2>
           <p>{subtitle}</p>
         </div>
-        <div className="panelActions">
-          <div className="panelTotal"><span>{totalLabel}</span><strong>{totalValue}</strong></div>
-          <div className="toggleButton">{open ? "" : "+"}</div>
+
+        <div className="panelRight">
+          <div className="panelTotal">
+            <span>{totalLabel}</span>
+            <strong>{totalValue}</strong>
+          </div>
+
+          <div className="toggleButton">{open ? "−" : "+"}</div>
         </div>
       </button>
+
       {open ? <div className="panelBody">{children}</div> : null}
     </section>
   );
 }
 
-function ExpenseSection({ title, description, totalLabel, totalValue, color, children }) {
+function MiniPanel({
+  title,
+  totalLabel,
+  totalValue,
+  open,
+  onToggle,
+  color,
+  children,
+}) {
   return (
-    <section className={`expenseSection ${color}`}>
-      <div className="sectionTop">
-        <div><h3>{title}</h3><p>{description}</p></div>
-        <div className="sectionTotal"><span>{totalLabel}</span><strong>{totalValue}</strong></div>
-      </div>
-      <div className="sectionContent">{children}</div>
+    <section className={`miniPanel ${color}`}>
+      <button type="button" className="miniHeader" onClick={onToggle}>
+        <div>
+          <h3>{title}</h3>
+        </div>
+
+        <div className="miniRight">
+          <div className="miniTotal">
+            <span>{totalLabel}</span>
+            <strong>{totalValue}</strong>
+          </div>
+
+          <div className="miniToggle">{open ? "−" : "+"}</div>
+        </div>
+      </button>
+
+      {open ? <div className="miniBody">{children}</div> : null}
     </section>
   );
 }
 
-function InputBox({ label, value, onChange, type = "text" }) {
+function InputBox({ label, value, onChange, type = "text", placeholder = "" }) {
   return (
     <label className="inputBox">
       <span>{label}</span>
-      <input type={type} value={value} placeholder="0" onChange={(event) => onChange(event.target.value)} />
+      <input
+        type={type}
+        value={value}
+        placeholder={placeholder}
+        onChange={(event) => onChange(event.target.value)}
+      />
     </label>
   );
 }
@@ -314,34 +637,125 @@ function InputBox({ label, value, onChange, type = "text" }) {
 function SimpleExpenseForm({ form, onChange, onAdd, buttonText }) {
   return (
     <div className="formGrid four">
-      <InputBox label="Gider Adı" value={form.title} onChange={(value) => onChange("title", value)} />
-      <InputBox label="Kategori" value={form.category} onChange={(value) => onChange("category", value)} />
-      <InputBox label="Tutar" type="number" value={form.amount} onChange={(value) => onChange("amount", value)} />
-      <InputBox label="Not" value={form.note} onChange={(value) => onChange("note", value)} />
-      <button type="button" className="premiumButton wide" onClick={onAdd}>{buttonText}</button>
+      <InputBox
+        label="Gider Adı"
+        value={form.title}
+        placeholder="Örn: Market"
+        onChange={(value) => onChange("title", value)}
+      />
+
+      <InputBox
+        label="Kategori"
+        value={form.category}
+        placeholder="Örn: Alışveriş"
+        onChange={(value) => onChange("category", value)}
+      />
+
+      <InputBox
+        label="Tutar"
+        type="number"
+        value={form.amount}
+        placeholder="0"
+        onChange={(value) => onChange("amount", value)}
+      />
+
+      <InputBox
+        label="Not"
+        value={form.note}
+        placeholder="Opsiyonel"
+        onChange={(value) => onChange("note", value)}
+      />
+
+      <button type="button" className="premiumButton wide" onClick={onAdd}>
+        {buttonText}
+      </button>
     </div>
   );
 }
 
-function CreditList({ items, money, isCreditActive, onDelete }) {
-  if (items.length === 0) return <EmptyState text="Henüz kredi kaydı bulunmuyor." />;
+function CreditList({
+  items,
+  money,
+  parseInstallment,
+  isCreditActive,
+  onDelete,
+}) {
+  if (items.length === 0) {
+    return <EmptyState text="Henüz kredi kaydı bulunmuyor." />;
+  }
+
   return (
     <div className="recordList">
       {items.map((item) => {
+        const installment = parseInstallment(item.installmentText);
         const active = isCreditActive(item.paymentStartDate);
+
+        let progressClass = "danger";
+
+        if (installment.percent >= 100) {
+          progressClass = "success";
+        } else if (installment.percent >= 70) {
+          progressClass = "warm";
+        } else if (installment.percent >= 35) {
+          progressClass = "mid";
+        }
+
         return (
-          <div key={item.id} className="recordCard">
-            <div className="recordMain">
-              <div className="recordTitleRow"><h4>{item.title}</h4><span className={active ? "status active" : "status waiting"}>{active ? "Aktif gider" : "deme tarihi bekleniyor"}</span></div>
-              <div className="creditInfoGrid">
-                <InfoBox label="Taksit Tutarı" value={money(item.monthlyPayment)} />
-                <InfoBox label="Taksit Durumu" value={`${item.currentInstallment || 0} / ${item.totalInstallments || 0}`} />
-                <InfoBox label="Kalan Borç" value={money(item.remainingDebt)} />
-                <InfoBox label="Balangıç" value={item.paymentStartDate || "Hemen aktif"} />
+          <div key={item.id} className="creditRecord">
+            <div className="creditRecordTop">
+              <div>
+                <div className="recordTitleRow">
+                  <h4>{item.title}</h4>
+
+                  <span
+                    className={
+                      installment.completed ? "status done" : "status waiting"
+                    }
+                  >
+                    {installment.completed ? "✅ Tamamlandı" : "⏳ Devam ediyor"}
+                  </span>
+
+                  {!active ? (
+                    <span className="status deferred">
+                      Ödeme tarihi bekleniyor
+                    </span>
+                  ) : null}
+                </div>
+
+                <p className="recordSubText">
+                  Taksit: {item.installmentText || "0/0"} • Kalan borç:{" "}
+                  {money(item.remainingDebt)}
+                </p>
               </div>
-              {item.note ? <p className="recordNote">{item.note}</p> : null}
+
+              <div className="recordAmount">{money(item.monthlyPayment)}</div>
             </div>
-            <button type="button" className="deleteButton" onClick={() => onDelete(item.id)}>Sil</button>
+
+            <div className="progressWrap">
+              <div className="progressInfo">
+                <span>Ödeme ilerlemesi</span>
+                <strong>{installment.percent}%</strong>
+              </div>
+
+              <div className="progressTrack">
+                <div
+                  className={`progressBar ${progressClass}`}
+                  style={{ width: `${installment.percent}%` }}
+                />
+              </div>
+            </div>
+
+            <div className="recordFooter">
+              <span>Başlangıç: {item.paymentStartDate || "Hemen aktif"}</span>
+
+              <button
+                type="button"
+                className="deleteButton"
+                onClick={() => onDelete(item.id)}
+              >
+                Sil
+              </button>
+            </div>
           </div>
         );
       })}
@@ -349,24 +763,76 @@ function CreditList({ items, money, isCreditActive, onDelete }) {
   );
 }
 
-function SimpleList({ items, money, onDelete }) {
-  if (items.length === 0) return <EmptyState text="Henüz kayıt bulunmuyor." />;
+function SimpleExpenseList({ items, money, onDelete }) {
+  if (items.length === 0) {
+    return <EmptyState text="Henüz kayıt bulunmuyor." />;
+  }
+
   return (
     <div className="recordList">
       {items.map((item) => (
-        <div key={item.id} className="recordCard simple">
-          <div><h4>{item.title}</h4><p>{item.category}{item.note ? `  ${item.note}` : ""}</p></div>
-          <div className="recordSide"><strong>{money(item.amount)}</strong><button type="button" className="deleteButton" onClick={() => onDelete(item.id)}>Sil</button></div>
+        <div key={item.id} className="simpleRecord">
+          <div>
+            <h4>{item.title}</h4>
+            <p>
+              {item.category}
+              {item.note ? ` • ${item.note}` : ""}
+            </p>
+          </div>
+
+          <div className="simpleRecordRight">
+            <strong>{money(item.amount)}</strong>
+
+            <button
+              type="button"
+              className="deleteButton"
+              onClick={() => onDelete(item.id)}
+            >
+              Sil
+            </button>
+          </div>
         </div>
       ))}
     </div>
   );
 }
 
-function InfoBox({ label, value }) {
-  return <div className="infoBox"><span>{label}</span><strong>{value}</strong></div>;
+function IncomeList({ items, money, onDelete }) {
+  if (items.length === 0) {
+    return <EmptyState text="Henüz ek gelir kaydı bulunmuyor." />;
+  }
+
+  return (
+    <div className="recordList">
+      {items.map((item) => (
+        <div key={item.id} className="simpleRecord">
+          <div>
+            <h4>{item.title}</h4>
+            <p>Ek gelir</p>
+          </div>
+
+          <div className="simpleRecordRight">
+            <strong>{money(item.amount)}</strong>
+
+            <button
+              type="button"
+              className="deleteButton"
+              onClick={() => onDelete(item.id)}
+            >
+              Sil
+            </button>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
 }
 
 function EmptyState({ text }) {
-  return <div className="emptyState"><strong>{text}</strong><span>Yeni kayıt eklediinde bu alanda görünecek.</span></div>;
+  return (
+    <div className="emptyState">
+      <strong>{text}</strong>
+      <span>Yeni kayıt eklediğinde burada görüntülenecek.</span>
+    </div>
+  );
 }
