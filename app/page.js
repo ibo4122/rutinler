@@ -2,9 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 
-const STORAGE_KEY = "kisisel-panel-finans-v2";
-
-const emptyIncomeForm = {
+const STORAGE_KEY = "kisisconst emptyIncomeForm = {const STORAGE_KEY = "kisisel-panel-finans-v3";
   salary: "",
   extraIncome: "",
   mealAllowance: "",
@@ -48,7 +46,6 @@ export default function HomePage() {
 
       if (saved) {
         const parsed = JSON.parse(saved);
-
         setIncome(parsed.income || emptyIncomeForm);
         setCredits(parsed.credits || []);
         setCreditCards(parsed.creditCards || []);
@@ -67,21 +64,22 @@ export default function HomePage() {
   useEffect(() => {
     if (!loaded) return;
 
-    const payload = {
-      income,
-      credits,
-      creditCards,
-      others,
-    };
-
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+    window.localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({
+        income,
+        credits,
+        creditCards,
+        others,
+      })
+    );
   }, [income, credits, creditCards, others, loaded]);
 
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-
-  const isCreditPaymentActive = (paymentStartDate) => {
+  const isCreditActive = (paymentStartDate) => {
     if (!paymentStartDate) return true;
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
 
     const startDate = new Date(paymentStartDate);
     startDate.setHours(0, 0, 0, 0);
@@ -95,22 +93,22 @@ export default function HomePage() {
       Number(income.extraIncome || 0) +
       Number(income.mealAllowance || 0);
 
-    const totalCreditPayment = credits.reduce((total, item) => {
-      if (!isCreditPaymentActive(item.paymentStartDate)) return total;
-      return total + Number(item.monthlyPayment || 0);
+    const totalCreditPayment = credits.reduce((sum, item) => {
+      if (!isCreditActive(item.paymentStartDate)) return sum;
+      return sum + Number(item.monthlyPayment || 0);
     }, 0);
 
-    const futureCreditPayment = credits.reduce((total, item) => {
-      if (isCreditPaymentActive(item.paymentStartDate)) return total;
-      return total + Number(item.monthlyPayment || 0);
+    const deferredCreditPayment = credits.reduce((sum, item) => {
+      if (isCreditActive(item.paymentStartDate)) return sum;
+      return sum + Number(item.monthlyPayment || 0);
     }, 0);
 
-    const totalCreditCardPayment = creditCards.reduce((total, item) => {
-      return total + Number(item.amount || 0);
+    const totalCreditCardPayment = creditCards.reduce((sum, item) => {
+      return sum + Number(item.amount || 0);
     }, 0);
 
-    const totalOtherPayment = others.reduce((total, item) => {
-      return total + Number(item.amount || 0);
+    const totalOtherPayment = others.reduce((sum, item) => {
+      return sum + Number(item.amount || 0);
     }, 0);
 
     const totalExpense =
@@ -119,7 +117,7 @@ export default function HomePage() {
     return {
       totalIncome,
       totalCreditPayment,
-      futureCreditPayment,
+      deferredCreditPayment,
       totalCreditCardPayment,
       totalOtherPayment,
       totalExpense,
@@ -161,10 +159,6 @@ export default function HomePage() {
       ...current,
       [field]: value,
     }));
-  };
-
-  const saveIncome = () => {
-    alert("Gelir bilgileri kaydedildi.");
   };
 
   const addCredit = () => {
@@ -233,341 +227,290 @@ export default function HomePage() {
     setOtherForm(emptySimpleExpenseForm);
   };
 
-  const deleteCredit = (id) => {
-    setCredits((current) => current.filter((item) => item.id !== id));
-  };
-
-  const deleteCreditCard = (id) => {
-    setCreditCards((current) => current.filter((item) => item.id !== id));
-  };
-
-  const deleteOther = (id) => {
-    setOthers((current) => current.filter((item) => item.id !== id));
-  };
-
   return (
-    <main className="min-h-screen overflow-x-hidden p-5 md:p-8">
-      <div className="mx-auto max-w-7xl">
-        <header className="mb-8">
-          <div className="mb-4 inline-flex rounded-full border border-sky-300/20 bg-sky-400/10 px-4 py-2 text-sm font-bold text-sky-100">
-            Kişisel Finans Yönetimi
-          </div>
+    <main className="finance-page">
+      <div className="finance-container">
+        <section className="hero-card">
+          <div className="hero-badge">Kişisel Finans Yönetimi</div>
 
-          <h1 className="text-4xl font-black tracking-tight text-white md:text-6xl">
-            Gelir ve giderlerini tek panelden yönet.
-          </h1>
+          <h1>Gelir ve giderlerini profesyonel şekilde yönet.</h1>
 
-          <p className="mt-4 max-w-3xl text-base leading-8 text-slate-300">
-            Bu panelde gelirlerini, kredi ödemelerini, kredi kartı giderlerini ve
-            nakit harcamalarını ayrı başlıklar altında takip edebilirsin.
+          <p>
+            Kredilerini, kredi kartı giderlerini, nakit harcamalarını ve gelirlerini
+            tek panelde takip et. Ertelenmiş krediler ödeme tarihi gelince otomatik
+            olarak aylık giderlere dahil edilir.
           </p>
-        </header>
+        </section>
 
-        <section className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
+        <section className="summary-grid">
           <SummaryCard
             title="Toplam Gelir"
             value={formatMoney(totals.totalIncome)}
-            detail="Maaş, ek gelir ve yemek parası"
-            tone="green"
+            detail="Maaş + ek gelir + yemek parası"
+            type="income"
           />
-
           <SummaryCard
             title="Toplam Gider"
             value={formatMoney(totals.totalExpense)}
             detail="Aktif kredi + kart + diğer giderler"
-            tone="red"
+            type="expense"
           />
-
           <SummaryCard
             title="Aylık Kalan"
             value={formatMoney(totals.balance)}
             detail="Gelirlerden giderler düşülür"
-            tone="blue"
+            type="balance"
           />
-
           <SummaryCard
             title="Ertelenen Kredi"
-            value={formatMoney(totals.futureCreditPayment)}
+            value={formatMoney(totals.deferredCreditPayment)}
             detail="Ödeme tarihi gelince gidere eklenir"
-            tone="purple"
+            type="deferred"
           />
         </section>
 
-        <section className="mt-6">
-          <PanelShell
-            title="Gelirler"
-            subtitle="Maaş, ek gelir ve yemek parası bilgilerini buradan yönetebilirsin."
-            open={incomeOpen}
-            onToggle={() => setIncomeOpen((current) => !current)}
+        <Panel
+          title="Gelirler"
+          subtitle="Maaş, ek gelir ve yemek parası bilgilerini buradan yönetebilirsin."
+          totalLabel="Toplam Gelir"
+          totalValue={formatMoney(totals.totalIncome)}
+          open={incomeOpen}
+          onToggle={() => setIncomeOpen((current) => !current)}
+          color="green"
+        >
+          <div className="form-grid three">
+            <InputBox
+              label="Maaş"
+              type="number"
+              value={income.salary}
+              placeholder="0"
+              onChange={(value) => updateIncome("salary", value)}
+            />
+            <InputBox
+              label="Ek Gelir"
+              type="number"
+              value={income.extraIncome}
+              placeholder="0"
+              onChange={(value) => updateIncome("extraIncome", value)}
+            />
+            <InputBox
+              label="Yemek Parası"
+              type="number"
+              value={income.mealAllowance}
+              placeholder="0"
+              onChange={(value) => updateIncome("mealAllowance", value)}
+            />
+          </div>
+        </Panel>
+
+        <Panel
+          title="Giderler"
+          subtitle="Kredi, kredi kartı ve diğer nakit giderlerini ayrı başlıklarda takip edebilirsin."
+          totalLabel="Toplam Gider"
+          totalValue={formatMoney(totals.totalExpense)}
+          open={expensesOpen}
+          onToggle={() => setExpensesOpen((current) => !current)}
+          color="blue"
+        >
+          <ExpenseSection
+            title="Krediler"
+            description="Taksitli krediler burada tutulur. Ödeme başlangıç tarihi gelmeyen krediler toplam gidere eklenmez."
+            totalLabel="Total kredi ödemesi"
+            totalValue={formatMoney(totals.totalCreditPayment)}
+            color="purple"
           >
-            <div className="grid gap-4 md:grid-cols-3">
+            <div className="form-grid four">
               <InputBox
-                label="Maaş"
-                type="number"
-                placeholder="0"
-                value={income.salary}
-                onChange={(value) => updateIncome("salary", value)}
+                label="Kredi Adı"
+                value={creditForm.title}
+                placeholder="Örn: Garanti Kredi"
+                onChange={(value) => updateCreditForm("title", value)}
               />
-
               <InputBox
-                label="Ek Gelir"
+                label="Taksit Tutarı"
                 type="number"
+                value={creditForm.monthlyPayment}
                 placeholder="0"
-                value={income.extraIncome}
-                onChange={(value) => updateIncome("extraIncome", value)}
+                onChange={(value) => updateCreditForm("monthlyPayment", value)}
               />
-
               <InputBox
-                label="Yemek Parası"
+                label="Toplam Taksit"
                 type="number"
+                value={creditForm.totalInstallments}
                 placeholder="0"
-                value={income.mealAllowance}
-                onChange={(value) => updateIncome("mealAllowance", value)}
+                onChange={(value) => updateCreditForm("totalInstallments", value)}
               />
-            </div>
-
-            <div className="mt-5 flex flex-col justify-between gap-3 rounded-3xl border border-emerald-300/20 bg-emerald-500/10 p-4 md:flex-row md:items-center">
-              <div>
-                <div className="text-sm font-bold text-emerald-100">
-                  Toplam Gelir
-                </div>
-                <div className="mt-1 text-2xl font-black text-white">
-                  {formatMoney(totals.totalIncome)}
-                </div>
-              </div>
-
-              <button
-                type="button"
-                onClick={saveIncome}
-                className="primary-button px-5 py-3"
-              >
-                Geliri Kaydet
+              <InputBox
+                label="Kaçıncı Taksit"
+                type="number"
+                value={creditForm.currentInstallment}
+                placeholder="0"
+                onChange={(value) => updateCreditForm("currentInstallment", value)}
+              />
+              <InputBox
+                label="Kalan Borç"
+                type="number"
+                value={creditForm.remainingDebt}
+                placeholder="0"
+                onChange={(value) => updateCreditForm("remainingDebt", value)}
+              />
+              <InputBox
+                label="Ödeme Başlangıç Tarihi"
+                type="date"
+                value={creditForm.paymentStartDate}
+                onChange={(value) => updateCreditForm("paymentStartDate", value)}
+              />
+              <InputBox
+                label="Not"
+                value={creditForm.note}
+                placeholder="Opsiyonel"
+                onChange={(value) => updateCreditForm("note", value)}
+              />
+              <button type="button" className="premium-button" onClick={addCredit}>
+                Kredi Ekle
               </button>
             </div>
-          </PanelShell>
-        </section>
 
-        <section className="mt-6">
-          <PanelShell
-            title="Giderler"
-            subtitle="Kredi, kredi kartı ve diğer nakit giderlerini ayrı ayrı takip edebilirsin."
-            open={expensesOpen}
-            onToggle={() => setExpensesOpen((current) => !current)}
+            <CreditList
+              items={credits}
+              formatMoney={formatMoney}
+              isCreditActive={isCreditActive}
+              onDelete={(id) =>
+                setCredits((current) => current.filter((item) => item.id !== id))
+              }
+            />
+          </ExpenseSection>
+
+          <ExpenseSection
+            title="Kredi Kartı Giderleri"
+            description="Kredi kartı harcamaları veya ekstre tutarları için kullanılır. Bu alanda tarih tutulmaz."
+            totalLabel="Total kredi kartı ödemesi"
+            totalValue={formatMoney(totals.totalCreditCardPayment)}
+            color="red"
           >
-            <ExpenseBlock
-              title="Krediler"
-              totalLabel="Total kredi ödemesi"
-              totalValue={formatMoney(totals.totalCreditPayment)}
-              helperText="Ödeme başlangıç tarihi gelmeyen krediler toplam gidere eklenmez."
-            >
-              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-                <InputBox
-                  label="Kredi Adı"
-                  placeholder="Örn: Garanti Kredi"
-                  value={creditForm.title}
-                  onChange={(value) => updateCreditForm("title", value)}
-                />
+            <SimpleExpenseForm
+              form={creditCardForm}
+              onChange={updateCreditCardForm}
+              onAdd={addCreditCardExpense}
+              buttonText="Kart Gideri Ekle"
+            />
 
-                <InputBox
-                  label="Taksit Tutarı"
-                  type="number"
-                  placeholder="0"
-                  value={creditForm.monthlyPayment}
-                  onChange={(value) =>
-                    updateCreditForm("monthlyPayment", value)
-                  }
-                />
+            <SimpleList
+              items={creditCards}
+              formatMoney={formatMoney}
+              onDelete={(id) =>
+                setCreditCards((current) =>
+                  current.filter((item) => item.id !== id)
+                )
+              }
+            />
+          </ExpenseSection>
 
-                <InputBox
-                  label="Toplam Taksit"
-                  type="number"
-                  placeholder="0"
-                  value={creditForm.totalInstallments}
-                  onChange={(value) =>
-                    updateCreditForm("totalInstallments", value)
-                  }
-                />
+          <ExpenseSection
+            title="Diğer Nakit Giderler"
+            description="Nakit, havale veya kart dışı harcamalarını buradan takip edebilirsin."
+            totalLabel="Total diğer ödemeler"
+            totalValue={formatMoney(totals.totalOtherPayment)}
+            color="orange"
+          >
+            <SimpleExpenseForm
+              form={otherForm}
+              onChange={updateOtherForm}
+              onAdd={addOtherExpense}
+              buttonText="Diğer Gider Ekle"
+            />
 
-                <InputBox
-                  label="Kaçıncı Taksit"
-                  type="number"
-                  placeholder="0"
-                  value={creditForm.currentInstallment}
-                  onChange={(value) =>
-                    updateCreditForm("currentInstallment", value)
-                  }
-                />
-
-                <InputBox
-                  label="Kalan Borç"
-                  type="number"
-                  placeholder="0"
-                  value={creditForm.remainingDebt}
-                  onChange={(value) =>
-                    updateCreditForm("remainingDebt", value)
-                  }
-                />
-
-                <InputBox
-                  label="Ödeme Başlangıç Tarihi"
-                  type="date"
-                  value={creditForm.paymentStartDate}
-                  onChange={(value) =>
-                    updateCreditForm("paymentStartDate", value)
-                  }
-                />
-
-                <InputBox
-                  label="Not"
-                  placeholder="Opsiyonel"
-                  value={creditForm.note}
-                  onChange={(value) => updateCreditForm("note", value)}
-                />
-
-                <div className="flex items-end">
-                  <button
-                    type="button"
-                    onClick={addCredit}
-                    className="primary-button w-full px-5 py-4"
-                  >
-                    Kredi Ekle
-                  </button>
-                </div>
-              </div>
-
-              <CreditList
-                items={credits}
-                formatMoney={formatMoney}
-                isCreditPaymentActive={isCreditPaymentActive}
-                onDelete={deleteCredit}
-              />
-            </ExpenseBlock>
-
-            <ExpenseBlock
-              title="Kredi Kartı Giderleri"
-              totalLabel="Total kredi kartı ödemesi"
-              totalValue={formatMoney(totals.totalCreditCardPayment)}
-              helperText="Bu alanda tarih tutulmaz. Kart ekstresi veya kart harcamaları için kullanılır."
-            >
-              <SimpleExpenseForm
-                form={creditCardForm}
-                onChange={updateCreditCardForm}
-                onAdd={addCreditCardExpense}
-                buttonText="Kart Gideri Ekle"
-              />
-
-              <SimpleExpenseList
-                items={creditCards}
-                formatMoney={formatMoney}
-                onDelete={deleteCreditCard}
-              />
-            </ExpenseBlock>
-
-            <ExpenseBlock
-              title="Diğer Nakit Giderler"
-              totalLabel="Total diğer ödemeler"
-              totalValue={formatMoney(totals.totalOtherPayment)}
-              helperText="Nakit, havale veya kart dışı günlük giderleri buradan takip edebilirsin."
-            >
-              <SimpleExpenseForm
-                form={otherForm}
-                onChange={updateOtherForm}
-                onAdd={addOtherExpense}
-                buttonText="Diğer Gider Ekle"
-              />
-
-              <SimpleExpenseList
-                items={others}
-                formatMoney={formatMoney}
-                onDelete={deleteOther}
-              />
-            </ExpenseBlock>
-          </PanelShell>
-        </section>
+            <SimpleList
+              items={others}
+              formatMoney={formatMoney}
+              onDelete={(id) =>
+                setOthers((current) => current.filter((item) => item.id !== id))
+              }
+            />
+          </ExpenseSection>
+        </Panel>
       </div>
     </main>
   );
 }
 
-function SummaryCard({ title, value, detail, tone }) {
-  const toneClass =
-    tone === "green"
-      ? "border-emerald-300/20 bg-emerald-500/10"
-      : tone === "red"
-      ? "border-rose-300/20 bg-rose-500/10"
-      : tone === "blue"
-      ? "border-sky-300/20 bg-sky-500/10"
-      : "border-purple-300/20 bg-purple-500/10";
-
+function SummaryCard({ title, value, detail, type }) {
   return (
-    <div className={`rounded-[28px] border p-6 ${toneClass}`}>
-      <div className="text-sm font-bold uppercase tracking-[0.16em] text-slate-300">
-        {title}
-      </div>
-      <div className="mt-3 break-words text-3xl font-black text-white">
-        {value}
-      </div>
-      <div className="mt-2 text-sm leading-6 text-slate-400">{detail}</div>
-    </div>
+    <article className={`summary-card ${type}`}>
+      <div className="summary-label">{title}</div>
+      <div className="summary-value">{value}</div>
+      <div className="summary-detail">{detail}</div>
+    </article>
   );
 }
 
-function PanelShell({ title, subtitle, open, onToggle, children }) {
+function Panel({
+  title,
+  subtitle,
+  totalLabel,
+  totalValue,
+  open,
+  onToggle,
+  color,
+  children,
+}) {
   return (
-    <div className="glass-card rounded-[28px] p-5 md:p-6">
-      <button
-        type="button"
-        onClick={onToggle}
-        className="flex w-full items-center justify-between gap-4 text-left"
-      >
+    <section className={`panel-card ${color}`}>
+      <button type="button" className="panel-header" onClick={onToggle}>
         <div>
-          <h2 className="text-2xl font-black text-white">{title}</h2>
-          <p className="mt-1 text-sm leading-6 text-slate-400">{subtitle}</p>
+          <h2>{title}</h2>
+          <p>{subtitle}</p>
         </div>
 
-        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.06] text-xl font-black text-white">
-          {open ? "−" : "+"}
+        <div className="panel-actions">
+          <div className="panel-total">
+            <span>{totalLabel}</span>
+            <strong>{totalValue}</strong>
+          </div>
+          <div className="toggle-button">{open ? "−" : "+"}</div>
         </div>
       </button>
 
-      {open ? <div className="mt-6 space-y-6">{children}</div> : null}
-    </div>
+      {open ? <div className="panel-body">{children}</div> : null}
+    </section>
   );
 }
 
-function ExpenseBlock({ title, totalLabel, totalValue, helperText, children }) {
+function ExpenseSection({
+  title,
+  description,
+  totalLabel,
+  totalValue,
+  color,
+  children,
+}) {
   return (
-    <div className="rounded-[26px] border border-white/10 bg-slate-950/35 p-5">
-      <div className="mb-5 flex flex-col justify-between gap-3 xl:flex-row xl:items-center">
+    <section className={`expense-section ${color}`}>
+      <div className="section-top">
         <div>
-          <h3 className="text-xl font-black text-white">{title}</h3>
-          <p className="mt-1 text-sm leading-6 text-slate-400">{helperText}</p>
+          <h3>{title}</h3>
+          <p>{description}</p>
         </div>
 
-        <div className="rounded-2xl border border-sky-300/20 bg-sky-500/10 px-4 py-3">
-          <div className="text-xs font-bold uppercase tracking-[0.14em] text-sky-100">
-            {totalLabel}
-          </div>
-          <div className="mt-1 text-xl font-black text-white">{totalValue}</div>
+        <div className="section-total">
+          <span>{totalLabel}</span>
+          <strong>{totalValue}</strong>
         </div>
       </div>
 
-      <div className="space-y-5">{children}</div>
-    </div>
+      <div className="section-content">{children}</div>
+    </section>
   );
 }
 
 function InputBox({ label, value, onChange, type = "text", placeholder = "" }) {
   return (
-    <label className="block">
-      <span className="mb-2 block text-sm font-bold text-slate-300">
-        {label}
-      </span>
+    <label className="input-box">
+      <span>{label}</span>
       <input
-        className="input-field"
         type={type}
-        placeholder={placeholder}
         value={value}
+        placeholder={placeholder}
         onChange={(event) => onChange(event.target.value)}
       />
     </label>
@@ -576,115 +519,85 @@ function InputBox({ label, value, onChange, type = "text", placeholder = "" }) {
 
 function SimpleExpenseForm({ form, onChange, onAdd, buttonText }) {
   return (
-    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+    <div className="form-grid four">
       <InputBox
         label="Gider Adı"
-        placeholder="Örn: Market"
         value={form.title}
+        placeholder="Örn: Market"
         onChange={(value) => onChange("title", value)}
       />
-
       <InputBox
         label="Kategori"
-        placeholder="Örn: Alışveriş"
         value={form.category}
+        placeholder="Örn: Alışveriş"
         onChange={(value) => onChange("category", value)}
       />
-
       <InputBox
         label="Tutar"
         type="number"
-        placeholder="0"
         value={form.amount}
+        placeholder="0"
         onChange={(value) => onChange("amount", value)}
       />
-
       <InputBox
         label="Not"
-        placeholder="Opsiyonel"
         value={form.note}
+        placeholder="Opsiyonel"
         onChange={(value) => onChange("note", value)}
       />
 
-      <div className="md:col-span-2 xl:col-span-4">
-        <button
-          type="button"
-          onClick={onAdd}
-          className="primary-button w-full px-5 py-4"
-        >
-          {buttonText}
-        </button>
-      </div>
+      <button type="button" className="premium-button wide" onClick={onAdd}>
+        {buttonText}
+      </button>
     </div>
   );
 }
 
-function CreditList({ items, formatMoney, isCreditPaymentActive, onDelete }) {
+function CreditList({ items, formatMoney, isCreditActive, onDelete }) {
   if (items.length === 0) {
     return <EmptyState text="Henüz kredi kaydı bulunmuyor." />;
   }
 
   return (
-    <div className="space-y-3">
+    <div className="record-list">
       {items.map((item) => {
-        const active = isCreditPaymentActive(item.paymentStartDate);
+        const active = isCreditActive(item.paymentStartDate);
 
         return (
-          <div
-            key={item.id}
-            className="rounded-3xl border border-white/10 bg-white/[0.045] p-4"
-          >
-            <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-start">
-              <div className="min-w-0">
-                <div className="flex flex-wrap items-center gap-2">
-                  <h4 className="text-lg font-black text-white">{item.title}</h4>
-                  <span
-                    className={`rounded-full px-3 py-1 text-xs font-black ${
-                      active
-                        ? "bg-emerald-500/10 text-emerald-100"
-                        : "bg-amber-500/10 text-amber-100"
-                    }`}
-                  >
-                    {active ? "Aktif gider" : "Ödeme tarihi bekleniyor"}
-                  </span>
-                </div>
-
-                <div className="mt-3 grid gap-3 text-sm text-slate-300 md:grid-cols-2 xl:grid-cols-4">
-                  <InfoLine
-                    label="Taksit Tutarı"
-                    value={formatMoney(item.monthlyPayment)}
-                  />
-                  <InfoLine
-                    label="Taksit Durumu"
-                    value={`${item.currentInstallment || 0} / ${
-                      item.totalInstallments || 0
-                    }`}
-                  />
-                  <InfoLine
-                    label="Kalan Borç"
-                    value={formatMoney(item.remainingDebt)}
-                  />
-                  <InfoLine
-                    label="Başlangıç"
-                    value={item.paymentStartDate || "Hemen aktif"}
-                  />
-                </div>
-
-                {item.note ? (
-                  <p className="mt-3 text-sm leading-6 text-slate-400">
-                    {item.note}
-                  </p>
-                ) : null}
+          <div key={item.id} className="record-card">
+            <div className="record-main">
+              <div className="record-title-row">
+                <h4>{item.title}</h4>
+                <span className={active ? "status active" : "status waiting"}>
+                  {active ? "Aktif gider" : "Ödeme tarihi bekleniyor"}
+                </span>
               </div>
 
-              <button
-                type="button"
-                onClick={() => onDelete(item.id)}
-                className="rounded-2xl border border-red-300/20 bg-red-500/10 px-4 py-3 text-sm font-black text-red-200"
-              >
-                Sil
-              </button>
+              <div className="credit-info-grid">
+                <InfoBox label="Taksit Tutarı" value={formatMoney(item.monthlyPayment)} />
+                <InfoBox
+                  label="Taksit Durumu"
+                  value={`${item.currentInstallment || 0} / ${
+                    item.totalInstallments || 0
+                  }`}
+                />
+                <InfoBox label="Kalan Borç" value={formatMoney(item.remainingDebt)} />
+                <InfoBox
+                  label="Başlangıç"
+                  value={item.paymentStartDate || "Hemen aktif"}
+                />
+              </div>
+
+              {item.note ? <p className="record-note">{item.note}</p> : null}
             </div>
+
+            <button
+              type="button"
+              className="delete-button"
+              onClick={() => onDelete(item.id)}
+            >
+              Sil
+            </button>
           </div>
         );
       })}
@@ -692,40 +605,29 @@ function CreditList({ items, formatMoney, isCreditPaymentActive, onDelete }) {
   );
 }
 
-function SimpleExpenseList({ items, formatMoney, onDelete }) {
+function SimpleList({ items, formatMoney, onDelete }) {
   if (items.length === 0) {
     return <EmptyState text="Henüz kayıt bulunmuyor." />;
   }
 
   return (
-    <div className="space-y-3">
+    <div className="record-list">
       {items.map((item) => (
-        <div
-          key={item.id}
-          className="flex flex-col justify-between gap-4 rounded-3xl border border-white/10 bg-white/[0.045] p-4 md:flex-row md:items-center"
-        >
-          <div className="min-w-0">
-            <div className="text-lg font-black text-white">{item.title}</div>
-            <div className="mt-1 flex flex-wrap gap-2 text-sm text-slate-400">
-              <span>{item.category}</span>
-              {item.note ? (
-                <>
-                  <span>•</span>
-                  <span>{item.note}</span>
-                </>
-              ) : null}
-            </div>
+        <div key={item.id} className="record-card simple">
+          <div>
+            <h4>{item.title}</h4>
+            <p>
+              {item.category}
+              {item.note ? ` • ${item.note}` : ""}
+            </p>
           </div>
 
-          <div className="flex items-center justify-between gap-4 md:justify-end">
-            <div className="text-lg font-black text-white">
-              {formatMoney(item.amount)}
-            </div>
-
+          <div className="record-side">
+            <strong>{formatMoney(item.amount)}</strong>
             <button
               type="button"
+              className="delete-button"
               onClick={() => onDelete(item.id)}
-              className="rounded-2xl border border-red-300/20 bg-red-500/10 px-4 py-3 text-sm font-black text-red-200"
             >
               Sil
             </button>
@@ -736,24 +638,22 @@ function SimpleExpenseList({ items, formatMoney, onDelete }) {
   );
 }
 
-function InfoLine({ label, value }) {
+function InfoBox({ label, value }) {
   return (
-    <div className="rounded-2xl border border-white/10 bg-slate-950/30 p-3">
-      <div className="text-xs font-bold uppercase tracking-[0.12em] text-slate-500">
-        {label}
-      </div>
-      <div className="mt-1 break-words font-black text-white">{value}</div>
+    <div className="info-box">
+      <span>{label}</span>
+      <strong>{value}</strong>
     </div>
   );
 }
 
 function EmptyState({ text }) {
   return (
-    <div className="rounded-3xl border border-dashed border-slate-500/35 bg-slate-950/35 p-6 text-center">
-      <div className="text-base font-black text-white">{text}</div>
-      <p className="mt-2 text-sm leading-6 text-slate-400">
-        Yeni kayıt eklediğinde liste burada görüntülenecek.
-      </p>
+    <div className="empty-state">
+      <strong>{text}</strong>
+      <span>Yeni kayıt eklediğinde bu alanda görünecek.</span>
     </div>
   );
 }
+
+
