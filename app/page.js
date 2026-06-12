@@ -1,18 +1,19 @@
 "use client";
 
-import { useEffect, useMemo useState(false);import { useEffect, useMemo, useState } from "react";
-  const [items, setItems] = useState([]);
-  const [form, setForm] = useState(initialForm);
+import { useEffect, use(false);import { useEffect, useMemo, useState } from "react";
+  const [expenses, setExpenses] = useState([]);
+  const [form, setForm] = useState(emptyForm);
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
     try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        setItems(JSON.parse(saved));
+      const savedData = localStorage.getItem(STORAGE_KEY);
+
+      if (savedData) {
+        setExpenses(JSON.parse(savedData));
       }
     } catch {
-      setItems([]);
+      setExpenses([]);
     } finally {
       setLoaded(true);
     }
@@ -20,25 +21,17 @@ import { useEffect, useMemo useState(false);import { useEffect, useMemo, useStat
 
   useEffect(() => {
     if (loaded) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(expenses));
     }
-  }, [items, loaded]);
+  }, [expenses, loaded]);
 
-  const totals = useMemo(() => {
-    const totalExpense = items.reduce(
-      (sum, item) => sum + Number(item.amount || 0),
-      0
-    );
+  const totalExpense = useMemo(() => {
+    return expenses.reduce((total, item) => {
+      return total + Number(item.amount || 0);
+    }, 0);
+  }, [expenses]);
 
-    return {
-      totalIncome: 0,
-      totalExpense,
-      balance: 0 - totalExpense,
-      totalCount: items.length,
-    };
-  }, [items]);
-
-  const formatCurrency = (value) => {
+  const formatMoney = (value) => {
     return new Intl.NumberFormat("tr-TR", {
       style: "currency",
       currency: "TRY",
@@ -46,39 +39,40 @@ import { useEffect, useMemo useState(false);import { useEffect, useMemo, useStat
     }).format(Number(value || 0));
   };
 
-  const handleChange = (field, value) => {
-    setForm((current) => ({
-      ...current,
+  const updateForm = (field, value) => {
+    setForm((currentForm) => ({
+      ...currentForm,
       [field]: value,
     }));
   };
 
-  const handleAddExpense = () => {
-    const cleanTitle = form.title.trim();
-    const amountNumber = Number(form.amount);
+  const addExpense = () => {
+    const title = form.title.trim();
+    const amount = Number(form.amount);
 
-    if (!cleanTitle || !amountNumber || amountNumber <= 0) {
+    if (!title || !amount || amount <= 0) {
       alert("Lütfen gider adı ve geçerli tutar gir.");
       return;
     }
 
-    const newItem = {
-      id: crypto.randomUUID(),
-      title: cleanTitle,
+    const newExpense = {
+      id: Date.now().toString(),
+      title,
       category: form.category.trim() || "Genel",
-      amount: amountNumber,
+      amount,
       date: form.date || new Date().toISOString().slice(0, 10),
       description: form.description.trim(),
-      createdAt: new Date().toISOString(),
     };
 
-    setItems((current) => [newItem, ...current]);
-    setForm(initialForm);
+    setExpenses((currentExpenses) => [newExpense, ...currentExpenses]);
+    setForm(emptyForm);
     setExpensesOpen(true);
   };
 
-  const handleDeleteExpense = (id) => {
-    setItems((current) => current.filter((item) => item.id !== id));
+  const deleteExpense = (id) => {
+    setExpenses((currentExpenses) => {
+      return currentExpenses.filter((item) => item.id !== id);
+    });
   };
 
   return (
@@ -87,7 +81,6 @@ import { useEffect, useMemo useState(false);import { useEffect, useMemo, useStat
         <header className="mb-8 flex flex-col justify-between gap-5 md:flex-row md:items-center">
           <div>
             <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-sky-300/20 bg-sky-400/10 px-4 py-2 text-sm font-bold text-sky-100">
-              <WalletCards size={16} />
               Kişisel Yönetim Paneli
             </div>
 
@@ -105,7 +98,6 @@ import { useEffect, useMemo useState(false);import { useEffect, useMemo, useStat
             href="/egitim-notlari"
             className="primary-button inline-flex items-center justify-center gap-2 px-5 py-4"
           >
-            <BookOpen size={19} />
             Eğitim Notları
           </a>
         </header>
@@ -113,34 +105,26 @@ import { useEffect, useMemo useState(false);import { useEffect, useMemo, useStat
         <section className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
           <SummaryCard
             title="Toplam Gelir"
-            value={formatCurrency(totals.totalIncome)}
+            value={formatMoney(0)}
             detail="Henüz gelir kaydı yok"
-            icon={PiggyBank}
-            color="from-emerald-400 to-teal-500"
           />
 
           <SummaryCard
             title="Toplam Gider"
-            value={formatCurrency(totals.totalExpense)}
-            detail={`${totals.totalCount} gider kaydı`}
-            icon={WalletCards}
-            color="from-rose-400 to-red-500"
+            value={formatMoney(totalExpense)}
+            detail={`${expenses.length} gider kaydı`}
           />
 
           <SummaryCard
             title="Kalan Tutar"
-            value={formatCurrency(totals.balance)}
+            value={formatMoney(0 - totalExpense)}
             detail="Gelir - gider sonucu"
-            icon={Landmark}
-            color="from-sky-400 to-blue-600"
           />
 
           <SummaryCard
             title="Kayıt Sayısı"
-            value={`${totals.totalCount}`}
+            value={expenses.length}
             detail="Toplam gider hareketi"
-            icon={BookOpen}
-            color="from-fuchsia-400 to-purple-600"
           />
         </section>
 
@@ -148,7 +132,7 @@ import { useEffect, useMemo useState(false);import { useEffect, useMemo, useStat
           <div className="glass-card rounded-[28px] p-6">
             <button
               type="button"
-              onClick={() => setExpensesOpen((value) => !value)}
+              onClick={() => setExpensesOpen((current) => !current)}
               className="flex w-full items-center justify-between gap-4 text-left"
             >
               <div>
@@ -159,18 +143,17 @@ import { useEffect, useMemo useState(false);import { useEffect, useMemo, useStat
                 </p>
               </div>
 
-              <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.06] text-white">
-                {expensesOpen ? <ChevronUp size={24} /> : <ChevronDown size={24} />}
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.06] text-xl font-black text-white">
+                {expensesOpen ? "−" : "+"}
               </div>
             </button>
 
             {expensesOpen ? (
               <div className="mt-6 space-y-6">
                 <div className="rounded-3xl border border-white/10 bg-white/[0.045] p-5">
-                  <div className="mb-4 flex items-center gap-2">
-                    <Plus size={18} className="text-sky-200" />
-                    <h3 className="text-lg font-black text-white">Yeni Gider Ekle</h3>
-                  </div>
+                  <h3 className="mb-4 text-lg font-black text-white">
+                    Yeni Gider Ekle
+                  </h3>
 
                   <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
                     <label className="block">
@@ -181,7 +164,9 @@ import { useEffect, useMemo useState(false);import { useEffect, useMemo, useStat
                         className="input-field"
                         placeholder="Örn: Elektrik"
                         value={form.title}
-                        onChange={(event) => handleChange("title", event.target.value)}
+                        onChange={(event) =>
+                          updateForm("title", event.target.value)
+                        }
                       />
                     </label>
 
@@ -194,7 +179,7 @@ import { useEffect, useMemo useState(false);import { useEffect, useMemo, useStat
                         placeholder="Örn: Sabit Gider"
                         value={form.category}
                         onChange={(event) =>
-                          handleChange("category", event.target.value)
+                          updateForm("category", event.target.value)
                         }
                       />
                     </label>
@@ -208,7 +193,9 @@ import { useEffect, useMemo useState(false);import { useEffect, useMemo, useStat
                         type="number"
                         placeholder="0"
                         value={form.amount}
-                        onChange={(event) => handleChange("amount", event.target.value)}
+                        onChange={(event) =>
+                          updateForm("amount", event.target.value)
+                        }
                       />
                     </label>
 
@@ -220,17 +207,18 @@ import { useEffect, useMemo useState(false);import { useEffect, useMemo, useStat
                         className="input-field"
                         type="date"
                         value={form.date}
-                        onChange={(event) => handleChange("date", event.target.value)}
+                        onChange={(event) =>
+                          updateForm("date", event.target.value)
+                        }
                       />
                     </label>
 
                     <div className="flex items-end">
                       <button
                         type="button"
-                        onClick={handleAddExpense}
-                        className="primary-button flex w-full items-center justify-center gap-2 px-5 py-4"
+                        onClick={addExpense}
+                        className="primary-button w-full px-5 py-4"
                       >
-                        <Plus size={18} />
                         Ekle
                       </button>
                     </div>
@@ -245,7 +233,7 @@ import { useEffect, useMemo useState(false);import { useEffect, useMemo, useStat
                       placeholder="İstersen açıklama ekleyebilirsin."
                       value={form.description}
                       onChange={(event) =>
-                        handleChange("description", event.target.value)
+                        updateForm("description", event.target.value)
                       }
                     />
                   </label>
@@ -254,22 +242,21 @@ import { useEffect, useMemo useState(false);import { useEffect, useMemo, useStat
                 <div>
                   <div className="mb-4 flex flex-col justify-between gap-2 md:flex-row md:items-end">
                     <div>
-                      <h3 className="text-xl font-black text-white">Tüm Giderler</h3>
+                      <h3 className="text-xl font-black text-white">
+                        Tüm Giderler
+                      </h3>
                       <p className="mt-1 text-sm text-slate-400">
                         Eklediğin tüm giderler burada listelenir.
                       </p>
                     </div>
 
                     <div className="rounded-2xl border border-rose-300/20 bg-rose-500/10 px-4 py-3 text-sm font-black text-rose-100">
-                      Toplam: {formatCurrency(totals.totalExpense)}
+                      Toplam: {formatMoney(totalExpense)}
                     </div>
                   </div>
 
-                  {items.length === 0 ? (
+                  {expenses.length === 0 ? (
                     <div className="rounded-3xl border border-dashed border-slate-500/35 bg-slate-950/35 p-8 text-center">
-                      <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-3xl bg-sky-400/10 text-sky-200">
-                        <WalletCards size={30} />
-                      </div>
                       <h4 className="text-xl font-black text-white">
                         Henüz gider kaydı yok
                       </h4>
@@ -279,13 +266,15 @@ import { useEffect, useMemo useState(false);import { useEffect, useMemo, useStat
                     </div>
                   ) : (
                     <div className="space-y-3">
-                      {items.map((item) => (
+                      {expenses.map((item) => (
                         <div
                           key={item.id}
                           className="flex flex-col justify-between gap-4 rounded-3xl border border-white/10 bg-white/[0.045] p-4 md:flex-row md:items-center"
                         >
                           <div>
-                            <div className="font-black text-white">{item.title}</div>
+                            <div className="font-black text-white">
+                              {item.title}
+                            </div>
                             <div className="mt-1 flex flex-wrap gap-2 text-sm text-slate-400">
                               <span>{item.category}</span>
                               <span>•</span>
@@ -301,16 +290,15 @@ import { useEffect, useMemo useState(false);import { useEffect, useMemo, useStat
 
                           <div className="flex items-center justify-between gap-4 md:justify-end">
                             <div className="text-lg font-black text-white">
-                              {formatCurrency(item.amount)}
+                              {formatMoney(item.amount)}
                             </div>
 
                             <button
                               type="button"
-                              onClick={() => handleDeleteExpense(item.id)}
-                              className="flex h-11 w-11 items-center justify-center rounded-2xl border border-red-300/20 bg-red-500/10 text-red-200"
-                              aria-label="Gideri sil"
+                              onClick={() => deleteExpense(item.id)}
+                              className="rounded-2xl border border-red-300/20 bg-red-500/10 px-4 py-3 text-sm font-black text-red-200"
                             >
-                              <Trash2 size={18} />
+                              Sil
                             </button>
                           </div>
                         </div>
@@ -327,15 +315,9 @@ import { useEffect, useMemo useState(false);import { useEffect, useMemo, useStat
   );
 }
 
-function SummaryCard({ icon: Icon, title, value, detail, color }) {
+function SummaryCard({ title, value, detail }) {
   return (
     <div className="glass-card rounded-[28px] p-6">
-      <div
-        className={`mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br ${color} text-white shadow-lg`}
-      >
-        <Icon size={25} />
-      </div>
-
       <div className="text-sm font-bold uppercase tracking-[0.18em] text-slate-400">
         {title}
       </div>
@@ -346,20 +328,10 @@ function SummaryCard({ icon: Icon, title, value, detail, color }) {
     </div>
   );
 }
-import {
-  BookOpen,
-  ChevronDown,
-  ChevronUp,
-  Landmark,
-  PiggyBank,
-  Plus,
-  Trash2,
-  WalletCards,
-} from "lucide-react";
 
 const STORAGE_KEY = "kisisel-panel-finans-v1";
 
-const initialForm = {
+const emptyForm = {
   title: "",
   category: "",
   amount: "",
