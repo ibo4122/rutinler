@@ -1,28 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowLeft, BookOpen, ImagePlus, Plus } from "lucide-react";
-
-export default function EducationNotesPage() {
-  return (
-    <main className="min-h-screen p-5 md:p-8">
-      <div className="mx-auto max-w-7xl">
-        <header className="mb-8 flex flex-col justify-between gap-5 md:flex-row md:items-center">
-          <div>
-            <Link
-              href="/"
-              className="mb-4 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.05] px-4 py-2 text-sm font-bold text-slate-200"
-           -purple-400/10 px-4 py-2 text-sm font-bold text-purple-100">
-              <BookOpen size={16} />
-              Eğitim Notları
-            </div>
-
-            <h1 className="text-4xl font-black tracking-tight text-white md:text-6xl">
-              Ders notlarını ayrı bir alanda yönet.
-            </h1>
-
-            <p className="mt-4 max-w-3xl text-base leading-8 text-slate-300">
-              SQL, Fraud, Frontend veya kişisel eğitim notlarını burada tutacağız.
+import { ArrowLeft, BookOpen SQL, Fraud, Frontend veya kişisel eğitim notlarını burada tutacağız.import { ArrowLeft, BookOpen, ImagePlus, Plus } from "lucide-react";
               Sonraki adımda klasör, metin editörü ve görsel ekleme özelliklerini aktif edeceğiz.
             </p>
           </div>
@@ -69,3 +48,28 @@ export default function EducationNotesPage() {
     </main>
   );
 }
+
+export default function EducationNotesPage() {
+  return (
+    <main className="min-h-screen p-5 md:p-8">
+      <div className="mx-auto max-w-7xl">
+        <header className="mb-8 flex flex-col justify-between gap-5 md:flex-row md:items-center">
+          <div>
+            <Link
+              href="/"
+              className="mb-4 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.05] px-4 py-2 text-sm font-bold text-slate-200"
+            >
+              <ArrowLeft size={16} />
+              Ana Panele Dön
+            </Link>
+
+            <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-purple-300/20 bg-purple-400/10 px-4 py-2 text-sm font-bold text-purple-100">
+              <BookOpen size={16} />
+              Eğitim Notları
+            </div>
+
+            <h1 className="text-4xl font-black tracking-tight text-white md:text-6xl">
+              Ders notlarını ayrı bir alanda yönet.
+            </h1>
+
+            <p className="mt-4 max-w-3xl text-base leading-8 text-slate-300">
