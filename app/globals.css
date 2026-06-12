@@ -132,7 +132,9 @@ button {
     rgba(248, 250, 252, 0.1);
 }
 
+/* Kapanış parantezi eklenerek hata düzeltildi */
 .panelCard.blue {
   background:
     linear-gradient(145deg, rgba(59, 130, 246, 0.16), rgba(15, 23, 42, 0.68)),
     rgba(248, 250, 252, 0.1);
+}
