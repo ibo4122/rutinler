@@ -1,23 +1,13 @@
 "use client";
 
-import { ArrowLeft, BookOpen, ImagePlus, Plus } from "lucide-react";
-
 export default function EducationNotesPage() {
   return (
-    <main className="min-h-screen p-5 md:p-8">
-      <div className="mx-auto max-w-7xl">
-        <header className="mb-8 flex flex-col justify-between gap-5 md:flex-row md:items-center">
+    <main className="min-h-center">    <main className="min-h-screen p-5 md:p-8">
           <div>
             <a
               href="/"
               className="mb-4 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.05] px-4 py-2 text-sm font-bold text-slate-200"
-            >
-              <ArrowLeft size={16} />
-              Ana Panele Dön
-            </a>
-
-            <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-purple-300/20 bg-purple-400/10 px-4 py-2 text-sm font-bold text-purple-100">
-              <BookOpen size={16} />
+           bold text-purple-100">
               Eğitim Notları
             </div>
 
@@ -26,14 +16,13 @@ export default function EducationNotesPage() {
             </h1>
 
             <p className="mt-4 max-w-3xl text-base leading-8 text-slate-300">
-              SQL, Fraud, Frontend veya kişisel eğitim notlarını burada tutacağız.
-              Sonraki adımda klasör, metin editörü ve görsel ekleme özelliklerini
-              aktif edeceğiz.
+              SQL, Fraud, Frontend veya kişisel eğitim notlarını burada
+              tutacağız. Sonraki adımda klasör, metin editörü ve görsel ekleme
+              özelliklerini aktif edeceğiz.
             </p>
           </div>
 
           <button className="primary-button inline-flex items-center justify-center gap-2 px-5 py-4">
-            <Plus size={19} />
             Yeni Not
           </button>
         </header>
@@ -47,7 +36,6 @@ export default function EducationNotesPage() {
             </p>
 
             <div className="mt-6 rounded-3xl border border-dashed border-slate-500/35 bg-slate-950/35 p-8 text-center">
-              <BookOpen size={34} className="mx-auto text-purple-200" />
               <h3 className="mt-4 text-xl font-black text-white">
                 Henüz klasör yok
               </h3>
@@ -64,7 +52,6 @@ export default function EducationNotesPage() {
             </p>
 
             <div className="mt-6 rounded-3xl border border-dashed border-slate-500/35 bg-slate-950/35 p-8 text-center">
-              <ImagePlus size={38} className="mx-auto text-sky-200" />
               <h3 className="mt-4 text-xl font-black text-white">
                 Henüz not yok
               </h3>
@@ -79,3 +66,4 @@ export default function EducationNotesPage() {
     </main>
   );
 }
+      <div className="mx-auto max-w-7xl">
