@@ -1,4 +1,14 @@
-"use client";"use client "lucide-react";
+"use client";
+
+import {
+  BookOpen,
+  ChartPie,
+  GraduationCap,
+  Landmark,
+  PiggyBank,
+  Plus,
+  WalletCards,
+} from "lucide-react";
 
 const summaryCards = [
   {
@@ -6,42 +16,42 @@ const summaryCards = [
     value: "110.000 TL",
     detail: "Aylık maaş ve ek gelir",
     icon: PiggyBank,
-    color: "from-emerald-400 to-teal-500"
+    color: "from-emerald-400 to-teal-500",
   },
   {
     title: "Toplam Gider",
     value: "108.910 TL",
     detail: "Sabit gider, kredi ve alışveriş",
     icon: WalletCards,
-    color: "from-rose-400 to-red-500"
+    color: "from-rose-400 to-red-500",
   },
   {
     title: "Kalan Tutar",
     value: "1.090 TL",
     detail: "Aylık net kalan",
     icon: Landmark,
-    color: "from-sky-400 to-blue-600"
+    color: "from-sky-400 to-blue-600",
   },
   {
     title: "Eğitim Notları",
     value: "0 Not",
     detail: "SQL, Fraud, Frontend klasörleri",
     icon: BookOpen,
-    color: "from-fuchsia-400 to-purple-600"
-  }
+    color: "from-fuchsia-400 to-purple-600",
+  },
 ];
 
 const expenses = [
   { title: "Kredi Kartı", type: "Borç", amount: "104.170 TL" },
   { title: "ING Kredi", type: "Kredi", amount: "27.000 TL" },
   { title: "Yol Gideri", type: "Sabit Gider", amount: "3.500 TL" },
-  { title: "Eğitimler", type: "Planlı Gider", amount: "10.000 TL" }
+  { title: "Eğitimler", type: "Planlı Gider", amount: "10.000 TL" },
 ];
 
 const folders = [
   { title: "SQL", text: "Sorgu mantığı, SELECT, JOIN ve proje notları" },
   { title: "Fraud", text: "MCC, işlem analizi ve vaka notları" },
-  { title: "Frontend", text: "Next.js, React ve UI geliştirme notları" }
+  { title: "Frontend", text: "Next.js, React ve UI geliştirme notları" },
 ];
 
 export default function HomePage() {
@@ -134,7 +144,7 @@ export default function HomePage() {
 
           <div className="glass-card rounded-[28px] p-6">
             <div className="mb-6 flex items-center gap-3">
-              <div className="flex h-13 w-13 items-center justify-center rounded-2xl bg-purple-500/15 text-purple-200">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-purple-500/15 text-purple-200">
                 <GraduationCap size={26} />
               </div>
 
@@ -165,7 +175,7 @@ export default function HomePage() {
         <section className="mt-6 grid gap-5 lg:grid-cols-2">
           <div className="glass-card rounded-[28px] p-6">
             <div className="mb-5 flex items-center gap-3">
-              <div className="flex h-13 w-13 items-center justify-center rounded-2xl bg-sky-500/15 text-sky-200">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-sky-500/15 text-sky-200">
                 <ChartPie size={25} />
               </div>
 
@@ -197,12 +207,3 @@ export default function HomePage() {
     </main>
   );
 }
-
-import {
-  BookOpen,
-  ChartPie,
-  GraduationCap,
-  Landmark,
-  PiggyBank,
-  Plus,
-  WalletCards
