@@ -1,8 +1,8 @@
 import "./globals.css";
 
 export const metadata = {
-  title: "Kişisel Yönetim Paneli",
-  description: "Gelir gider, yatırım ve eğitim notları yönetim paneli"
+  title: "Kişisel Finans Yönetimi",
+  description: "Gelir ve gider takip paneli",
 };
 
 export default function RootLayout({ children }) {
