@@ -1,48 +1,28 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import Link from "next/link";
-import {
-  BookOpen,
-  ChevronDown,
-  ChevronUp,
-  Landmark,
-  PiggyBank,
-  Plus,
-  Trash2,
-  WalletCards,
-} from "lucide-react";
-
-const STORAGE_KEY = "kisisel-panel-finans-v1";
-
-const initialForm = {
-  title: "",
-  category: "",
-  amount: "",
-  date: "",
-  description: "",
-};
-
-export default function HomePage() {
-  const [expensesOpen, setExpensesOpen] = useState(false);
+import { useEffect, useMemo useState(false);import { useEffect, useMemo, useState } from "react";
   const [items, setItems] = useState([]);
   const [form, setForm] = useState(initialForm);
+  const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
-
       if (saved) {
         setItems(JSON.parse(saved));
       }
     } catch {
       setItems([]);
+    } finally {
+      setLoaded(true);
     }
   }, []);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
-  }, [items]);
+    if (loaded) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
+    }
+  }, [items, loaded]);
 
   const totals = useMemo(() => {
     const totalExpense = items.reduce(
@@ -116,18 +96,18 @@ export default function HomePage() {
             </h1>
 
             <p className="mt-4 max-w-3xl text-base leading-8 text-slate-300">
-              Bu ekran kullanıcıya özel finans alanıdır. İlk açılışta tüm veriler boş gelir.
-              Gider ekledikçe toplamlar otomatik hesaplanır.
+              Bu ekran kullanıcıya özel finans alanıdır. İlk açılışta tüm veriler
+              boş gelir. Gider ekledikçe toplamlar otomatik hesaplanır.
             </p>
           </div>
 
-          <Link
+          <a
             href="/egitim-notlari"
             className="primary-button inline-flex items-center justify-center gap-2 px-5 py-4"
           >
             <BookOpen size={19} />
             Eğitim Notları
-          </Link>
+          </a>
         </header>
 
         <section className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
@@ -174,7 +154,8 @@ export default function HomePage() {
               <div>
                 <h2 className="text-2xl font-black text-white">Giderlerim</h2>
                 <p className="mt-1 text-sm text-slate-400">
-                  Gider alanını açıp kapatabilir, tüm giderlerini burada takip edebilirsin.
+                  Gider alanını açıp kapatabilir, tüm giderlerini burada takip
+                  edebilirsin.
                 </p>
               </div>
 
@@ -212,7 +193,9 @@ export default function HomePage() {
                         className="input-field"
                         placeholder="Örn: Sabit Gider"
                         value={form.category}
-                        onChange={(event) => handleChange("category", event.target.value)}
+                        onChange={(event) =>
+                          handleChange("category", event.target.value)
+                        }
                       />
                     </label>
 
@@ -363,3 +346,25 @@ function SummaryCard({ icon: Icon, title, value, detail, color }) {
     </div>
   );
 }
+import {
+  BookOpen,
+  ChevronDown,
+  ChevronUp,
+  Landmark,
+  PiggyBank,
+  Plus,
+  Trash2,
+  WalletCards,
+} from "lucide-react";
+
+const STORAGE_KEY = "kisisel-panel-finans-v1";
+
+const initialForm = {
+  title: "",
+  category: "",
+  amount: "",
+  date: "",
+  description: "",
+};
+
+export default function HomePage() {
