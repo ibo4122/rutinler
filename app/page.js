@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { supabase } from "@/lib/supabaseClient";
+import { supabase } from "../lib/supabaseClient";
 
 const emptyIncome = {
   salary: "",
@@ -36,6 +36,8 @@ const emptyFinanceData = {
   otherExpenses: [],
 };
 
+const LOCAL_BACKUP_KEY = "kisisel-finans-panel-local-backup";
+
 function usernameToEmail(username) {
   return `${String(username || "").trim().toLowerCase()}@finans.local`;
 }
@@ -65,8 +67,8 @@ function normalizeFinanceData(data) {
 
   return {
     income: {
-      salary: data.income?.salary || "",
-      mealAllowance: data.income?.mealAllowance || "",
+      salary: formatNumberInput(data.income?.salary || ""),
+      mealAllowance: formatNumberInput(data.income?.mealAllowance || ""),
     },
     extraIncomes: Array.isArray(data.extraIncomes) ? data.extraIncomes : [],
     credits: Array.isArray(data.credits) ? data.credits : [],
@@ -75,10 +77,27 @@ function normalizeFinanceData(data) {
   };
 }
 
+function getLocalBackup() {
+  try {
+    const raw = window.localStorage.getItem(LOCAL_BACKUP_KEY);
+    if (!raw) return null;
+    return normalizeFinanceData(JSON.parse(raw));
+  } catch {
+    return null;
+  }
+}
+
+function saveLocalBackup(payload) {
+  try {
+    window.localStorage.setItem(LOCAL_BACKUP_KEY, JSON.stringify(payload));
+  } catch {}
+}
+
 export default function HomePage() {
   const [session, setSession] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [dataLoading, setDataLoading] = useState(false);
+  const [financeLoaded, setFinanceLoaded] = useState(false);
   const [saving, setSaving] = useState(false);
 
   const [username, setUsername] = useState("");
@@ -108,8 +127,6 @@ export default function HomePage() {
   const [editingCardId, setEditingCardId] = useState(null);
   const [editingOtherId, setEditingOtherId] = useState(null);
 
-  const [financeLoaded, setFinanceLoaded] = useState(false);
-
   useEffect(() => {
     const init = async () => {
       const { data } = await supabase.auth.getSession();
@@ -119,12 +136,12 @@ export default function HomePage() {
 
     init();
 
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, nextSession) => {
-      setSession(nextSession);
+    const { data } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+      setSession(nextSession || null);
     });
 
     return () => {
-      listener.subscription.unsubscribe();
+      data.subscription.unsubscribe();
     };
   }, []);
 
@@ -144,10 +161,18 @@ export default function HomePage() {
 
     const timer = setTimeout(() => {
       saveFinanceData();
-    }, 700);
+    }, 650);
 
     return () => clearTimeout(timer);
   }, [income, extraIncomes, credits, cardExpenses, otherExpenses, session, financeLoaded]);
+
+  const currentPayload = () => ({
+    income,
+    extraIncomes,
+    credits,
+    cardExpenses,
+    otherExpenses,
+  });
 
   const loadFinanceData = async (userId) => {
     setDataLoading(true);
@@ -162,13 +187,28 @@ export default function HomePage() {
       console.log(error);
     }
 
-    const normalized = normalizeFinanceData(data?.data);
+    let normalized = normalizeFinanceData(data?.data);
 
-    setIncome(normalized.income);
-    setExtraIncomes(normalized.extraIncomes);
-    setCredits(normalized.credits);
-    setCardExpenses(normalized.cardExpenses);
-    setOtherExpenses(normalized.otherExpenses);
+    const hasCloudData =
+      normalized.income.salary ||
+      normalized.income.mealAllowance ||
+      normalized.extraIncomes.length ||
+      normalized.credits.length ||
+      normalized.cardExpenses.length ||
+      normalized.otherExpenses.length;
+
+    if (!hasCloudData) {
+      const localBackup = getLocalBackup();
+      if (localBackup) {
+        normalized = localBackup;
+      }
+    }
+
+    setIncome(normalized.income || emptyIncome);
+    setExtraIncomes(normalized.extraIncomes || []);
+    setCredits(normalized.credits || []);
+    setCardExpenses(normalized.cardExpenses || []);
+    setOtherExpenses(normalized.otherExpenses || []);
 
     setFinanceLoaded(true);
     setDataLoading(false);
@@ -179,15 +219,10 @@ export default function HomePage() {
       return;
     }
 
-    setSaving(true);
+    const payload = currentPayload();
 
-    const payload = {
-      income,
-      extraIncomes,
-      credits,
-      cardExpenses,
-      otherExpenses,
-    };
+    saveLocalBackup(payload);
+    setSaving(true);
 
     const { error } = await supabase.from("user_finance_data").upsert(
       {
@@ -433,6 +468,7 @@ export default function HomePage() {
           item.id === editingExtraIncomeId ? { ...item, title, amount } : item
         )
       );
+
       resetExtraIncomeForm();
       return;
     }
@@ -455,6 +491,7 @@ export default function HomePage() {
       title: item.title || "",
       amount: formatNumberInput(item.amount),
     });
+
     setIncomeOpen(true);
     setExtraIncomeOpen(true);
   };
@@ -488,6 +525,7 @@ export default function HomePage() {
           item.id === editingCreditId ? { ...item, ...itemPayload } : item
         )
       );
+
       resetCreditForm();
       return;
     }
@@ -544,6 +582,7 @@ export default function HomePage() {
             item.id === editingId ? { ...item, ...itemPayload } : item
           )
         );
+
         resetCardForm();
         return;
       }
@@ -566,6 +605,7 @@ export default function HomePage() {
           item.id === editingId ? { ...item, ...itemPayload } : item
         )
       );
+
       resetOtherForm();
       return;
     }
@@ -609,17 +649,17 @@ export default function HomePage() {
 
   if (authLoading) {
     return (
-      <main className="financePage">
-        <div className="authCard">
-          <h1>Yükleniyor...</h1>
-        </div>
+      <main className="financePage centerPage">
+        <section className="authCard">
+          <h1 className="authTitle">Yükleniyor...</h1>
+        </section>
       </main>
     );
   }
 
   if (!session) {
     return (
-      <main className="financePage">
+      <main className="financePage centerPage">
         <section className="authCard">
           <div className="topBadge">Kişisel Finans Yönetimi</div>
 
