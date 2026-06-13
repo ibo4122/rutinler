@@ -1,20 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-
-const STORAGE_KEY = "kisisel-finans-panel";
-
-const LEGACY_KEYS = [
-  "kisisel-finans-panel",
-  "kisisel-finans-panel-v6",
-  "kisisel-finans-panel-v5",
-  "kisisel-finans-panel-v4",
-  "kisisel-panel-finans-clean-v1",
-  "kisisel-panel-giderler-v1",
-  "kisisel-panel-finans-v3",
-  "kisisel-panel-finans-v2",
-  "kisisel-panel-finans-v1",
-];
+import { supabase } from "@/lib/supabaseClient";
 
 const emptyIncome = {
   salary: "",
@@ -41,6 +28,18 @@ const emptyExpense = {
   note: "",
 };
 
+const emptyFinanceData = {
+  income: emptyIncome,
+  extraIncomes: [],
+  credits: [],
+  cardExpenses: [],
+  otherExpenses: [],
+};
+
+function usernameToEmail(username) {
+  return `${String(username || "").trim().toLowerCase()}@finans.local`;
+}
+
 function onlyDigits(value) {
   return String(value || "").replace(/[^\d]/g, "");
 }
@@ -59,119 +58,33 @@ function formatNumberInput(value) {
   return new Intl.NumberFormat("tr-TR").format(Number(digits));
 }
 
-function normalizeAmount(value) {
-  return parseAmount(value || 0);
-}
-
-function normalizeData(data) {
+function normalizeFinanceData(data) {
   if (!data) {
-    return null;
-  }
-
-  if (Array.isArray(data)) {
-    return {
-      income: emptyIncome,
-      extraIncomes: [],
-      credits: [],
-      cardExpenses: [],
-      otherExpenses: data.map((item) => ({
-        id: String(item.id || Date.now() + Math.random()),
-        title: item.title || item.name || "Gider",
-        category: item.category || "Diğer",
-        amount: normalizeAmount(item.amount),
-        note: item.note || item.description || "",
-      })),
-    };
+    return emptyFinanceData;
   }
 
   return {
     income: {
-      salary: formatNumberInput(data.income?.salary || data.salary || ""),
-      mealAllowance: formatNumberInput(
-        data.income?.mealAllowance || data.mealAllowance || ""
-      ),
+      salary: data.income?.salary || "",
+      mealAllowance: data.income?.mealAllowance || "",
     },
-
-    extraIncomes: (data.extraIncomes || []).map((item) => ({
-      id: String(item.id || Date.now() + Math.random()),
-      title: item.title || item.name || "Ek Gelir",
-      amount: normalizeAmount(item.amount),
-    })),
-
-    credits: (data.credits || data.debts || []).map((item) => ({
-      id: String(item.id || Date.now() + Math.random()),
-      title: item.title || item.name || "Kredi",
-      monthlyPayment: normalizeAmount(item.monthlyPayment || item.amount),
-      installmentText:
-        item.installmentText || item.installment || item.installments || "",
-      remainingDebt: normalizeAmount(item.remainingDebt || item.totalDebt),
-      paymentStartDate: item.paymentStartDate || item.firstPaymentDate || "",
-    })),
-
-    cardExpenses: (data.cardExpenses || data.creditCards || []).map((item) => ({
-      id: String(item.id || Date.now() + Math.random()),
-      title: item.title || item.name || "Kart Gideri",
-      category: item.category || "Kredi Kartı",
-      amount: normalizeAmount(item.amount),
-      note: item.note || item.description || "",
-    })),
-
-    otherExpenses: (data.otherExpenses || data.others || data.expenses || []).map(
-      (item) => ({
-        id: String(item.id || Date.now() + Math.random()),
-        title: item.title || item.name || "Diğer Gider",
-        category: item.category || "Diğer",
-        amount: normalizeAmount(item.amount),
-        note: item.note || item.description || "",
-      })
-    ),
+    extraIncomes: Array.isArray(data.extraIncomes) ? data.extraIncomes : [],
+    credits: Array.isArray(data.credits) ? data.credits : [],
+    cardExpenses: Array.isArray(data.cardExpenses) ? data.cardExpenses : [],
+    otherExpenses: Array.isArray(data.otherExpenses) ? data.otherExpenses : [],
   };
 }
 
-function getDataScore(data) {
-  if (!data) {
-    return 0;
-  }
-
-  return (
-    (data.income?.salary ? 10 : 0) +
-    (data.income?.mealAllowance ? 3 : 0) +
-    (data.extraIncomes?.length || 0) * 8 +
-    (data.credits?.length || 0) * 12 +
-    (data.cardExpenses?.length || 0) * 10 +
-    (data.otherExpenses?.length || 0) * 10
-  );
-}
-
-function readBestSavedData() {
-  let bestData = null;
-  let bestScore = -1;
-
-  for (const key of LEGACY_KEYS) {
-    try {
-      const raw = window.localStorage.getItem(key);
-
-      if (!raw) {
-        continue;
-      }
-
-      const parsed = JSON.parse(raw);
-      const normalized = normalizeData(parsed);
-      const score = getDataScore(normalized);
-
-      if (score > bestScore) {
-        bestData = normalized;
-        bestScore = score;
-      }
-    } catch {
-      continue;
-    }
-  }
-
-  return bestData;
-}
-
 export default function HomePage() {
+  const [session, setSession] = useState(null);
+  const [authLoading, setAuthLoading] = useState(true);
+  const [dataLoading, setDataLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [authMessage, setAuthMessage] = useState("");
+
   const [incomeOpen, setIncomeOpen] = useState(true);
   const [extraIncomeOpen, setExtraIncomeOpen] = useState(true);
   const [expensesOpen, setExpensesOpen] = useState(true);
@@ -195,38 +108,153 @@ export default function HomePage() {
   const [editingCardId, setEditingCardId] = useState(null);
   const [editingOtherId, setEditingOtherId] = useState(null);
 
-  const [loaded, setLoaded] = useState(false);
+  const [financeLoaded, setFinanceLoaded] = useState(false);
 
   useEffect(() => {
-    const saved = readBestSavedData();
+    const init = async () => {
+      const { data } = await supabase.auth.getSession();
+      setSession(data.session || null);
+      setAuthLoading(false);
+    };
 
-    if (saved) {
-      setIncome(saved.income || emptyIncome);
-      setExtraIncomes(saved.extraIncomes || []);
-      setCredits(saved.credits || []);
-      setCardExpenses(saved.cardExpenses || []);
-      setOtherExpenses(saved.otherExpenses || []);
-    }
+    init();
 
-    setLoaded(true);
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+      setSession(nextSession);
+    });
+
+    return () => {
+      listener.subscription.unsubscribe();
+    };
   }, []);
 
   useEffect(() => {
-    if (!loaded) {
+    if (!session?.user) {
+      setFinanceLoaded(false);
       return;
     }
 
-    window.localStorage.setItem(
-      STORAGE_KEY,
-      JSON.stringify({
-        income,
-        extraIncomes,
-        credits,
-        cardExpenses,
-        otherExpenses,
-      })
+    loadFinanceData(session.user.id);
+  }, [session]);
+
+  useEffect(() => {
+    if (!session?.user || !financeLoaded) {
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      saveFinanceData();
+    }, 700);
+
+    return () => clearTimeout(timer);
+  }, [income, extraIncomes, credits, cardExpenses, otherExpenses, session, financeLoaded]);
+
+  const loadFinanceData = async (userId) => {
+    setDataLoading(true);
+
+    const { data, error } = await supabase
+      .from("user_finance_data")
+      .select("data")
+      .eq("user_id", userId)
+      .maybeSingle();
+
+    if (error) {
+      console.log(error);
+    }
+
+    const normalized = normalizeFinanceData(data?.data);
+
+    setIncome(normalized.income);
+    setExtraIncomes(normalized.extraIncomes);
+    setCredits(normalized.credits);
+    setCardExpenses(normalized.cardExpenses);
+    setOtherExpenses(normalized.otherExpenses);
+
+    setFinanceLoaded(true);
+    setDataLoading(false);
+  };
+
+  const saveFinanceData = async () => {
+    if (!session?.user) {
+      return;
+    }
+
+    setSaving(true);
+
+    const payload = {
+      income,
+      extraIncomes,
+      credits,
+      cardExpenses,
+      otherExpenses,
+    };
+
+    const { error } = await supabase.from("user_finance_data").upsert(
+      {
+        user_id: session.user.id,
+        data: payload,
+      },
+      {
+        onConflict: "user_id",
+      }
     );
-  }, [income, extraIncomes, credits, cardExpenses, otherExpenses, loaded]);
+
+    if (error) {
+      console.log(error);
+    }
+
+    setSaving(false);
+  };
+
+  const handleRegister = async () => {
+    setAuthMessage("");
+
+    if (!username.trim() || !password.trim()) {
+      setAuthMessage("Kullanıcı adı ve şifre gir.");
+      return;
+    }
+
+    const email = usernameToEmail(username);
+
+    const { error } = await supabase.auth.signUp({
+      email,
+      password,
+    });
+
+    if (error) {
+      setAuthMessage(error.message);
+      return;
+    }
+
+    setAuthMessage("Hesap oluşturuldu. Şimdi giriş yapabilirsin.");
+  };
+
+  const handleLogin = async () => {
+    setAuthMessage("");
+
+    if (!username.trim() || !password.trim()) {
+      setAuthMessage("Kullanıcı adı ve şifre gir.");
+      return;
+    }
+
+    const email = usernameToEmail(username);
+
+    const { error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+
+    if (error) {
+      setAuthMessage("Giriş başarısız. Kullanıcı adı veya şifreyi kontrol et.");
+      return;
+    }
+  };
+
+  const handleLogout = async () => {
+    await saveFinanceData();
+    await supabase.auth.signOut();
+    setSession(null);
+  };
 
   const money = (value) => {
     return new Intl.NumberFormat("tr-TR", {
@@ -255,8 +283,6 @@ export default function HomePage() {
 
     if (!cleanText.includes("/")) {
       return {
-        current: 0,
-        total: 0,
         percent: 0,
         completed: false,
       };
@@ -268,8 +294,6 @@ export default function HomePage() {
 
     if (!current || !total || total <= 0) {
       return {
-        current: 0,
-        total: 0,
         percent: 0,
         completed: false,
       };
@@ -278,8 +302,6 @@ export default function HomePage() {
     const percent = Math.min(100, Math.round((current / total) * 100));
 
     return {
-      current,
-      total,
       percent,
       completed: current >= total,
     };
@@ -293,7 +315,6 @@ export default function HomePage() {
       return sum + Number(item.amount || 0);
     }, 0);
 
-    // Yemek parası toplam gelire dahil edilmez.
     const totalIncome = salary + extraIncomeTotal;
 
     const activeCreditTotal = credits.reduce((sum, item) => {
@@ -327,7 +348,6 @@ export default function HomePage() {
     const totalExpense = activeCreditTotal + cardTotal + otherTotal;
 
     return {
-      salary,
       mealAllowance,
       extraIncomeTotal,
       totalIncome,
@@ -413,7 +433,6 @@ export default function HomePage() {
           item.id === editingExtraIncomeId ? { ...item, title, amount } : item
         )
       );
-
       resetExtraIncomeForm();
       return;
     }
@@ -436,7 +455,6 @@ export default function HomePage() {
       title: item.title || "",
       amount: formatNumberInput(item.amount),
     });
-
     setIncomeOpen(true);
     setExtraIncomeOpen(true);
   };
@@ -470,7 +488,6 @@ export default function HomePage() {
           item.id === editingCreditId ? { ...item, ...itemPayload } : item
         )
       );
-
       resetCreditForm();
       return;
     }
@@ -527,7 +544,6 @@ export default function HomePage() {
             item.id === editingId ? { ...item, ...itemPayload } : item
           )
         );
-
         resetCardForm();
         return;
       }
@@ -550,7 +566,6 @@ export default function HomePage() {
           item.id === editingId ? { ...item, ...itemPayload } : item
         )
       );
-
       resetOtherForm();
       return;
     }
@@ -592,21 +607,93 @@ export default function HomePage() {
     setOthersOpen(true);
   };
 
+  if (authLoading) {
+    return (
+      <main className="financePage">
+        <div className="authCard">
+          <h1>Yükleniyor...</h1>
+        </div>
+      </main>
+    );
+  }
+
+  if (!session) {
+    return (
+      <main className="financePage">
+        <section className="authCard">
+          <div className="topBadge">Kişisel Finans Yönetimi</div>
+
+          <h1 className="authTitle">Giriş Yap</h1>
+
+          <p className="authText">
+            Kullanıcı adı ve şifreyle giriş yap. Her kullanıcının finans verisi ayrı tutulur.
+          </p>
+
+          <label className="inputBox">
+            <span>Kullanıcı Adı</span>
+            <input
+              value={username}
+              placeholder="Örn: ibrahim"
+              onChange={(event) => setUsername(event.target.value)}
+            />
+          </label>
+
+          <label className="inputBox">
+            <span>Şifre</span>
+            <input
+              type="password"
+              value={password}
+              placeholder="Şifren"
+              onChange={(event) => setPassword(event.target.value)}
+            />
+          </label>
+
+          {authMessage ? <div className="authMessage">{authMessage}</div> : null}
+
+          <div className="authButtons">
+            <button type="button" className="premiumButton" onClick={handleLogin}>
+              Giriş Yap
+            </button>
+
+            <button type="button" className="secondaryButton" onClick={handleRegister}>
+              Hesap Oluştur
+            </button>
+          </div>
+        </section>
+      </main>
+    );
+  }
+
   return (
     <main className="financePage">
       <div className="financeShell">
-        <header className="topHeader">
-          <div className="topBadge">Kişisel Finans Yönetimi</div>
+        <header className="topHeader appHeader">
+          <div>
+            <div className="topBadge">Kişisel Finans Yönetimi</div>
+            <p className="saveStatus">
+              {saving ? "Kaydediliyor..." : "Veriler Supabase üzerinde güvende"}
+            </p>
+          </div>
+
+          <button type="button" className="secondaryButton" onClick={handleLogout}>
+            Çıkış Yap
+          </button>
         </header>
+
+        {dataLoading ? (
+          <section className="panelCard">
+            <div className="emptyState">
+              <strong>Veriler yükleniyor...</strong>
+            </div>
+          </section>
+        ) : null}
 
         <section className="summaryGrid">
           <SummaryCard
             tone="green"
             title="Toplam Gelir"
             value={money(totals.totalIncome)}
-            detail={`Yemek parası: ${money(
-              totals.mealAllowance
-            )} • Gelire dahil değil`}
+            detail={`Yemek parası: ${money(totals.mealAllowance)} • Gelire dahil değil`}
           />
 
           <SummaryCard
@@ -727,8 +814,8 @@ export default function HomePage() {
             onToggle={() => setCreditsOpen((value) => !value)}
           >
             <p className="sectionDescription">
-              Taksit alanını <strong>8/24</strong> formatında yaz. Ödeme
-              başlangıç tarihi gelmeyen krediler toplam gidere eklenmez.
+              Taksit alanını <strong>8/24</strong> formatında yaz. Ödeme başlangıç
+              tarihi gelmeyen krediler toplam gidere eklenmez.
             </p>
 
             <div className="formGrid five">
