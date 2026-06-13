@@ -1,648 +1,101 @@
-* {
-  box-sizing: border-box;
-}
-
-html,
-body {
-  margin: 0;
-  min-height: 100%;
-  background:
-    radial-gradient(circle at 12% 8%, rgba(56, 189, 248, 0.18), transparent 28%),
-    radial-gradient(circle at 90% 10%, rgba(168, 85, 247, 0.16), transparent 30%),
-    radial-gradient(circle at 50% 100%, rgba(34, 197, 94, 0.08), transparent 35%),
-    linear-gradient(135deg, #0f172a 0%, #172554 45%, #111827 100%);
-  color: #f8fafc;
-  font-family:
-    Inter,
-    ui-sans-serif,
-    system-ui,
-    sans-serif;
-}
-
-body {
-  overflow-x: hidden;
-}
-
-button,
-input {
-  font: inherit;
-}
-
-button {
-  cursor: pointer;
-  transition: 0.2s ease;
-}
-
-.financePage {
-  min-height: 100vh;
+.authCard {
+  width: min(520px, 100%);
+  margin: 8vh auto;
   padding: 32px;
-}
-
-.financeShell {
-  max-width: 1500px;
-  margin: 0 auto;
-}
-
-.topHeader {
-  margin-bottom: 26px;
-}
-
-.topBadge {
-  display: inline-flex;
-  align-items: center;
-  gap: 12px;
-  padding: 18px 28px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.08);
-  backdrop-filter: blur(18px);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  box-shadow:
-    0 20px 50px rgba(59, 130, 246, 0.12),
-    inset 0 1px 0 rgba(255,255,255,0.08);
-  color: white;
-  font-size: 16px;
-  font-weight: 900;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.summaryGrid {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 20px;
-}
-
-.summaryCard {
-  border-radius: 32px;
-  padding: 28px;
-  min-height: 190px;
-  position: relative;
-  overflow: hidden;
-  backdrop-filter: blur(18px);
-  border: 1px solid rgba(255,255,255,0.12);
-  transform-style: preserve-3d;
-  transform: perspective(1200px) rotateX(2deg);
-  box-shadow:
-    0 30px 70px rgba(0,0,0,0.28),
-    inset 0 1px 0 rgba(255,255,255,0.08);
-}
-
-.summaryCard.green {
-  background:
-    linear-gradient(
-      145deg,
-      rgba(34,197,94,0.32),
-      rgba(6,95,70,0.72)
-    );
-}
-
-.summaryCard.red {
-  background:
-    linear-gradient(
-      145deg,
-      rgba(248,113,113,0.32),
-      rgba(127,29,29,0.72)
-    );
-}
-
-.summaryCard.blue {
-  background:
-    linear-gradient(
-      145deg,
-      rgba(59,130,246,0.32),
-      rgba(30,64,175,0.72)
-    );
-}
-
-.summaryCard.purple {
-  background:
-    linear-gradient(
-      145deg,
-      rgba(168,85,247,0.32),
-      rgba(88,28,135,0.72)
-    );
-}
-
-.summaryLabel {
-  font-size: 12px;
-  font-weight: 900;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: rgba(255,255,255,0.72);
-}
-
-.summaryValue {
-  margin-top: 18px;
-  font-size: clamp(34px, 3vw, 52px);
-  font-weight: 900;
-  line-height: 1;
-  letter-spacing: -0.05em;
-  text-shadow: 0 10px 24px rgba(0,0,0,0.35);
-}
-
-.summaryValue-green {
-  color: #86efac;
-}
-
-.summaryValue-red {
-  color: #fda4af;
-}
-
-.summaryValue-blue {
-  color: #7dd3fc;
-}
-
-.summaryValue-purple {
-  color: #c4b5fd;
-}
-
-.summaryDetail {
-  margin-top: 14px;
-  color: rgba(255,255,255,0.72);
-  font-size: 14px;
-  line-height: 1.7;
-}
-
-.panelCard {
-  margin-top: 24px;
-  border-radius: 36px;
-  padding: 24px;
+  border-radius: 34px;
   background: rgba(255,255,255,0.10);
-  backdrop-filter: blur(20px);
-  border: 1px solid rgba(255,255,255,0.12);
+  border: 1px solid rgba(255,255,255,0.14);
+  backdrop-filter: blur(22px);
   box-shadow:
-    0 30px 70px rgba(0,0,0,0.22),
-    inset 0 1px 0 rgba(255,255,255,0.08);
+    0 34px 90px rgba(0,0,0,0.30),
+    inset 0 1px 0 rgba(255,255,255,0.10);
 }
 
-.panelHeader,
-.miniHeader {
-  width: 100%;
-  border: none;
-  background: transparent;
-  display: flex;
-  justify-content: space-between;
-  gap: 20px;
-  align-items: center;
-  text-align: left;
-  padding: 0;
-}
-
-.gradientTitle {
-  margin: 0;
-  font-size: 38px;
-  font-weight: 900;
-  letter-spacing: -0.05em;
+.authTitle {
+  margin: 24px 0 8px;
+  font-size: 46px;
+  font-weight: 950;
+  line-height: 1;
   background: linear-gradient(135deg, #ffffff, #93c5fd, #c4b5fd);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
-  text-shadow: 0 10px 30px rgba(59,130,246,0.22);
+  text-shadow: 0 16px 36px rgba(59,130,246,0.30);
 }
 
-.panelHeader p {
-  margin: 8px 0 0;
+.authText {
+  margin: 0 0 22px;
   color: rgba(255,255,255,0.72);
   line-height: 1.7;
 }
 
-.panelRight,
-.miniRight {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-}
-
-.panelTotal,
-.miniTotal {
-  min-width: 220px;
-  padding: 14px 18px;
-  border-radius: 22px;
-  background: rgba(255,255,255,0.08);
-  border: 1px solid rgba(255,255,255,0.10);
-}
-
-.panelTotal span,
-.miniTotal span {
-  display: block;
-  color: rgba(255,255,255,0.72);
-  font-size: 11px;
-  font-weight: 900;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-}
-
-.panelTotal strong,
-.miniTotal strong {
-  display: block;
-  margin-top: 6px;
-  font-size: 22px;
-  font-weight: 900;
-  color: white;
-}
-
-.toggleButton,
-.miniToggle {
-  width: 54px;
-  height: 54px;
-  border-radius: 20px;
-  display: grid;
-  place-items: center;
-  background: rgba(255,255,255,0.08);
-  color: white;
-  font-size: 28px;
-  font-weight: 900;
-  border: 1px solid rgba(255,255,255,0.12);
-}
-
-.panelBody,
-.miniBody {
-  margin-top: 22px;
-  display: grid;
-  gap: 18px;
-}
-
-.miniPanel {
-  border-radius: 30px;
-  padding: 22px;
-  border: 1px solid rgba(255,255,255,0.10);
-}
-
-.miniPanel.mint {
-  background:
-    linear-gradient(
-      145deg,
-      rgba(20,184,166,0.24),
-      rgba(15,23,42,0.62)
-    );
-}
-
-.miniPanel.purple {
-  background:
-    linear-gradient(
-      145deg,
-      rgba(168,85,247,0.24),
-      rgba(15,23,42,0.62)
-    );
-}
-
-.miniPanel.rose {
-  background:
-    linear-gradient(
-      145deg,
-      rgba(244,63,94,0.24),
-      rgba(15,23,42,0.62)
-    );
-}
-
-.miniPanel.orange {
-  background:
-    linear-gradient(
-      145deg,
-      rgba(249,115,22,0.24),
-      rgba(15,23,42,0.62)
-    );
-}
-
-.miniTitle {
-  margin: 0;
-  font-size: 26px;
-  font-weight: 900;
-}
-
-.miniTitle-mint {
-  color: #5eead4;
-  text-shadow: 0 8px 24px rgba(45, 212, 191, 0.22);
-}
-
-.miniTitle-purple {
-  color: #c4b5fd;
-  text-shadow: 0 8px 24px rgba(168, 85, 247, 0.22);
-}
-
-.miniTitle-rose {
-  color: #fda4af;
-  text-shadow: 0 8px 24px rgba(244, 63, 94, 0.22);
-}
-
-.miniTitle-orange {
-  color: #fdba74;
-  text-shadow: 0 8px 24px rgba(249, 115, 22, 0.22);
-}
-
-.sectionDescription {
-  margin: 0;
-  color: rgba(255,255,255,0.72);
-  font-size: 14px;
-  line-height: 1.7;
-}
-
-.sectionDescription strong {
+.authMessage {
+  margin-top: 14px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: rgba(245,158,11,0.16);
+  border: 1px solid rgba(245,158,11,0.24);
   color: #fde68a;
-}
-
-.formGrid {
-  display: grid;
-  gap: 14px;
-}
-
-.formGrid.two {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
-.formGrid.three {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-}
-
-.formGrid.four {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-}
-
-.formGrid.five {
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-}
-
-.inputBox span {
-  display: block;
-  margin-bottom: 8px;
-  font-size: 13px;
   font-weight: 800;
-  color: rgba(255,255,255,0.78);
 }
 
-.inputBox input {
-  width: 100%;
-  height: 58px;
+.authButtons {
+  margin-top: 18px;
+  display: grid;
+  gap: 12px;
+}
+
+.secondaryButton {
+  min-height: 52px;
+  border: 1px solid rgba(255,255,255,0.14);
   border-radius: 18px;
-  border: 1px solid rgba(255,255,255,0.10);
   background: rgba(255,255,255,0.08);
-  padding: 0 16px;
-  outline: none;
-  color: white;
-  backdrop-filter: blur(10px);
-}
-
-.inputBox input::placeholder {
-  color: rgba(255,255,255,0.38);
-}
-
-.inputBox input:focus {
-  border-color: rgba(96,165,250,0.55);
-  box-shadow: 0 0 0 4px rgba(96,165,250,0.14);
-}
-
-.premiumButton {
-  min-height: 58px;
-  border: none;
-  border-radius: 18px;
-  color: white;
+  color: #ffffff;
   font-weight: 900;
-  background: linear-gradient(135deg, #3b82f6, #8b5cf6);
-  box-shadow: 0 20px 40px rgba(59,130,246,0.20);
 }
 
-.premiumButton:hover {
+.secondaryButton:hover {
   transform: translateY(-2px);
+  background: rgba(255,255,255,0.13);
 }
 
-.premiumButton.wide {
-  grid-column: 1 / -1;
-}
-
-.recordList {
-  display: grid;
-  gap: 14px;
-}
-
-.creditRecord,
-.simpleRecord {
-  border-radius: 24px;
-  padding: 18px;
-  background: rgba(255,255,255,0.08);
-  border: 1px solid rgba(255,255,255,0.10);
-  backdrop-filter: blur(10px);
-}
-
-.creditRecordTop,
-.simpleRecordTop {
+.appHeader {
   display: flex;
-  justify-content: space-between;
-  gap: 18px;
-}
-
-.recordTitleRow {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
   align-items: center;
-}
-
-.recordTitleRow h4,
-.simpleRecord h4 {
-  margin: 0;
-  font-size: 20px;
-  font-weight: 900;
-  color: white;
-}
-
-.recordSubText,
-.simpleRecord p {
-  margin: 8px 0 0;
-  color: rgba(255,255,255,0.68);
-}
-
-.recordAmount {
-  font-size: 24px;
-  font-weight: 900;
-  color: white;
-}
-
-.progressWrap {
-  margin-top: 14px;
-}
-
-.progressInfo {
-  display: flex;
   justify-content: space-between;
-  margin-bottom: 8px;
-  color: rgba(255,255,255,0.72);
-  font-size: 13px;
+  gap: 16px;
+}
+
+.saveStatus {
+  margin: 10px 0 0;
+  color: #93c5fd;
   font-weight: 800;
+  text-shadow: 0 8px 22px rgba(59,130,246,0.28);
 }
 
-.progressTrack {
-  height: 14px;
-  border-radius: 999px;
-  overflow: hidden;
-  background: rgba(255,255,255,0.12);
+.summaryCard::before,
+.panelCard::before,
+.miniPanel::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border-radius: inherit;
+  background: linear-gradient(
+    135deg,
+    rgba(255,255,255,0.16),
+    transparent 40%
+  );
+  opacity: 0.55;
 }
 
-.progressBar {
-  height: 100%;
-  border-radius: 999px;
+.panelCard,
+.miniPanel,
+.summaryCard {
+  position: relative;
 }
 
-.progressBar.danger {
-  background: linear-gradient(90deg, #ef4444, #fb7185);
-}
-
-.progressBar.mid {
-  background: linear-gradient(90deg, #f59e0b, #facc15);
-}
-
-.progressBar.warm {
-  background: linear-gradient(90deg, #84cc16, #22c55e);
-}
-
-.progressBar.success {
-  background: linear-gradient(90deg, #16a34a, #4ade80);
-}
-
-.recordFooter,
-.simpleRecordRight,
-.recordActions {
-  display: flex;
-  gap: 10px;
-  align-items: center;
-}
-
-.recordFooter {
-  margin-top: 14px;
-  justify-content: space-between;
-  color: rgba(255,255,255,0.68);
-  font-size: 13px;
-}
-
-.simpleRecordRight strong {
-  color: white;
-  font-size: 18px;
-  font-weight: 900;
-}
-
-.editButton {
-  border: none;
-  border-radius: 14px;
-  padding: 10px 14px;
-  background: rgba(59,130,246,0.18);
-  color: #bfdbfe;
-  font-weight: 800;
-}
-
-.deleteButton {
-  border: none;
-  border-radius: 14px;
-  padding: 10px 14px;
-  background: rgba(239,68,68,0.18);
-  color: #fecaca;
-  font-weight: 800;
-}
-
-.emptyState {
-  padding: 26px;
-  border-radius: 24px;
-  background: rgba(255,255,255,0.08);
-  text-align: center;
-}
-
-.emptyState strong {
-  display: block;
-  font-size: 17px;
-  color: white;
-}
-
-.emptyState span {
-  display: block;
-  margin-top: 8px;
-  color: rgba(255,255,255,0.68);
-}
-
-.status {
-  padding: 7px 12px;
-  border-radius: 999px;
-  font-size: 12px;
-  font-weight: 900;
-}
-
-.status.done {
-  background: #dcfce7;
-  color: #166534;
-}
-
-.status.waiting {
-  background: #fef3c7;
-  color: #92400e;
-}
-
-.status.deferred {
-  background: #fee2e2;
-  color: #991b1b;
-}
-
-.summaryCard:hover,
-.panelCard:hover,
-.miniPanel:hover {
-  transform: translateY(-4px);
-  transition: 0.25s ease;
-}
-
-@media (max-width: 1180px) {
-  .summaryGrid,
-  .formGrid.four,
-  .formGrid.five {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .panelHeader,
-  .miniHeader {
-    align-items: stretch;
-    flex-direction: column;
-  }
-
-  .panelRight,
-  .miniRight {
-    width: 100%;
-    justify-content: space-between;
-  }
-}
-
-@media (max-width: 720px) {
-  .financePage {
-    padding: 16px;
-  }
-
-  .summaryGrid,
-  .formGrid.two,
-  .formGrid.three,
-  .formGrid.four,
-  .formGrid.five {
-    grid-template-columns: 1fr;
-  }
-
-  .panelHeader,
-  .miniHeader,
-  .creditRecordTop,
-  .simpleRecordTop,
-  .recordFooter,
-  .simpleRecordRight,
-  .recordActions {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .panelRight,
-  .miniRight {
-    width: 100%;
-    justify-content: space-between;
-  }
-
-  .panelTotal,
-  .miniTotal,
-  .toggleButton,
-  .miniToggle {
-    width: 100%;
-    min-width: 0;
-  }
-
-  .summaryCard {
-    transform: none;
-  }
+.panelHeader h2,
+.miniHeader h3,
+.summaryValue {
+  filter: drop-shadow(0 10px 18px rgba(0, 0, 0, 0.28));
 }
