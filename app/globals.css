@@ -906,4 +906,22 @@ button {
   .summaryCard {
     transform: none;
   }
+
+  .fullAuthInput {
+  position: relative;
+  z-index: 1;
+  display: block;
+  width: 100%;
 }
+
+.fullAuthInput input {
+  text-align: center;
+  font-size: 26px;
+  font-weight: 950;
+  letter-spacing: 0.18em;
+}
+
+.authBackButton {
+  justify-self: center;
+}
+
