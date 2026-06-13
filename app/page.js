@@ -1,7 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { supabase } from "../lib/supabaseClient";
+import { supabase } from "../lib/supabaseClient";import { useEffect, useMemo, useState } from "react";
 
 const LOCAL_BACKUP_KEY = "kisisel-finans-panel-local-backup";
 
@@ -100,8 +99,13 @@ export default function HomePage() {
   const [financeLoaded, setFinanceLoaded] = useState(false);
   const [saving, setSaving] = useState(false);
 
+  const [authMode, setAuthMode] = useState("login");
+  const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
+  const [pendingEmail, setPendingEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [passwordAgain, setPasswordAgain] = useState("");
+  const [verificationCode, setVerificationCode] = useState("");
   const [rememberMe, setRememberMe] = useState(true);
   const [authMessage, setAuthMessage] = useState("");
 
@@ -279,8 +283,13 @@ export default function HomePage() {
       return;
     }
 
-    if (!email.trim() || !password.trim()) {
-      setAuthMessage("E-posta ve şifre gir.");
+    if (
+      !fullName.trim() ||
+      !email.trim() ||
+      !password.trim() ||
+      !passwordAgain.trim()
+    ) {
+      setAuthMessage("Ad soyad, e-posta, şifre ve şifre tekrarı gir.");
       return;
     }
 
@@ -294,12 +303,20 @@ export default function HomePage() {
       return;
     }
 
+    if (password !== passwordAgain) {
+      setAuthMessage("Şifreler eşleşmiyor.");
+      return;
+    }
+
     const cleanEmail = email.trim().toLowerCase();
 
     const { error } = await supabase.auth.signUp({
       email: cleanEmail,
       password,
       options: {
+        data: {
+          full_name: fullName.trim(),
+        },
         emailRedirectTo: window.location.origin,
       },
     });
@@ -309,9 +326,78 @@ export default function HomePage() {
       return;
     }
 
+    setPendingEmail(cleanEmail);
+    setAuthMode("verify");
     setAuthMessage(
-      "Hesap oluşturuldu. E-posta adresine doğrulama linki gönderildi. Maildeki linke tıkladıktan sonra giriş yapabilirsin."
+      "Hesap oluşturuldu. Mailine gelen doğrulama kodunu gir."
     );
+  };
+
+  const handleVerifyCode = async () => {
+    setAuthMessage("");
+
+    if (!supabase) {
+      setAuthMessage("Supabase bağlantısı eksik.");
+      return;
+    }
+
+    if (!pendingEmail || !verificationCode.trim()) {
+      setAuthMessage("Doğrulama kodunu gir.");
+      return;
+    }
+
+    const firstTry = await supabase.auth.verifyOtp({
+      email: pendingEmail,
+      token: verificationCode.trim(),
+      type: "signup",
+    });
+
+    if (firstTry.error) {
+      const secondTry = await supabase.auth.verifyOtp({
+        email: pendingEmail,
+        token: verificationCode.trim(),
+        type: "email",
+      });
+
+      if (secondTry.error) {
+        setAuthMessage("Kod doğrulanamadı. Kodu kontrol et.");
+        return;
+      }
+    }
+
+    setAuthMessage("Hesap doğrulandı. Şimdi giriş yapabilirsin.");
+    setAuthMode("login");
+    setVerificationCode("");
+    setPassword("");
+    setPasswordAgain("");
+  };
+
+  const handleResendCode = async () => {
+    setAuthMessage("");
+
+    if (!supabase) {
+      setAuthMessage("Supabase bağlantısı eksik.");
+      return;
+    }
+
+    const targetEmail = pendingEmail || email.trim().toLowerCase();
+
+    if (!targetEmail) {
+      setAuthMessage("Önce e-posta adresini gir.");
+      return;
+    }
+
+    const { error } = await supabase.auth.resend({
+      type: "signup",
+      email: targetEmail,
+    });
+
+    if (error) {
+      setAuthMessage(error.message);
+      return;
+    }
+
+    setAuthMessage("Yeni doğrulama kodu gönderildi.");
   };
 
   const handleLogin = async () => {
@@ -764,78 +850,227 @@ export default function HomePage() {
 
             <div>
               <div className="authBrandTitle">Kişisel Finans Yönetimi</div>
-              <div className="authBrandSub">E-posta doğrulamalı güvenli panel</div>
+              <div className="authBrandSub">
+                {authMode === "verify"
+                  ? "OTP doğrulama ekranı"
+                  : authMode === "register"
+                  ? "Yeni hesap oluştur"
+                  : "Güvenli kullanıcı paneli"}
+              </div>
             </div>
           </div>
 
-          <h1 className="authTitle premiumAuthTitle">Giriş Yap</h1>
+          <h1 className="authTitle premiumAuthTitle">
+            {authMode === "verify"
+              ? "Kodu Gir"
+              : authMode === "register"
+              ? "Hesap Oluştur"
+              : "Giriş Yap"}
+          </h1>
 
           <p className="authText premiumAuthText">
-            E-posta ve şifreyle giriş yap. İlk kez hesap oluşturduğunda mailine
-            gelen doğrulama linkine tıkla.
+            {authMode === "verify" ? (
+              <>
+                <span className="authHighlight">{pendingEmail}</span> adresine
+                gelen doğrulama kodunu gir.
+              </>
+            ) : authMode === "register" ? (
+              <>
+                Ad soyad, e-posta ve şifre bilgilerini gir. Finans verilerin
+                <span className="authHighlight"> kullanıcıya özel </span>
+                saklanır.
+              </>
+            ) : (
+              <>
+                E-posta ve şifreyle giriş yap. Verilerin
+                <span className="authHighlight"> Supabase üzerinde </span>
+                güvenle saklanır.
+              </>
+            )}
           </p>
 
-          <div className="authFormGrid">
-            <label className="authInputBox">
-              <span>E-posta</span>
-              <input
-                type="email"
-                value={email}
-                placeholder="ornek@mail.com"
-                onChange={(event) => setEmail(event.target.value)}
-              />
-            </label>
+          {authMode === "verify" ? (
+            <>
+              <label className="authInputBox fullAuthInput">
+                <span>Doğrulama Kodu</span>
+                <input
+                  value={verificationCode}
+                  placeholder="Mailine gelen kod"
+                  onChange={(event) => setVerificationCode(event.target.value)}
+                />
+              </label>
 
-            <label className="authInputBox">
-              <span>Şifre</span>
-              <input
-                type="password"
-                value={password}
-                placeholder="En az 6 karakter"
-                onChange={(event) => setPassword(event.target.value)}
-              />
-            </label>
-          </div>
+              {authMessage ? <div className="authMessage">{authMessage}</div> : null}
 
-          <div className="authOptionsRow">
-            <label className="rememberBox">
-              <input
-                type="checkbox"
-                checked={rememberMe}
-                onChange={(event) => setRememberMe(event.target.checked)}
-              />
-              <span>Beni hatırla</span>
-            </label>
+              <div className="authButtons">
+                <button
+                  type="button"
+                  className="premiumButton authPrimaryButton"
+                  onClick={handleVerifyCode}
+                >
+                  Kodu Doğrula
+                </button>
 
-            <button type="button" className="linkButton" onClick={handleForgotPassword}>
-              Şifremi unuttum
-            </button>
-          </div>
+                <button
+                  type="button"
+                  className="secondaryButton authSecondaryButton"
+                  onClick={handleResendCode}
+                >
+                  Kodu Tekrar Gönder
+                </button>
 
-          {authMessage ? <div className="authMessage">{authMessage}</div> : null}
+                <button
+                  type="button"
+                  className="linkButton authBackButton"
+                  onClick={() => {
+                    setAuthMode("login");
+                    setAuthMessage("");
+                  }}
+                >
+                  Giriş ekranına dön
+                </button>
+              </div>
+            </>
+          ) : authMode === "register" ? (
+            <>
+              <div className="authFormGrid">
+                <label className="authInputBox">
+                  <span>Ad Soyad</span>
+                  <input
+                    value={fullName}
+                    placeholder="Ad Soyad"
+                    onChange={(event) => setFullName(event.target.value)}
+                  />
+                </label>
 
-          <div className="authButtons">
-            <button
-              type="button"
-              className="premiumButton authPrimaryButton"
-              onClick={handleLogin}
-            >
-              Giriş Yap
-            </button>
+                <label className="authInputBox">
+                  <span>E-posta</span>
+                  <input
+                    type="email"
+                    value={email}
+                    placeholder="ornek@mail.com"
+                    onChange={(event) => setEmail(event.target.value)}
+                  />
+                </label>
 
-            <button
-              type="button"
-              className="secondaryButton authSecondaryButton"
-              onClick={handleRegister}
-            >
-              Hesap Oluştur
-            </button>
-          </div>
+                <label className="authInputBox">
+                  <span>Şifre</span>
+                  <input
+                    type="password"
+                    value={password}
+                    placeholder="En az 6 karakter"
+                    onChange={(event) => setPassword(event.target.value)}
+                  />
+                </label>
+
+                <label className="authInputBox">
+                  <span>Şifre Tekrarı</span>
+                  <input
+                    type="password"
+                    value={passwordAgain}
+                    placeholder="Şifreyi tekrar gir"
+                    onChange={(event) => setPasswordAgain(event.target.value)}
+                  />
+                </label>
+              </div>
+
+              {authMessage ? <div className="authMessage">{authMessage}</div> : null}
+
+              <div className="authButtons">
+                <button
+                  type="button"
+                  className="premiumButton authPrimaryButton"
+                  onClick={handleRegister}
+                >
+                  Kaydı Oluştur
+                </button>
+
+                <button
+                  type="button"
+                  className="secondaryButton authSecondaryButton"
+                  onClick={() => {
+                    setAuthMode("login");
+                    setAuthMessage("");
+                  }}
+                >
+                  Giriş Ekranına Dön
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="authFormGrid">
+                <label className="authInputBox">
+                  <span>E-posta</span>
+                  <input
+                    type="email"
+                    value={email}
+                    placeholder="ornek@mail.com"
+                    onChange={(event) => setEmail(event.target.value)}
+                  />
+                </label>
+
+                <label className="authInputBox">
+                  <span>Şifre</span>
+                  <input
+                    type="password"
+                    value={password}
+                    placeholder="Şifren"
+                    onChange={(event) => setPassword(event.target.value)}
+                  />
+                </label>
+              </div>
+
+              <div className="authOptionsRow">
+                <label className="rememberBox">
+                  <input
+                    type="checkbox"
+                    checked={rememberMe}
+                    onChange={(event) => setRememberMe(event.target.checked)}
+                  />
+                  <span>Beni hatırla</span>
+                </label>
+
+                <button
+                  type="button"
+                  className="linkButton"
+                  onClick={handleForgotPassword}
+                >
+                  Şifremi unuttum
+                </button>
+              </div>
+
+              {authMessage ? <div className="authMessage">{authMessage}</div> : null}
+
+              <div className="authButtons">
+                <button
+                  type="button"
+                  className="premiumButton authPrimaryButton"
+                  onClick={handleLogin}
+                >
+                  Giriş Yap
+                </button>
+
+                <button
+                  type="button"
+                  className="secondaryButton authSecondaryButton"
+                  onClick={() => {
+                    setAuthMode("register");
+                    setAuthMessage("");
+                  }}
+                >
+                  Hesap Oluştur
+                </button>
+              </div>
+            </>
+          )}
 
           <div className="authFooterNote">
-            İlk kullanımda <strong>e-posta</strong> ve <strong>şifre</strong>{" "}
-            yazıp <strong>Hesap Oluştur</strong> butonuna bas. E-postana gelen
-            doğrulama linkine tıkladıktan sonra giriş yap.
+            {authMode === "verify"
+              ? "Mailine gelen kodu girdikten sonra hesabın doğrulanır."
+              : authMode === "register"
+              ? "Kayıt sonrası OTP doğrulama ekranına geçilir."
+              : "İlk kez kullanıyorsan Hesap Oluştur butonuna bas."}
           </div>
         </section>
       </main>
