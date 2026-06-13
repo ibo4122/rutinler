@@ -45,6 +45,10 @@ function onlyDigits(value) {
   return String(value || "").replace(/[^\d]/g, "");
 }
 
+function parseAmount(value) {
+  return Number(onlyDigits(value));
+}
+
 function formatNumberInput(value) {
   const digits = onlyDigits(value);
 
@@ -55,38 +59,8 @@ function formatNumberInput(value) {
   return new Intl.NumberFormat("tr-TR").format(Number(digits));
 }
 
-function parseAmount(value) {
-  return Number(onlyDigits(value));
-}
-
-function toInputAmount(value) {
-  if (value === undefined || value === null || value === "") {
-    return "";
-  }
-
-  return formatNumberInput(value);
-}
-
-function normalizeItemAmount(item) {
-  return {
-    ...item,
-    amount: parseAmount(item.amount),
-  };
-}
-
-function normalizeCredit(item) {
-  return {
-    id: String(item.id || Date.now() + Math.random()),
-    title: item.title || item.name || "",
-    monthlyPayment: parseAmount(item.monthlyPayment || item.amount || 0),
-    installmentText:
-      item.installmentText ||
-      item.installment ||
-      item.installments ||
-      "",
-    remainingDebt: parseAmount(item.remainingDebt || item.totalDebt || 0),
-    paymentStartDate: item.paymentStartDate || item.firstPaymentDate || "",
-  };
+function normalizeAmount(value) {
+  return parseAmount(value || 0);
 }
 
 function normalizeData(data) {
@@ -104,7 +78,7 @@ function normalizeData(data) {
         id: String(item.id || Date.now() + Math.random()),
         title: item.title || item.name || "Gider",
         category: item.category || "Diğer",
-        amount: parseAmount(item.amount || 0),
+        amount: normalizeAmount(item.amount),
         note: item.note || item.description || "",
       })),
     };
@@ -112,69 +86,89 @@ function normalizeData(data) {
 
   return {
     income: {
-      salary: toInputAmount(data.income?.salary || data.salary || ""),
-      mealAllowance: toInputAmount(
+      salary: formatNumberInput(data.income?.salary || data.salary || ""),
+      mealAllowance: formatNumberInput(
         data.income?.mealAllowance || data.mealAllowance || ""
       ),
     },
+
     extraIncomes: (data.extraIncomes || []).map((item) => ({
       id: String(item.id || Date.now() + Math.random()),
       title: item.title || item.name || "Ek Gelir",
-      amount: parseAmount(item.amount || 0),
+      amount: normalizeAmount(item.amount),
     })),
-    credits: (data.credits || data.debts || []).map(normalizeCredit),
+
+    credits: (data.credits || data.debts || []).map((item) => ({
+      id: String(item.id || Date.now() + Math.random()),
+      title: item.title || item.name || "Kredi",
+      monthlyPayment: normalizeAmount(item.monthlyPayment || item.amount),
+      installmentText:
+        item.installmentText || item.installment || item.installments || "",
+      remainingDebt: normalizeAmount(item.remainingDebt || item.totalDebt),
+      paymentStartDate: item.paymentStartDate || item.firstPaymentDate || "",
+    })),
+
     cardExpenses: (data.cardExpenses || data.creditCards || []).map((item) => ({
       id: String(item.id || Date.now() + Math.random()),
       title: item.title || item.name || "Kart Gideri",
       category: item.category || "Kredi Kartı",
-      amount: parseAmount(item.amount || 0),
+      amount: normalizeAmount(item.amount),
       note: item.note || item.description || "",
     })),
+
     otherExpenses: (data.otherExpenses || data.others || data.expenses || []).map(
       (item) => ({
         id: String(item.id || Date.now() + Math.random()),
         title: item.title || item.name || "Diğer Gider",
         category: item.category || "Diğer",
-        amount: parseAmount(item.amount || 0),
+        amount: normalizeAmount(item.amount),
         note: item.note || item.description || "",
       })
     ),
   };
 }
 
-function readSavedData() {
+function getDataScore(data) {
+  if (!data) {
+    return 0;
+  }
+
+  return (
+    (data.income?.salary ? 10 : 0) +
+    (data.income?.mealAllowance ? 3 : 0) +
+    (data.extraIncomes?.length || 0) * 8 +
+    (data.credits?.length || 0) * 12 +
+    (data.cardExpenses?.length || 0) * 10 +
+    (data.otherExpenses?.length || 0) * 10
+  );
+}
+
+function readBestSavedData() {
+  let bestData = null;
+  let bestScore = -1;
+
   for (const key of LEGACY_KEYS) {
     try {
-      const saved = window.localStorage.getItem(key);
+      const raw = window.localStorage.getItem(key);
 
-      if (!saved) {
+      if (!raw) {
         continue;
       }
 
-      const parsed = JSON.parse(saved);
+      const parsed = JSON.parse(raw);
       const normalized = normalizeData(parsed);
+      const score = getDataScore(normalized);
 
-      if (!normalized) {
-        continue;
-      }
-
-      const hasAnyData =
-        normalized.income.salary ||
-        normalized.income.mealAllowance ||
-        normalized.extraIncomes.length > 0 ||
-        normalized.credits.length > 0 ||
-        normalized.cardExpenses.length > 0 ||
-        normalized.otherExpenses.length > 0;
-
-      if (hasAnyData) {
-        return normalized;
+      if (score > bestScore) {
+        bestData = normalized;
+        bestScore = score;
       }
     } catch {
       continue;
     }
   }
 
-  return null;
+  return bestData;
 }
 
 export default function HomePage() {
@@ -204,14 +198,14 @@ export default function HomePage() {
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
-    const restored = readSavedData();
+    const saved = readBestSavedData();
 
-    if (restored) {
-      setIncome(restored.income || emptyIncome);
-      setExtraIncomes(restored.extraIncomes || []);
-      setCredits(restored.credits || []);
-      setCardExpenses(restored.cardExpenses || []);
-      setOtherExpenses(restored.otherExpenses || []);
+    if (saved) {
+      setIncome(saved.income || emptyIncome);
+      setExtraIncomes(saved.extraIncomes || []);
+      setCredits(saved.credits || []);
+      setCardExpenses(saved.cardExpenses || []);
+      setOtherExpenses(saved.otherExpenses || []);
     }
 
     setLoaded(true);
@@ -299,6 +293,7 @@ export default function HomePage() {
       return sum + Number(item.amount || 0);
     }, 0);
 
+    // Yemek parası toplam gelire dahil edilmez.
     const totalIncome = salary + extraIncomeTotal;
 
     const activeCreditTotal = credits.reduce((sum, item) => {
@@ -361,12 +356,11 @@ export default function HomePage() {
   };
 
   const updateCreditForm = (field, value) => {
+    const amountFields = ["monthlyPayment", "remainingDebt"];
+
     setCreditForm((current) => ({
       ...current,
-      [field]:
-        field === "monthlyPayment" || field === "remainingDebt"
-          ? formatNumberInput(value)
-          : value,
+      [field]: amountFields.includes(field) ? formatNumberInput(value) : value,
     }));
   };
 
@@ -442,6 +436,7 @@ export default function HomePage() {
       title: item.title || "",
       amount: formatNumberInput(item.amount),
     });
+
     setIncomeOpen(true);
     setExtraIncomeOpen(true);
   };
@@ -500,6 +495,7 @@ export default function HomePage() {
       remainingDebt: formatNumberInput(item.remainingDebt),
       paymentStartDate: item.paymentStartDate || "",
     });
+
     setExpensesOpen(true);
     setCreditsOpen(true);
   };
@@ -578,6 +574,7 @@ export default function HomePage() {
       amount: formatNumberInput(item.amount),
       note: item.note || "",
     });
+
     setExpensesOpen(true);
     setCardsOpen(true);
   };
@@ -590,6 +587,7 @@ export default function HomePage() {
       amount: formatNumberInput(item.amount),
       note: item.note || "",
     });
+
     setExpensesOpen(true);
     setOthersOpen(true);
   };
@@ -606,7 +604,9 @@ export default function HomePage() {
             tone="green"
             title="Toplam Gelir"
             value={money(totals.totalIncome)}
-            detail={`Yemek parası: ${money(totals.mealAllowance)} • Gelire dahil değil`}
+            detail={`Yemek parası: ${money(
+              totals.mealAllowance
+            )} • Gelire dahil değil`}
           />
 
           <SummaryCard
@@ -643,12 +643,14 @@ export default function HomePage() {
             <InputBox
               label="Maaş"
               value={income.salary}
+              placeholder="0"
               onChange={(value) => updateIncome("salary", value)}
             />
 
             <InputBox
               label="Yemek Parası"
               value={income.mealAllowance}
+              placeholder="0"
               onChange={(value) => updateIncome("mealAllowance", value)}
             />
           </div>
@@ -686,7 +688,11 @@ export default function HomePage() {
             </div>
 
             {editingExtraIncomeId ? (
-              <button type="button" className="deleteButton" onClick={resetExtraIncomeForm}>
+              <button
+                type="button"
+                className="deleteButton"
+                onClick={resetExtraIncomeForm}
+              >
                 Düzenlemeyi İptal Et
               </button>
             ) : null}
@@ -721,8 +727,8 @@ export default function HomePage() {
             onToggle={() => setCreditsOpen((value) => !value)}
           >
             <p className="sectionDescription">
-              Taksit alanını <strong>8/24</strong> formatında yaz. Ödeme başlangıç
-              tarihi gelmeyen krediler toplam gidere eklenmez.
+              Taksit alanını <strong>8/24</strong> formatında yaz. Ödeme
+              başlangıç tarihi gelmeyen krediler toplam gidere eklenmez.
             </p>
 
             <div className="formGrid five">
@@ -771,7 +777,11 @@ export default function HomePage() {
             </div>
 
             {editingCreditId ? (
-              <button type="button" className="deleteButton" onClick={resetCreditForm}>
+              <button
+                type="button"
+                className="deleteButton"
+                onClick={resetCreditForm}
+              >
                 Düzenlemeyi İptal Et
               </button>
             ) : null}
@@ -800,7 +810,9 @@ export default function HomePage() {
               form={cardForm}
               onChange={updateCardForm}
               onAdd={() => addOrUpdateSimpleExpense("card")}
-              buttonText={editingCardId ? "Kart Giderini Güncelle" : "Kart Gideri Ekle"}
+              buttonText={
+                editingCardId ? "Kart Giderini Güncelle" : "Kart Gideri Ekle"
+              }
             />
 
             {editingCardId ? (
@@ -833,7 +845,9 @@ export default function HomePage() {
               form={otherForm}
               onChange={updateOtherForm}
               onAdd={() => addOrUpdateSimpleExpense("other")}
-              buttonText={editingOtherId ? "Diğer Gideri Güncelle" : "Diğer Gider Ekle"}
+              buttonText={
+                editingOtherId ? "Diğer Gideri Güncelle" : "Diğer Gider Ekle"
+              }
             />
 
             {editingOtherId ? (
@@ -863,7 +877,7 @@ function SummaryCard({ title, value, detail, tone }) {
   return (
     <article className={`summaryCard ${tone}`}>
       <div className="summaryLabel">{title}</div>
-      <div className="summaryValue">{value}</div>
+      <div className={`summaryValue summaryValue-${tone}`}>{value}</div>
       <div className="summaryDetail">{detail}</div>
     </article>
   );
@@ -874,7 +888,7 @@ function Panel({ title, subtitle, totalLabel, total, open, onToggle, children })
     <section className="panelCard">
       <button type="button" className="panelHeader" onClick={onToggle}>
         <div>
-          <h2>{title}</h2>
+          <h2 className="gradientTitle">{title}</h2>
           <p>{subtitle}</p>
         </div>
 
@@ -906,7 +920,7 @@ function MiniPanel({
     <section className={`miniPanel ${color}`}>
       <button type="button" className="miniHeader" onClick={onToggle}>
         <div>
-          <h3>{title}</h3>
+          <h3 className={`miniTitle miniTitle-${color}`}>{title}</h3>
         </div>
 
         <div className="miniRight">
