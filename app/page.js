@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
 
+const LOCAL_BACKUP_KEY = "kisisel-finans-panel-local-backup";
+
 const emptyIncome = {
   salary: "",
   mealAllowance: "",
@@ -35,8 +37,6 @@ const emptyFinanceData = {
   cardExpenses: [],
   otherExpenses: [],
 };
-
-const LOCAL_BACKUP_KEY = "kisisel-finans-panel-local-backup";
 
 function usernameToEmail(username) {
   return `${String(username || "").trim().toLowerCase()}@finans.local`;
@@ -80,7 +80,11 @@ function normalizeFinanceData(data) {
 function getLocalBackup() {
   try {
     const raw = window.localStorage.getItem(LOCAL_BACKUP_KEY);
-    if (!raw) return null;
+
+    if (!raw) {
+      return null;
+    }
+
     return normalizeFinanceData(JSON.parse(raw));
   } catch {
     return null;
@@ -102,6 +106,7 @@ export default function HomePage() {
 
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [rememberMe, setRememberMe] = useState(true);
   const [authMessage, setAuthMessage] = useState("");
 
   const [incomeOpen, setIncomeOpen] = useState(true);
@@ -128,6 +133,24 @@ export default function HomePage() {
   const [editingOtherId, setEditingOtherId] = useState(null);
 
   useEffect(() => {
+    try {
+      const rememberedUsername = window.localStorage.getItem(
+        "remembered-finance-username"
+      );
+
+      if (rememberedUsername) {
+        setUsername(rememberedUsername);
+        setRememberMe(true);
+      }
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    if (!supabase) {
+      setAuthLoading(false);
+      return;
+    }
+
     const init = async () => {
       const { data } = await supabase.auth.getSession();
       setSession(data.session || null);
@@ -199,6 +222,7 @@ export default function HomePage() {
 
     if (!hasCloudData) {
       const localBackup = getLocalBackup();
+
       if (localBackup) {
         normalized = localBackup;
       }
@@ -215,7 +239,7 @@ export default function HomePage() {
   };
 
   const saveFinanceData = async () => {
-    if (!session?.user) {
+    if (!session?.user || !supabase) {
       return;
     }
 
@@ -244,8 +268,18 @@ export default function HomePage() {
   const handleRegister = async () => {
     setAuthMessage("");
 
+    if (!supabase) {
+      setAuthMessage("Supabase bağlantısı eksik. Environment Variables kontrol edilmeli.");
+      return;
+    }
+
     if (!username.trim() || !password.trim()) {
       setAuthMessage("Kullanıcı adı ve şifre gir.");
+      return;
+    }
+
+    if (password.length < 6) {
+      setAuthMessage("Şifre en az 6 karakter olmalı.");
       return;
     }
 
@@ -261,11 +295,16 @@ export default function HomePage() {
       return;
     }
 
-    setAuthMessage("Hesap oluşturuldu. Şimdi giriş yapabilirsin.");
+    setAuthMessage("Hesap oluşturuldu. Şimdi aynı kullanıcı adı ve şifreyle giriş yapabilirsin.");
   };
 
   const handleLogin = async () => {
     setAuthMessage("");
+
+    if (!supabase) {
+      setAuthMessage("Supabase bağlantısı eksik. Environment Variables kontrol edilmeli.");
+      return;
+    }
 
     if (!username.trim() || !password.trim()) {
       setAuthMessage("Kullanıcı adı ve şifre gir.");
@@ -283,6 +322,14 @@ export default function HomePage() {
       setAuthMessage("Giriş başarısız. Kullanıcı adı veya şifreyi kontrol et.");
       return;
     }
+
+    try {
+      if (rememberMe) {
+        window.localStorage.setItem("remembered-finance-username", username.trim());
+      } else {
+        window.localStorage.removeItem("remembered-finance-username");
+      }
+    } catch {}
   };
 
   const handleLogout = async () => {
@@ -649,9 +696,9 @@ export default function HomePage() {
 
   if (authLoading) {
     return (
-      <main className="financePage centerPage">
-        <section className="authCard">
-          <h1 className="authTitle">Yükleniyor...</h1>
+      <main className="financePage authPage">
+        <section className="authCard premiumAuthCard">
+          <h1 className="authTitle premiumAuthTitle">Yükleniyor...</h1>
         </section>
       </main>
     );
@@ -659,45 +706,96 @@ export default function HomePage() {
 
   if (!session) {
     return (
-      <main className="financePage centerPage">
-        <section className="authCard">
-          <div className="topBadge">Kişisel Finans Yönetimi</div>
+      <main className="financePage authPage">
+        <section className="authCard premiumAuthCard">
+          <div className="authGlow authGlowOne" />
+          <div className="authGlow authGlowTwo" />
 
-          <h1 className="authTitle">Giriş Yap</h1>
+          <div className="authBrandRow">
+            <div className="authLogo">₺</div>
 
-          <p className="authText">
-            Kullanıcı adı ve şifreyle giriş yap. Her kullanıcının finans verisi ayrı tutulur.
+            <div>
+              <div className="authBrandTitle">Kişisel Finans Yönetimi</div>
+              <div className="authBrandSub">Güvenli kullanıcı paneli</div>
+            </div>
+          </div>
+
+          <h1 className="authTitle premiumAuthTitle">Giriş Yap</h1>
+
+          <p className="authText premiumAuthText">
+            Kullanıcı adı ve şifreyle giriş yap. Her kullanıcının finans verisi
+            <span className="authHighlight"> Supabase üzerinde kişiye özel </span>
+            saklanır.
           </p>
 
-          <label className="inputBox">
-            <span>Kullanıcı Adı</span>
-            <input
-              value={username}
-              placeholder="Örn: ibrahim"
-              onChange={(event) => setUsername(event.target.value)}
-            />
-          </label>
+          <div className="authFormGrid">
+            <label className="authInputBox">
+              <span>Kullanıcı Adı</span>
+              <input
+                value={username}
+                placeholder="Örn: ibrahim"
+                onChange={(event) => setUsername(event.target.value)}
+              />
+            </label>
 
-          <label className="inputBox">
-            <span>Şifre</span>
-            <input
-              type="password"
-              value={password}
-              placeholder="Şifren"
-              onChange={(event) => setPassword(event.target.value)}
-            />
-          </label>
+            <label className="authInputBox">
+              <span>Şifre</span>
+              <input
+                type="password"
+                value={password}
+                placeholder="En az 6 karakter"
+                onChange={(event) => setPassword(event.target.value)}
+              />
+            </label>
+          </div>
+
+          <div className="authOptionsRow">
+            <label className="rememberBox">
+              <input
+                type="checkbox"
+                checked={rememberMe}
+                onChange={(event) => setRememberMe(event.target.checked)}
+              />
+              <span>Beni hatırla</span>
+            </label>
+
+            <button
+              type="button"
+              className="linkButton"
+              onClick={() =>
+                setAuthMessage(
+                  "Şifre sıfırlama için gerçek e-posta gerekir. Bu sistem kullanıcı adını sanal e-postaya çevirdiği için şu an şifreyi Hesap Oluştur sırasında belirliyoruz. İstersen sonraki adımda panel içine Şifre Değiştir alanı ekleyelim."
+                )
+              }
+            >
+              Şifremi unuttum
+            </button>
+          </div>
 
           {authMessage ? <div className="authMessage">{authMessage}</div> : null}
 
           <div className="authButtons">
-            <button type="button" className="premiumButton" onClick={handleLogin}>
+            <button
+              type="button"
+              className="premiumButton authPrimaryButton"
+              onClick={handleLogin}
+            >
               Giriş Yap
             </button>
 
-            <button type="button" className="secondaryButton" onClick={handleRegister}>
+            <button
+              type="button"
+              className="secondaryButton authSecondaryButton"
+              onClick={handleRegister}
+            >
               Hesap Oluştur
             </button>
+          </div>
+
+          <div className="authFooterNote">
+            İlk kullanımda kullanıcı adını ve şifreni yazıp{" "}
+            <strong>Hesap Oluştur</strong> butonuna bas. Sonrasında aynı bilgilerle
+            giriş yap.
           </div>
         </section>
       </main>
