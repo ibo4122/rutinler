@@ -29,12 +29,20 @@ const emptyExpense = {
 };
 
 export default function HomePage() {
-  const [income, setIncome] = useState(emptyIncome);
+  const [income, setIncome] =
+    useState(emptyIncome);
 
-  const [extraIncomes, setExtraIncomes] = useState([]);
-  const [credits, setCredits] = useState([]);
-  const [cardExpenses, setCardExpenses] = useState([]);
-  const [otherExpenses, setOtherExpenses] = useState([]);
+  const [extraIncomes, setExtraIncomes] =
+    useState([]);
+
+  const [credits, setCredits] =
+    useState([]);
+
+  const [cardExpenses, setCardExpenses] =
+    useState([]);
+
+  const [otherExpenses, setOtherExpenses] =
+    useState([]);
 
   const [extraIncomeForm, setExtraIncomeForm] =
     useState(emptyExtraIncome);
@@ -47,6 +55,18 @@ export default function HomePage() {
 
   const [otherForm, setOtherForm] =
     useState(emptyExpense);
+
+  const [incomeOpen, setIncomeOpen] =
+    useState(true);
+
+  const [creditOpen, setCreditOpen] =
+    useState(true);
+
+  const [cardOpen, setCardOpen] =
+    useState(true);
+
+  const [otherOpen, setOtherOpen] =
+    useState(true);
 
   useEffect(() => {
     try {
@@ -156,11 +176,11 @@ export default function HomePage() {
 
     return {
       totalIncome,
-      mealAllowance,
       totalExpense,
       totalDebt,
       balance:
         totalIncome - totalExpense,
+      mealAllowance,
       extraIncomeTotal,
       creditTotal,
       cardTotal,
@@ -252,14 +272,31 @@ export default function HomePage() {
     setOtherForm(emptyExpense);
   };
 
+  const installmentPercent = (text) => {
+    if (!text?.includes("/")) return 0;
+
+    const [current, total] =
+      text.split("/");
+
+    const percent =
+      (Number(current) /
+        Number(total)) *
+      100;
+
+    return Math.min(percent, 100);
+  };
+
   return (
     <main className="financePage">
+
       <div className="financeShell">
 
         <header className="topHeader">
+
           <div className="topBadge">
-            Kişisel Finans Yönetimi
+            Finans Yönetim Paneli
           </div>
+
         </header>
 
         <section className="summaryGrid">
@@ -272,7 +309,7 @@ export default function HomePage() {
             )}
             detail={`Yemek parası: ${money(
               totals.mealAllowance
-            )} • Gelire dahil değil`}
+            )}`}
           />
 
           <SummaryCard
@@ -281,7 +318,7 @@ export default function HomePage() {
             value={money(
               totals.totalExpense
             )}
-            detail="Aylık toplam gider"
+            detail="Tüm aylık giderler"
           />
 
           <SummaryCard
@@ -290,7 +327,7 @@ export default function HomePage() {
             value={money(
               totals.balance
             )}
-            detail="Gelir - gider farkı"
+            detail="Gelir - gider"
           />
 
           <SummaryCard
@@ -310,6 +347,10 @@ export default function HomePage() {
           total={money(
             totals.totalIncome
           )}
+          open={incomeOpen}
+          onToggle={() =>
+            setIncomeOpen(!incomeOpen)
+          }
         >
 
           <div className="formGrid two">
@@ -395,7 +436,7 @@ export default function HomePage() {
 
             </div>
 
-            <SimpleExpenseList
+            <SimpleList
               items={extraIncomes}
               money={money}
               onDelete={(id) =>
@@ -415,10 +456,14 @@ export default function HomePage() {
 
         <Panel
           title="Krediler"
-          subtitle="Kredi yönetimi"
+          subtitle="Kredi takip sistemi"
           total={money(
             totals.creditTotal
           )}
+          open={creditOpen}
+          onToggle={() =>
+            setCreditOpen(!creditOpen)
+          }
         >
 
           <div className="formGrid four">
@@ -487,190 +532,84 @@ export default function HomePage() {
             Kredi Ekle
           </button>
 
-          <CreditList
-            items={credits}
-            money={money}
-            onDelete={(id) =>
-              setCredits((prev) =>
-                prev.filter(
-                  (item) =>
-                    item.id !== id
-                )
-              )
-            }
-          />
+          <div className="recordList">
 
-        </Panel>
+            {credits.map((item) => {
 
-        <Panel
-          title="Kredi Kartı Giderleri"
-          subtitle="Kart harcamaları"
-          total={money(
-            totals.cardTotal
-          )}
-        >
+              const percent =
+                installmentPercent(
+                  item.installmentText
+                );
 
-          <div className="formGrid four">
+              return (
+                <div
+                  key={item.id}
+                  className="creditRecord"
+                >
 
-            <InputBox
-              label="Başlık"
-              value={cardForm.title}
-              onChange={(value) =>
-                setCardForm((prev) => ({
-                  ...prev,
-                  title: value,
-                }))
-              }
-            />
+                  <div className="creditRecordTop">
 
-            <InputBox
-              label="Kategori"
-              value={
-                cardForm.category
-              }
-              onChange={(value) =>
-                setCardForm((prev) => ({
-                  ...prev,
-                  category: value,
-                }))
-              }
-            />
+                    <div>
 
-            <InputBox
-              label="Tutar"
-              type="number"
-              value={cardForm.amount}
-              onChange={(value) =>
-                setCardForm((prev) => ({
-                  ...prev,
-                  amount: value,
-                }))
-              }
-            />
+                      <div className="recordTitleRow">
 
-            <InputBox
-              label="Not"
-              value={cardForm.note}
-              onChange={(value) =>
-                setCardForm((prev) => ({
-                  ...prev,
-                  note: value,
-                }))
-              }
-            />
+                        <h4>
+                          {item.title}
+                        </h4>
 
-          </div>
+                        <span className="status waiting">
+                          Aktif
+                        </span>
 
-          <button
-            className="premiumButton wideButton"
-            onClick={
-              addCardExpense
-            }
-          >
-            Kart Gideri Ekle
-          </button>
+                      </div>
 
-          <SimpleExpenseList
-            items={cardExpenses}
-            money={money}
-            onDelete={(id) =>
-              setCardExpenses(
-                (prev) =>
-                  prev.filter(
-                    (item) =>
-                      item.id !== id
-                  )
-              )
-            }
-          />
+                      <p className="recordSubText">
+                        Taksit:
+                        {" "}
+                        {
+                          item.installmentText
+                        }
+                      </p>
 
-        </Panel>
+                      <p className="recordSubText">
+                        Kalan:
+                        {" "}
+                        {money(
+                          item.remainingDebt
+                        )}
+                      </p>
 
-        <Panel
-          title="Diğer Giderler"
-          subtitle="Nakit ve diğer giderler"
-          total={money(
-            totals.otherTotal
-          )}
-        >
+                    </div>
 
-          <div className="formGrid four">
+                    <div className="recordAmount">
+                      {money(
+                        item.monthlyPayment
+                      )}
+                    </div>
 
-            <InputBox
-              label="Başlık"
-              value={otherForm.title}
-              onChange={(value) =>
-                setOtherForm((prev) => ({
-                  ...prev,
-                  title: value,
-                }))
-              }
-            />
+                  </div>
 
-            <InputBox
-              label="Kategori"
-              value={
-                otherForm.category
-              }
-              onChange={(value) =>
-                setOtherForm((prev) => ({
-                  ...prev,
-                  category: value,
-                }))
-              }
-            />
+                  <div className="progressTrack">
 
-            <InputBox
-              label="Tutar"
-              type="number"
-              value={otherForm.amount}
-              onChange={(value) =>
-                setOtherForm((prev) => ({
-                  ...prev,
-                  amount: value,
-                }))
-              }
-            />
+                    <div
+                      className="progressBar warm"
+                      style={{
+                        width: `${percent}%`,
+                      }}
+                    />
 
-            <InputBox
-              label="Not"
-              value={otherForm.note}
-              onChange={(value) =>
-                setOtherForm((prev) => ({
-                  ...prev,
-                  note: value,
-                }))
-              }
-            />
+                  </div>
+
+                </div>
+              );
+            })}
 
           </div>
-
-          <button
-            className="premiumButton wideButton"
-            onClick={
-              addOtherExpense
-            }
-          >
-            Diğer Gider Ekle
-          </button>
-
-          <SimpleExpenseList
-            items={otherExpenses}
-            money={money}
-            onDelete={(id) =>
-              setOtherExpenses(
-                (prev) =>
-                  prev.filter(
-                    (item) =>
-                      item.id !== id
-                  )
-              )
-            }
-          />
 
         </Panel>
 
       </div>
+
     </main>
   );
 }
@@ -685,6 +624,7 @@ function SummaryCard({
     <article
       className={`summaryCard ${tone}`}
     >
+
       <div className="summaryLabel">
         {title}
       </div>
@@ -696,6 +636,7 @@ function SummaryCard({
       <div className="summaryDetail">
         {detail}
       </div>
+
     </article>
   );
 }
@@ -705,11 +646,16 @@ function Panel({
   subtitle,
   total,
   children,
+  open,
+  onToggle,
 }) {
   return (
     <section className="panelCard">
 
-      <div className="panelHeader">
+      <button
+        className="panelHeader"
+        onClick={onToggle}
+      >
 
         <div>
           <h2>{title}</h2>
@@ -723,13 +669,19 @@ function Panel({
             <strong>{total}</strong>
           </div>
 
+          <div className="toggleButton">
+            {open ? "−" : "+"}
+          </div>
+
         </div>
 
-      </div>
+      </button>
 
-      <div className="panelBody">
-        {children}
-      </div>
+      {open ? (
+        <div className="panelBody">
+          {children}
+        </div>
+      ) : null}
 
     </section>
   );
@@ -794,85 +746,7 @@ function InputBox({
   );
 }
 
-function CreditList({
-  items,
-  money,
-  onDelete,
-}) {
-  if (items.length === 0) {
-    return (
-      <EmptyState text="Henüz kredi bulunmuyor." />
-    );
-  }
-
-  return (
-    <div className="recordList">
-
-      {items.map((item) => (
-
-        <div
-          key={item.id}
-          className="creditRecord"
-        >
-
-          <div className="creditRecordTop">
-
-            <div>
-
-              <div className="recordTitleRow">
-
-                <h4>{item.title}</h4>
-
-                <span className="status waiting">
-                  Aktif
-                </span>
-
-              </div>
-
-              <p className="recordSubText">
-                Taksit:
-                {" "}
-                {item.installmentText}
-              </p>
-
-              <p className="recordSubText">
-                Kalan borç:
-                {" "}
-                {money(
-                  item.remainingDebt
-                )}
-              </p>
-
-            </div>
-
-            <div className="recordAmount">
-              {money(
-                item.monthlyPayment
-              )}
-            </div>
-
-          </div>
-
-          <div className="recordFooter">
-
-            <button
-              className="deleteButton"
-              onClick={() =>
-                onDelete(item.id)
-              }
-            >
-              Sil
-            </button>
-
-          </div>
-
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function SimpleExpenseList({
+function SimpleList({
   items,
   money,
   onDelete,
@@ -899,9 +773,9 @@ function SimpleExpenseList({
 
               <h4>{item.title}</h4>
 
-              <p>
-                {item.category}
-              </p>
+              {item.category ? (
+                <p>{item.category}</p>
+              ) : null}
 
               {item.note ? (
                 <p>{item.note}</p>
