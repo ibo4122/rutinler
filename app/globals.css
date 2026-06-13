@@ -98,7 +98,7 @@
 .miniHeader h3,
 .summaryValue {
   filter: drop-shadow(0 10px 18px rgba(0, 0, 0, 0.28));
-
+}
   .centerPage {
   display: flex;
   align-items: center;
