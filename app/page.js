@@ -38,10 +38,6 @@ const emptyFinanceData = {
   otherExpenses: [],
 };
 
-function usernameToEmail(username) {
-  return `${String(username || "").trim().toLowerCase()}@finans.local`;
-}
-
 function onlyDigits(value) {
   return String(value || "").replace(/[^\d]/g, "");
 }
@@ -104,7 +100,7 @@ export default function HomePage() {
   const [financeLoaded, setFinanceLoaded] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [rememberMe, setRememberMe] = useState(true);
   const [authMessage, setAuthMessage] = useState("");
@@ -134,12 +130,12 @@ export default function HomePage() {
 
   useEffect(() => {
     try {
-      const rememberedUsername = window.localStorage.getItem(
-        "remembered-finance-username"
+      const rememberedEmail = window.localStorage.getItem(
+        "remembered-finance-email"
       );
 
-      if (rememberedUsername) {
-        setUsername(rememberedUsername);
+      if (rememberedEmail) {
+        setEmail(rememberedEmail);
         setRememberMe(true);
       }
     } catch {}
@@ -187,7 +183,15 @@ export default function HomePage() {
     }, 650);
 
     return () => clearTimeout(timer);
-  }, [income, extraIncomes, credits, cardExpenses, otherExpenses, session, financeLoaded]);
+  }, [
+    income,
+    extraIncomes,
+    credits,
+    cardExpenses,
+    otherExpenses,
+    session,
+    financeLoaded,
+  ]);
 
   const currentPayload = () => ({
     income,
@@ -269,12 +273,19 @@ export default function HomePage() {
     setAuthMessage("");
 
     if (!supabase) {
-      setAuthMessage("Supabase bağlantısı eksik. Environment Variables kontrol edilmeli.");
+      setAuthMessage(
+        "Supabase bağlantısı eksik. Environment Variables kontrol edilmeli."
+      );
       return;
     }
 
-    if (!username.trim() || !password.trim()) {
-      setAuthMessage("Kullanıcı adı ve şifre gir.");
+    if (!email.trim() || !password.trim()) {
+      setAuthMessage("E-posta ve şifre gir.");
+      return;
+    }
+
+    if (!email.includes("@")) {
+      setAuthMessage("Geçerli bir e-posta adresi gir.");
       return;
     }
 
@@ -283,11 +294,14 @@ export default function HomePage() {
       return;
     }
 
-    const email = usernameToEmail(username);
+    const cleanEmail = email.trim().toLowerCase();
 
     const { error } = await supabase.auth.signUp({
-      email,
+      email: cleanEmail,
       password,
+      options: {
+        emailRedirectTo: window.location.origin,
+      },
     });
 
     if (error) {
@@ -295,41 +309,75 @@ export default function HomePage() {
       return;
     }
 
-    setAuthMessage("Hesap oluşturuldu. Şimdi aynı kullanıcı adı ve şifreyle giriş yapabilirsin.");
+    setAuthMessage(
+      "Hesap oluşturuldu. E-posta adresine doğrulama linki gönderildi. Maildeki linke tıkladıktan sonra giriş yapabilirsin."
+    );
   };
 
   const handleLogin = async () => {
     setAuthMessage("");
 
     if (!supabase) {
-      setAuthMessage("Supabase bağlantısı eksik. Environment Variables kontrol edilmeli.");
+      setAuthMessage(
+        "Supabase bağlantısı eksik. Environment Variables kontrol edilmeli."
+      );
       return;
     }
 
-    if (!username.trim() || !password.trim()) {
-      setAuthMessage("Kullanıcı adı ve şifre gir.");
+    if (!email.trim() || !password.trim()) {
+      setAuthMessage("E-posta ve şifre gir.");
       return;
     }
 
-    const email = usernameToEmail(username);
+    const cleanEmail = email.trim().toLowerCase();
 
     const { error } = await supabase.auth.signInWithPassword({
-      email,
+      email: cleanEmail,
       password,
     });
 
     if (error) {
-      setAuthMessage("Giriş başarısız. Kullanıcı adı veya şifreyi kontrol et.");
+      setAuthMessage(
+        "Giriş başarısız. E-posta doğrulanmamış olabilir veya şifre hatalı olabilir."
+      );
       return;
     }
 
     try {
       if (rememberMe) {
-        window.localStorage.setItem("remembered-finance-username", username.trim());
+        window.localStorage.setItem("remembered-finance-email", cleanEmail);
       } else {
-        window.localStorage.removeItem("remembered-finance-username");
+        window.localStorage.removeItem("remembered-finance-email");
       }
     } catch {}
+  };
+
+  const handleForgotPassword = async () => {
+    setAuthMessage("");
+
+    if (!supabase) {
+      setAuthMessage("Supabase bağlantısı eksik.");
+      return;
+    }
+
+    if (!email.trim()) {
+      setAuthMessage("Şifre sıfırlama için e-posta adresini gir.");
+      return;
+    }
+
+    const { error } = await supabase.auth.resetPasswordForEmail(
+      email.trim().toLowerCase(),
+      {
+        redirectTo: window.location.origin,
+      }
+    );
+
+    if (error) {
+      setAuthMessage(error.message);
+      return;
+    }
+
+    setAuthMessage("Şifre sıfırlama bağlantısı e-posta adresine gönderildi.");
   };
 
   const handleLogout = async () => {
@@ -716,25 +764,25 @@ export default function HomePage() {
 
             <div>
               <div className="authBrandTitle">Kişisel Finans Yönetimi</div>
-              <div className="authBrandSub">Güvenli kullanıcı paneli</div>
+              <div className="authBrandSub">E-posta doğrulamalı güvenli panel</div>
             </div>
           </div>
 
           <h1 className="authTitle premiumAuthTitle">Giriş Yap</h1>
 
           <p className="authText premiumAuthText">
-            Kullanıcı adı ve şifreyle giriş yap. Her kullanıcının finans verisi
-            <span className="authHighlight"> Supabase üzerinde kişiye özel </span>
-            saklanır.
+            E-posta ve şifreyle giriş yap. İlk kez hesap oluşturduğunda mailine
+            gelen doğrulama linkine tıkla.
           </p>
 
           <div className="authFormGrid">
             <label className="authInputBox">
-              <span>Kullanıcı Adı</span>
+              <span>E-posta</span>
               <input
-                value={username}
-                placeholder="Örn: ibrahim"
-                onChange={(event) => setUsername(event.target.value)}
+                type="email"
+                value={email}
+                placeholder="ornek@mail.com"
+                onChange={(event) => setEmail(event.target.value)}
               />
             </label>
 
@@ -759,15 +807,7 @@ export default function HomePage() {
               <span>Beni hatırla</span>
             </label>
 
-            <button
-              type="button"
-              className="linkButton"
-              onClick={() =>
-                setAuthMessage(
-                  "Şifre sıfırlama için gerçek e-posta gerekir. Bu sistem kullanıcı adını sanal e-postaya çevirdiği için şu an şifreyi Hesap Oluştur sırasında belirliyoruz. İstersen sonraki adımda panel içine Şifre Değiştir alanı ekleyelim."
-                )
-              }
-            >
+            <button type="button" className="linkButton" onClick={handleForgotPassword}>
               Şifremi unuttum
             </button>
           </div>
@@ -793,9 +833,9 @@ export default function HomePage() {
           </div>
 
           <div className="authFooterNote">
-            İlk kullanımda kullanıcı adını ve şifreni yazıp{" "}
-            <strong>Hesap Oluştur</strong> butonuna bas. Sonrasında aynı bilgilerle
-            giriş yap.
+            İlk kullanımda <strong>e-posta</strong> ve <strong>şifre</strong>{" "}
+            yazıp <strong>Hesap Oluştur</strong> butonuna bas. E-postana gelen
+            doğrulama linkine tıkladıktan sonra giriş yap.
           </div>
         </section>
       </main>
