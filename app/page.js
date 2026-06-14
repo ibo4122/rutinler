@@ -1,6 +1,7 @@
 "use client";
 
-import { supabase } from "../lib/supabaseClient";import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { supabase } from "../lib/supabaseClient";
 
 const LOCAL_BACKUP_KEY = "kisisel-finans-panel-local-backup";
 
@@ -29,12 +30,43 @@ const emptyExpense = {
   note: "",
 };
 
+const emptyInvestments = {
+  bes: [],
+  locked: [],
+  gold: [],
+  crypto: [],
+};
+
 const emptyFinanceData = {
   income: emptyIncome,
   extraIncomes: [],
   credits: [],
   cardExpenses: [],
   otherExpenses: [],
+  investments: emptyInvestments,
+};
+
+const emptyBesForm = {
+  title: "",
+  totalAmount: "",
+  monthlyContribution: "",
+  expectedReturn: "",
+  note: "",
+};
+
+const emptyLockedForm = {
+  title: "",
+  amount: "",
+  unlockDate: "",
+  note: "",
+};
+
+const emptyAssetForm = {
+  title: "",
+  quantity: "",
+  buyPrice: "",
+  currentPrice: "",
+  note: "",
 };
 
 function onlyDigits(value) {
@@ -47,18 +79,12 @@ function parseAmount(value) {
 
 function formatNumberInput(value) {
   const digits = onlyDigits(value);
-
-  if (!digits) {
-    return "";
-  }
-
+  if (!digits) return "";
   return new Intl.NumberFormat("tr-TR").format(Number(digits));
 }
 
 function normalizeFinanceData(data) {
-  if (!data) {
-    return emptyFinanceData;
-  }
+  if (!data) return emptyFinanceData;
 
   return {
     income: {
@@ -69,17 +95,23 @@ function normalizeFinanceData(data) {
     credits: Array.isArray(data.credits) ? data.credits : [],
     cardExpenses: Array.isArray(data.cardExpenses) ? data.cardExpenses : [],
     otherExpenses: Array.isArray(data.otherExpenses) ? data.otherExpenses : [],
+    investments: {
+      bes: Array.isArray(data.investments?.bes) ? data.investments.bes : [],
+      locked: Array.isArray(data.investments?.locked)
+        ? data.investments.locked
+        : [],
+      gold: Array.isArray(data.investments?.gold) ? data.investments.gold : [],
+      crypto: Array.isArray(data.investments?.crypto)
+        ? data.investments.crypto
+        : [],
+    },
   };
 }
 
 function getLocalBackup() {
   try {
     const raw = window.localStorage.getItem(LOCAL_BACKUP_KEY);
-
-    if (!raw) {
-      return null;
-    }
-
+    if (!raw) return null;
     return normalizeFinanceData(JSON.parse(raw));
   } catch {
     return null;
@@ -90,6 +122,18 @@ function saveLocalBackup(payload) {
   try {
     window.localStorage.setItem(LOCAL_BACKUP_KEY, JSON.stringify(payload));
   } catch {}
+}
+
+function daysUntil(dateText) {
+  if (!dateText) return null;
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const target = new Date(dateText);
+  target.setHours(0, 0, 0, 0);
+
+  return Math.ceil((target - today) / (1000 * 60 * 60 * 24));
 }
 
 export default function HomePage() {
@@ -116,21 +160,38 @@ export default function HomePage() {
   const [cardsOpen, setCardsOpen] = useState(true);
   const [othersOpen, setOthersOpen] = useState(true);
 
+  const [investmentOpen, setInvestmentOpen] = useState(true);
+  const [besOpen, setBesOpen] = useState(true);
+  const [lockedOpen, setLockedOpen] = useState(true);
+  const [goldOpen, setGoldOpen] = useState(true);
+  const [cryptoOpen, setCryptoOpen] = useState(true);
+
   const [income, setIncome] = useState(emptyIncome);
   const [extraIncomes, setExtraIncomes] = useState([]);
   const [credits, setCredits] = useState([]);
   const [cardExpenses, setCardExpenses] = useState([]);
   const [otherExpenses, setOtherExpenses] = useState([]);
+  const [investments, setInvestments] = useState(emptyInvestments);
 
   const [extraIncomeForm, setExtraIncomeForm] = useState(emptyExtraIncome);
   const [creditForm, setCreditForm] = useState(emptyCredit);
   const [cardForm, setCardForm] = useState(emptyExpense);
   const [otherForm, setOtherForm] = useState(emptyExpense);
 
+  const [besForm, setBesForm] = useState(emptyBesForm);
+  const [lockedForm, setLockedForm] = useState(emptyLockedForm);
+  const [goldForm, setGoldForm] = useState(emptyAssetForm);
+  const [cryptoForm, setCryptoForm] = useState(emptyAssetForm);
+
   const [editingExtraIncomeId, setEditingExtraIncomeId] = useState(null);
   const [editingCreditId, setEditingCreditId] = useState(null);
   const [editingCardId, setEditingCardId] = useState(null);
   const [editingOtherId, setEditingOtherId] = useState(null);
+
+  const [editingBesId, setEditingBesId] = useState(null);
+  const [editingLockedId, setEditingLockedId] = useState(null);
+  const [editingGoldId, setEditingGoldId] = useState(null);
+  const [editingCryptoId, setEditingCryptoId] = useState(null);
 
   useEffect(() => {
     try {
@@ -178,9 +239,7 @@ export default function HomePage() {
   }, [session]);
 
   useEffect(() => {
-    if (!session?.user || !financeLoaded) {
-      return;
-    }
+    if (!session?.user || !financeLoaded) return;
 
     const timer = setTimeout(() => {
       saveFinanceData();
@@ -193,6 +252,7 @@ export default function HomePage() {
     credits,
     cardExpenses,
     otherExpenses,
+    investments,
     session,
     financeLoaded,
   ]);
@@ -203,6 +263,7 @@ export default function HomePage() {
     credits,
     cardExpenses,
     otherExpenses,
+    investments,
   });
 
   const loadFinanceData = async (userId) => {
@@ -214,9 +275,7 @@ export default function HomePage() {
       .eq("user_id", userId)
       .maybeSingle();
 
-    if (error) {
-      console.log(error);
-    }
+    if (error) console.log(error);
 
     let normalized = normalizeFinanceData(data?.data);
 
@@ -226,14 +285,15 @@ export default function HomePage() {
       normalized.extraIncomes.length ||
       normalized.credits.length ||
       normalized.cardExpenses.length ||
-      normalized.otherExpenses.length;
+      normalized.otherExpenses.length ||
+      normalized.investments.bes.length ||
+      normalized.investments.locked.length ||
+      normalized.investments.gold.length ||
+      normalized.investments.crypto.length;
 
     if (!hasCloudData) {
       const localBackup = getLocalBackup();
-
-      if (localBackup) {
-        normalized = localBackup;
-      }
+      if (localBackup) normalized = localBackup;
     }
 
     setIncome(normalized.income || emptyIncome);
@@ -241,15 +301,14 @@ export default function HomePage() {
     setCredits(normalized.credits || []);
     setCardExpenses(normalized.cardExpenses || []);
     setOtherExpenses(normalized.otherExpenses || []);
+    setInvestments(normalized.investments || emptyInvestments);
 
     setFinanceLoaded(true);
     setDataLoading(false);
   };
 
   const saveFinanceData = async () => {
-    if (!session?.user || !supabase) {
-      return;
-    }
+    if (!session?.user || !supabase) return;
 
     const payload = currentPayload();
 
@@ -266,9 +325,7 @@ export default function HomePage() {
       }
     );
 
-    if (error) {
-      console.log(error);
-    }
+    if (error) console.log(error);
 
     setSaving(false);
   };
@@ -277,9 +334,7 @@ export default function HomePage() {
     setAuthMessage("");
 
     if (!supabase) {
-      setAuthMessage(
-        "Supabase bağlantısı eksik. Environment Variables kontrol edilmeli."
-      );
+      setAuthMessage("Supabase bağlantısı eksik.");
       return;
     }
 
@@ -328,18 +383,11 @@ export default function HomePage() {
 
     setPendingEmail(cleanEmail);
     setAuthMode("verify");
-    setAuthMessage(
-      "Hesap oluşturuldu. Mailine gelen doğrulama kodunu gir."
-    );
+    setAuthMessage("Hesap oluşturuldu. Mailine gelen doğrulama kodunu gir.");
   };
 
   const handleVerifyCode = async () => {
     setAuthMessage("");
-
-    if (!supabase) {
-      setAuthMessage("Supabase bağlantısı eksik.");
-      return;
-    }
 
     if (!pendingEmail || !verificationCode.trim()) {
       setAuthMessage("Doğrulama kodunu gir.");
@@ -375,11 +423,6 @@ export default function HomePage() {
   const handleResendCode = async () => {
     setAuthMessage("");
 
-    if (!supabase) {
-      setAuthMessage("Supabase bağlantısı eksik.");
-      return;
-    }
-
     const targetEmail = pendingEmail || email.trim().toLowerCase();
 
     if (!targetEmail) {
@@ -402,13 +445,6 @@ export default function HomePage() {
 
   const handleLogin = async () => {
     setAuthMessage("");
-
-    if (!supabase) {
-      setAuthMessage(
-        "Supabase bağlantısı eksik. Environment Variables kontrol edilmeli."
-      );
-      return;
-    }
 
     if (!email.trim() || !password.trim()) {
       setAuthMessage("E-posta ve şifre gir.");
@@ -440,11 +476,6 @@ export default function HomePage() {
 
   const handleForgotPassword = async () => {
     setAuthMessage("");
-
-    if (!supabase) {
-      setAuthMessage("Supabase bağlantısı eksik.");
-      return;
-    }
 
     if (!email.trim()) {
       setAuthMessage("Şifre sıfırlama için e-posta adresini gir.");
@@ -481,9 +512,7 @@ export default function HomePage() {
   };
 
   const isCreditActive = (dateText) => {
-    if (!dateText) {
-      return true;
-    }
+    if (!dateText) return true;
 
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -523,7 +552,7 @@ export default function HomePage() {
     };
   };
 
-  const totals = useMemo(() => {
+  const financeTotals = useMemo(() => {
     const salary = parseAmount(income.salary);
     const mealAllowance = parseAmount(income.mealAllowance);
 
@@ -534,18 +563,12 @@ export default function HomePage() {
     const totalIncome = salary + extraIncomeTotal;
 
     const activeCreditTotal = credits.reduce((sum, item) => {
-      if (!isCreditActive(item.paymentStartDate)) {
-        return sum;
-      }
-
+      if (!isCreditActive(item.paymentStartDate)) return sum;
       return sum + Number(item.monthlyPayment || 0);
     }, 0);
 
     const deferredCreditTotal = credits.reduce((sum, item) => {
-      if (isCreditActive(item.paymentStartDate)) {
-        return sum;
-      }
-
+      if (isCreditActive(item.paymentStartDate)) return sum;
       return sum + Number(item.monthlyPayment || 0);
     }, 0);
 
@@ -557,9 +580,11 @@ export default function HomePage() {
       return sum + Number(item.amount || 0);
     }, 0);
 
-    const totalDebt = credits.reduce((sum, item) => {
+    const creditDebtTotal = credits.reduce((sum, item) => {
       return sum + Number(item.remainingDebt || 0);
     }, 0);
+
+    const totalDebt = creditDebtTotal + cardTotal + otherTotal;
 
     const totalExpense = activeCreditTotal + cardTotal + otherTotal;
 
@@ -571,23 +596,69 @@ export default function HomePage() {
       deferredCreditTotal,
       cardTotal,
       otherTotal,
+      creditDebtTotal,
       totalDebt,
       totalExpense,
       balance: totalIncome - totalExpense,
     };
   }, [income, extraIncomes, credits, cardExpenses, otherExpenses]);
 
+  const investmentTotals = useMemo(() => {
+    const besTotal = investments.bes.reduce((sum, item) => {
+      return sum + Number(item.totalAmount || 0);
+    }, 0);
+
+    const lockedTotal = investments.locked.reduce((sum, item) => {
+      return sum + Number(item.amount || 0);
+    }, 0);
+
+    const goldCost = investments.gold.reduce((sum, item) => {
+      return sum + Number(item.quantity || 0) * Number(item.buyPrice || 0);
+    }, 0);
+
+    const goldValue = investments.gold.reduce((sum, item) => {
+      return sum + Number(item.quantity || 0) * Number(item.currentPrice || 0);
+    }, 0);
+
+    const cryptoCost = investments.crypto.reduce((sum, item) => {
+      return sum + Number(item.quantity || 0) * Number(item.buyPrice || 0);
+    }, 0);
+
+    const cryptoValue = investments.crypto.reduce((sum, item) => {
+      return sum + Number(item.quantity || 0) * Number(item.currentPrice || 0);
+    }, 0);
+
+    const totalInvestment = besTotal + lockedTotal + goldValue + cryptoValue;
+    const totalCost = goldCost + cryptoCost;
+    const totalPnl = goldValue + cryptoValue - totalCost;
+    const totalPnlRate = totalCost > 0 ? (totalPnl / totalCost) * 100 : 0;
+
+    return {
+      besTotal,
+      lockedTotal,
+      goldCost,
+      goldValue,
+      cryptoCost,
+      cryptoValue,
+      totalInvestment,
+      totalCost,
+      totalPnl,
+      totalPnlRate,
+      availableInvestment: totalInvestment - lockedTotal,
+    };
+  }, [investments]);
+
   const updateIncome = (field, value) => {
     setIncome((current) => ({
       ...current,
-      [field]: formatNumberInput(value),
+      formatNumberInput(value),
     }));
   };
 
   const updateExtraIncomeForm = (field, value) => {
     setExtraIncomeForm((current) => ({
       ...current,
-      [field]: field === "amount" ? formatNumberInput(value) : value,
+      field === "amount" ? formatNumberInput(value) : value,
     }));
   };
 
@@ -596,21 +667,52 @@ export default function HomePage() {
 
     setCreditForm((current) => ({
       ...current,
-      [field]: amountFields.includes(field) ? formatNumberInput(value) : value,
+      amountFields.includes(field) ? formatNumberInput(value) : value,
     }));
   };
 
   const updateCardForm = (field, value) => {
     setCardForm((current) => ({
       ...current,
-      [field]: field === "amount" ? formatNumberInput(value) : value,
+      field === "amount" ? formatNumberInput(value) : value,
     }));
   };
 
   const updateOtherForm = (field, value) => {
     setOtherForm((current) => ({
       ...current,
-      [field]: field === "amount" ? formatNumberInput(value) : value,
+      field === "amount" ? formatNumberInput(value) : value,
+    }));
+  };
+
+  const updateBesForm = (field, value) => {
+    const amountFields = ["totalAmount", "monthlyContribution"];
+    setBesForm((current) => ({
+      ...current,
+      amountFields.includes(field) ? formatNumberInput(value) : value,
+    }));
+  };
+
+  const updateLockedForm = (field, value) => {
+    setLockedForm((current) => ({
+      ...current,
+      field === "amount" ? formatNumberInput(value) : value,
+    }));
+  };
+
+  const updateGoldForm = (field, value) => {
+    const amountFields = ["quantity", "buyPrice", "currentPrice"];
+    setGoldForm((current) => ({
+      ...current,
+      amountFields.includes(field) ? formatNumberInput(value) : value,
+    }));
+  };
+
+  const updateCryptoForm = (field, value) => {
+    const amountFields = ["quantity", "buyPrice", "currentPrice"];
+    setCryptoForm((current) => ({
+      ...current,
+      amountFields.includes(field) ? formatNumberInput(value) : value,
     }));
   };
 
@@ -634,6 +736,26 @@ export default function HomePage() {
     setOtherForm(emptyExpense);
   };
 
+  const resetBesForm = () => {
+    setEditingBesId(null);
+    setBesForm(emptyBesForm);
+  };
+
+  const resetLockedForm = () => {
+    setEditingLockedId(null);
+    setLockedForm(emptyLockedForm);
+  };
+
+  const resetGoldForm = () => {
+    setEditingGoldId(null);
+    setGoldForm(emptyAssetForm);
+  };
+
+  const resetCryptoForm = () => {
+    setEditingCryptoId(null);
+    setCryptoForm(emptyAssetForm);
+  };
+
   const addOrUpdateExtraIncome = () => {
     const title = extraIncomeForm.title.trim();
     const amount = parseAmount(extraIncomeForm.amount);
@@ -649,17 +771,12 @@ export default function HomePage() {
           item.id === editingExtraIncomeId ? { ...item, title, amount } : item
         )
       );
-
       resetExtraIncomeForm();
       return;
     }
 
     setExtraIncomes((current) => [
-      {
-        id: String(Date.now()),
-        title,
-        amount,
-      },
+      { id: String(Date.now()), title, amount },
       ...current,
     ]);
 
@@ -672,7 +789,6 @@ export default function HomePage() {
       title: item.title || "",
       amount: formatNumberInput(item.amount),
     });
-
     setIncomeOpen(true);
     setExtraIncomeOpen(true);
   };
@@ -706,16 +822,12 @@ export default function HomePage() {
           item.id === editingCreditId ? { ...item, ...itemPayload } : item
         )
       );
-
       resetCreditForm();
       return;
     }
 
     setCredits((current) => [
-      {
-        id: String(Date.now()),
-        ...itemPayload,
-      },
+      { id: String(Date.now()), ...itemPayload },
       ...current,
     ]);
 
@@ -731,7 +843,6 @@ export default function HomePage() {
       remainingDebt: formatNumberInput(item.remainingDebt),
       paymentStartDate: item.paymentStartDate || "",
     });
-
     setExpensesOpen(true);
     setCreditsOpen(true);
   };
@@ -763,19 +874,14 @@ export default function HomePage() {
             item.id === editingId ? { ...item, ...itemPayload } : item
           )
         );
-
         resetCardForm();
         return;
       }
 
       setCardExpenses((current) => [
-        {
-          id: String(Date.now()),
-          ...itemPayload,
-        },
+        { id: String(Date.now()), ...itemPayload },
         ...current,
       ]);
-
       setCardForm(emptyExpense);
       return;
     }
@@ -786,19 +892,14 @@ export default function HomePage() {
           item.id === editingId ? { ...item, ...itemPayload } : item
         )
       );
-
       resetOtherForm();
       return;
     }
 
     setOtherExpenses((current) => [
-      {
-        id: String(Date.now()),
-        ...itemPayload,
-      },
+      { id: String(Date.now()), ...itemPayload },
       ...current,
     ]);
-
     setOtherForm(emptyExpense);
   };
 
@@ -810,7 +911,6 @@ export default function HomePage() {
       amount: formatNumberInput(item.amount),
       note: item.note || "",
     });
-
     setExpensesOpen(true);
     setCardsOpen(true);
   };
@@ -823,9 +923,203 @@ export default function HomePage() {
       amount: formatNumberInput(item.amount),
       note: item.note || "",
     });
-
     setExpensesOpen(true);
     setOthersOpen(true);
+  };
+
+  const addOrUpdateBes = () => {
+    const title = besForm.title.trim();
+    const totalAmount = parseAmount(besForm.totalAmount);
+    const monthlyContribution = parseAmount(besForm.monthlyContribution);
+
+    if (!title || totalAmount <= 0) {
+      alert("BES adı ve toplam birikim gir.");
+      return;
+    }
+
+    const payload = {
+      title,
+      totalAmount,
+      monthlyContribution,
+      expectedReturn: besForm.expectedReturn,
+      note: besForm.note.trim(),
+    };
+
+    if (editingBesId) {
+      setInvestments((current) => ({
+        ...current,
+        bes: current.bes.map((item) =>
+          item.id === editingBesId ? { ...item, ...payload } : item
+        ),
+      }));
+      resetBesForm();
+      return;
+    }
+
+    setInvestments((current) => ({
+      ...current,
+      bes: [{ id: String(Date.now()), ...payload }, ...current.bes],
+    }));
+    setBesForm(emptyBesForm);
+  };
+
+  const startEditBes = (item) => {
+    setEditingBesId(item.id);
+    setBesForm({
+      title: item.title || "",
+      totalAmount: formatNumberInput(item.totalAmount),
+      monthlyContribution: formatNumberInput(item.monthlyContribution),
+      expectedReturn: item.expectedReturn || "",
+      note: item.note || "",
+    });
+    setInvestmentOpen(true);
+    setBesOpen(true);
+  };
+
+  const addOrUpdateLocked = () => {
+    const title = lockedForm.title.trim();
+    const amount = parseAmount(lockedForm.amount);
+
+    if (!title || amount <= 0 || !lockedForm.unlockDate) {
+      alert("Yatırım adı, tutar ve açılış tarihi gir.");
+      return;
+    }
+
+    const payload = {
+      title,
+      amount,
+      unlockDate: lockedForm.unlockDate,
+      note: lockedForm.note.trim(),
+    };
+
+    if (editingLockedId) {
+      setInvestments((current) => ({
+        ...current,
+        locked: current.locked.map((item) =>
+          item.id === editingLockedId ? { ...item, ...payload } : item
+        ),
+      }));
+      resetLockedForm();
+      return;
+    }
+
+    setInvestments((current) => ({
+      ...current,
+      locked: [{ id: String(Date.now()), ...payload }, ...current.locked],
+    }));
+    setLockedForm(emptyLockedForm);
+  };
+
+  const startEditLocked = (item) => {
+    setEditingLockedId(item.id);
+    setLockedForm({
+      title: item.title || "",
+      amount: formatNumberInput(item.amount),
+      unlockDate: item.unlockDate || "",
+      note: item.note || "",
+    });
+    setInvestmentOpen(true);
+    setLockedOpen(true);
+  };
+
+  const addOrUpdateGold = () => {
+    const title = goldForm.title.trim();
+    const quantity = parseAmount(goldForm.quantity);
+    const buyPrice = parseAmount(goldForm.buyPrice);
+    const currentPrice = parseAmount(goldForm.currentPrice);
+
+    if (!title || quantity <= 0 || buyPrice <= 0 || currentPrice <= 0) {
+      alert("Altın adı, adet/gram, alış fiyatı ve güncel fiyat gir.");
+      return;
+    }
+
+    const payload = {
+      title,
+      quantity,
+      buyPrice,
+      currentPrice,
+      note: goldForm.note.trim(),
+    };
+
+    if (editingGoldId) {
+      setInvestments((current) => ({
+        ...current,
+        gold: current.gold.map((item) =>
+          item.id === editingGoldId ? { ...item, ...payload } : item
+        ),
+      }));
+      resetGoldForm();
+      return;
+    }
+
+    setInvestments((current) => ({
+      ...current,
+      gold: [{ id: String(Date.now()), ...payload }, ...current.gold],
+    }));
+    setGoldForm(emptyAssetForm);
+  };
+
+  const startEditGold = (item) => {
+    setEditingGoldId(item.id);
+    setGoldForm({
+      title: item.title || "",
+      quantity: formatNumberInput(item.quantity),
+      buyPrice: formatNumberInput(item.buyPrice),
+      currentPrice: formatNumberInput(item.currentPrice),
+      note: item.note || "",
+    });
+    setInvestmentOpen(true);
+    setGoldOpen(true);
+  };
+
+  const addOrUpdateCrypto = () => {
+    const title = cryptoForm.title.trim().toUpperCase();
+    const quantity = parseAmount(cryptoForm.quantity);
+    const buyPrice = parseAmount(cryptoForm.buyPrice);
+    const currentPrice = parseAmount(cryptoForm.currentPrice);
+
+    if (!title || quantity <= 0 || buyPrice <= 0 || currentPrice <= 0) {
+      alert("Coin adı, adet, alış fiyatı ve güncel fiyat gir.");
+      return;
+    }
+
+    const payload = {
+      title,
+      quantity,
+      buyPrice,
+      currentPrice,
+      note: cryptoForm.note.trim(),
+    };
+
+    if (editingCryptoId) {
+      setInvestments((current) => ({
+        ...current,
+        crypto: current.crypto.map((item) =>
+          item.id === editingCryptoId ? { ...item, ...payload } : item
+        ),
+      }));
+      resetCryptoForm();
+      return;
+    }
+
+    setInvestments((current) => ({
+      ...current,
+      crypto: [{ id: String(Date.now()), ...payload }, ...current.crypto],
+    }));
+    setCryptoForm(emptyAssetForm);
+  };
+
+  const startEditCrypto = (item) => {
+    setEditingCryptoId(item.id);
+    setCryptoForm({
+      title: item.title || "",
+      quantity: formatNumberInput(item.quantity),
+      buyPrice: formatNumberInput(item.buyPrice),
+      currentPrice: formatNumberInput(item.currentPrice),
+      note: item.note || "",
+    });
+    setInvestmentOpen(true);
+    setCryptoOpen(true);
   };
 
   if (authLoading) {
@@ -847,7 +1141,6 @@ export default function HomePage() {
 
           <div className="authBrandRow">
             <div className="authLogo">₺</div>
-
             <div>
               <div className="authBrandTitle">Kişisel Finans Yönetimi</div>
               <div className="authBrandSub">
@@ -876,7 +1169,7 @@ export default function HomePage() {
               </>
             ) : authMode === "register" ? (
               <>
-                Ad soyad, e-posta ve şifre bilgilerini gir. Finans verilerin
+                Ad soyad, e-posta ve şifre bilgilerini gir. Verilerin
                 <span className="authHighlight"> kullanıcıya özel </span>
                 saklanır.
               </>
@@ -900,7 +1193,9 @@ export default function HomePage() {
                 />
               </label>
 
-              {authMessage ? <div className="authMessage">{authMessage}</div> : null}
+              {authMessage ? (
+                <div className="authMessage">{authMessage}</div>
+              ) : null}
 
               <div className="authButtons">
                 <button
@@ -974,7 +1269,9 @@ export default function HomePage() {
                 </label>
               </div>
 
-              {authMessage ? <div className="authMessage">{authMessage}</div> : null}
+              {authMessage ? (
+                <div className="authMessage">{authMessage}</div>
+              ) : null}
 
               <div className="authButtons">
                 <button
@@ -1040,7 +1337,9 @@ export default function HomePage() {
                 </button>
               </div>
 
-              {authMessage ? <div className="authMessage">{authMessage}</div> : null}
+              {authMessage ? (
+                <div className="authMessage">{authMessage}</div>
+              ) : null}
 
               <div className="authButtons">
                 <button
@@ -1088,7 +1387,11 @@ export default function HomePage() {
             </p>
           </div>
 
-          <button type="button" className="secondaryButton" onClick={handleLogout}>
+          <button
+            type="button"
+            className="secondaryButton"
+            onClick={handleLogout}
+          >
             Çıkış Yap
           </button>
         </header>
@@ -1105,29 +1408,31 @@ export default function HomePage() {
           <SummaryCard
             tone="green"
             title="Toplam Gelir"
-            value={money(totals.totalIncome)}
-            detail={`Yemek parası: ${money(totals.mealAllowance)} • Gelire dahil değil`}
+            value={money(financeTotals.totalIncome)}
+            detail={`Yemek parası: ${money(
+              financeTotals.mealAllowance
+            )} • Gelire dahil değil`}
           />
 
           <SummaryCard
             tone="red"
             title="Toplam Gider"
-            value={money(totals.totalExpense)}
+            value={money(financeTotals.totalExpense)}
             detail="Kredi + kart + diğer giderler"
           />
 
           <SummaryCard
             tone="blue"
             title="Aylık Kalan"
-            value={money(totals.balance)}
+            value={money(financeTotals.balance)}
             detail="Gelir - gider hesabı"
           />
 
           <SummaryCard
             tone="purple"
             title="Toplam Borç"
-            value={money(totals.totalDebt)}
-            detail="Kalan toplam kredi borcu"
+            value={money(financeTotals.totalDebt)}
+            detail="Kredi + kart + diğer borçlar"
           />
         </section>
 
@@ -1135,7 +1440,7 @@ export default function HomePage() {
           title="Gelirler"
           subtitle="Maaş, yemek parası ve ek gelir yönetimi"
           totalLabel="Toplam Gelir"
-          total={money(totals.totalIncome)}
+          total={money(financeTotals.totalIncome)}
           open={incomeOpen}
           onToggle={() => setIncomeOpen((value) => !value)}
         >
@@ -1158,7 +1463,7 @@ export default function HomePage() {
           <MiniPanel
             title="Ek Gelirler"
             totalLabel="Total Ek Gelir"
-            total={money(totals.extraIncomeTotal)}
+            total={money(financeTotals.extraIncomeTotal)}
             color="mint"
             open={extraIncomeOpen}
             onToggle={() => setExtraIncomeOpen((value) => !value)}
@@ -1212,23 +1517,23 @@ export default function HomePage() {
 
         <Panel
           title="Giderler"
-          subtitle="Krediler, kredi kartı ve diğer giderler"
+          subtitle="Krediler, kredi kartı ve diğer borç/giderler"
           totalLabel="Toplam Gider"
-          total={money(totals.totalExpense)}
+          total={money(financeTotals.totalExpense)}
           open={expensesOpen}
           onToggle={() => setExpensesOpen((value) => !value)}
         >
           <MiniPanel
             title="Krediler"
             totalLabel="Total Kredi Ödemesi"
-            total={money(totals.activeCreditTotal)}
+            total={money(financeTotals.activeCreditTotal)}
             color="purple"
             open={creditsOpen}
             onToggle={() => setCreditsOpen((value) => !value)}
           >
             <p className="sectionDescription">
-              Taksit alanını <strong>8/24</strong> formatında yaz. Ödeme başlangıç
-              tarihi gelmeyen krediler toplam gidere eklenmez.
+              Taksit alanını <strong>8/24</strong> formatında yaz. Ödeme
+              başlangıç tarihi gelmeyen krediler toplam gidere eklenmez.
             </p>
 
             <div className="formGrid five">
@@ -1264,7 +1569,9 @@ export default function HomePage() {
                 label="Ödeme Başlangıç Tarihi"
                 type="date"
                 value={creditForm.paymentStartDate}
-                onChange={(value) => updateCreditForm("paymentStartDate", value)}
+                onChange={(value) =>
+                  updateCreditForm("paymentStartDate", value)
+                }
               />
 
               <button
@@ -1293,7 +1600,9 @@ export default function HomePage() {
               isCreditActive={isCreditActive}
               onEdit={startEditCredit}
               onDelete={(id) =>
-                setCredits((current) => current.filter((item) => item.id !== id))
+                setCredits((current) =>
+                  current.filter((item) => item.id !== id)
+                )
               }
             />
           </MiniPanel>
@@ -1301,7 +1610,7 @@ export default function HomePage() {
           <MiniPanel
             title="Kredi Kartı Giderleri"
             totalLabel="Total Kredi Kartı"
-            total={money(totals.cardTotal)}
+            total={money(financeTotals.cardTotal)}
             color="rose"
             open={cardsOpen}
             onToggle={() => setCardsOpen((value) => !value)}
@@ -1316,7 +1625,11 @@ export default function HomePage() {
             />
 
             {editingCardId ? (
-              <button type="button" className="deleteButton" onClick={resetCardForm}>
+              <button
+                type="button"
+                className="deleteButton"
+                onClick={resetCardForm}
+              >
                 Düzenlemeyi İptal Et
               </button>
             ) : null}
@@ -1334,9 +1647,9 @@ export default function HomePage() {
           </MiniPanel>
 
           <MiniPanel
-            title="Diğer Nakit Giderler"
+            title="Diğer Borç / Nakit Giderler"
             totalLabel="Total Diğer"
-            total={money(totals.otherTotal)}
+            total={money(financeTotals.otherTotal)}
             color="orange"
             open={othersOpen}
             onToggle={() => setOthersOpen((value) => !value)}
@@ -1351,7 +1664,11 @@ export default function HomePage() {
             />
 
             {editingOtherId ? (
-              <button type="button" className="deleteButton" onClick={resetOtherForm}>
+              <button
+                type="button"
+                className="deleteButton"
+                onClick={resetOtherForm}
+              >
                 Düzenlemeyi İptal Et
               </button>
             ) : null}
@@ -1364,6 +1681,267 @@ export default function HomePage() {
                 setOtherExpenses((current) =>
                   current.filter((item) => item.id !== id)
                 )
+              }
+            />
+          </MiniPanel>
+        </Panel>
+
+        <section className="summaryGrid investmentSummaryGrid">
+          <SummaryCard
+            tone="green"
+            title="Toplam Yatırım"
+            value={money(investmentTotals.totalInvestment)}
+            detail="BES + kilitli + altın + kripto"
+          />
+
+          <SummaryCard
+            tone="purple"
+            title="Kilitli Yatırım"
+            value={money(investmentTotals.lockedTotal)}
+            detail="Açılış tarihine kadar blokajlı"
+          />
+
+          <SummaryCard
+            tone="blue"
+            title="Kullanılabilir"
+            value={money(investmentTotals.availableInvestment)}
+            detail="Toplam yatırım - kilitli yatırım"
+          />
+
+          <SummaryCard
+            tone={investmentTotals.totalPnl >= 0 ? "green" : "red"}
+            title="Kar / Zarar"
+            value={money(investmentTotals.totalPnl)}
+            detail={`Oran: %${investmentTotals.totalPnlRate.toFixed(2)}`}
+          />
+        </section>
+
+        <Panel
+          title="Yatırım Geliri"
+          subtitle="BES, kilitli yatırım, altın ve kripto takip paneli"
+          totalLabel="Toplam Yatırım"
+          total={money(investmentTotals.totalInvestment)}
+          open={investmentOpen}
+          onToggle={() => setInvestmentOpen((value) => !value)}
+        >
+          <MiniPanel
+            title="BES Yatırımı"
+            totalLabel="BES Toplam"
+            total={money(investmentTotals.besTotal)}
+            color="mint"
+            open={besOpen}
+            onToggle={() => setBesOpen((value) => !value)}
+          >
+            <div className="formGrid five">
+              <InputBox
+                label="BES Adı"
+                value={besForm.title}
+                placeholder="Örn: BES"
+                onChange={(value) => updateBesForm("title", value)}
+              />
+              <InputBox
+                label="Toplam Birikim"
+                value={besForm.totalAmount}
+                placeholder="0"
+                onChange={(value) => updateBesForm("totalAmount", value)}
+              />
+              <InputBox
+                label="Aylık Katkı"
+                value={besForm.monthlyContribution}
+                placeholder="0"
+                onChange={(value) =>
+                  updateBesForm("monthlyContribution", value)
+                }
+              />
+              <InputBox
+                label="Getiri Beklentisi"
+                value={besForm.expectedReturn}
+                placeholder="Örn: %25"
+                onChange={(value) => updateBesForm("expectedReturn", value)}
+              />
+              <InputBox
+                label="Not"
+                value={besForm.note}
+                placeholder="Opsiyonel"
+                onChange={(value) => updateBesForm("note", value)}
+              />
+
+              <button
+                type="button"
+                className="premiumButton wide"
+                onClick={addOrUpdateBes}
+              >
+                {editingBesId ? "BES Güncelle" : "BES Ekle"}
+              </button>
+            </div>
+
+            {editingBesId ? (
+              <button
+                type="button"
+                className="deleteButton"
+                onClick={resetBesForm}
+              >
+                Düzenlemeyi İptal Et
+              </button>
+            ) : null}
+
+            <BesList
+              items={investments.bes}
+              money={money}
+              onEdit={startEditBes}
+              onDelete={(id) =>
+                setInvestments((current) => ({
+                  ...current,
+                  bes: current.bes.filter((item) => item.id !== id),
+                }))
+              }
+            />
+          </MiniPanel>
+
+          <MiniPanel
+            title="Kilitli / Blokajlı Yatırım"
+            totalLabel="Kilitli Toplam"
+            total={money(investmentTotals.lockedTotal)}
+            color="purple"
+            open={lockedOpen}
+            onToggle={() => setLockedOpen((value) => !value)}
+          >
+            <div className="formGrid four">
+              <InputBox
+                label="Yatırım Adı"
+                value={lockedForm.title}
+                placeholder="Örn: Vadeli / Fon"
+                onChange={(value) => updateLockedForm("title", value)}
+              />
+              <InputBox
+                label="Tutar"
+                value={lockedForm.amount}
+                placeholder="0"
+                onChange={(value) => updateLockedForm("amount", value)}
+              />
+              <InputBox
+                label="Açılış Tarihi"
+                type="date"
+                value={lockedForm.unlockDate}
+                onChange={(value) => updateLockedForm("unlockDate", value)}
+              />
+              <InputBox
+                label="Not"
+                value={lockedForm.note}
+                placeholder="Opsiyonel"
+                onChange={(value) => updateLockedForm("note", value)}
+              />
+
+              <button
+                type="button"
+                className="premiumButton wide"
+                onClick={addOrUpdateLocked}
+              >
+                {editingLockedId
+                  ? "Kilitli Yatırımı Güncelle"
+                  : "Kilitli Yatırım Ekle"}
+              </button>
+            </div>
+
+            {editingLockedId ? (
+              <button
+                type="button"
+                className="deleteButton"
+                onClick={resetLockedForm}
+              >
+                Düzenlemeyi İptal Et
+              </button>
+            ) : null}
+
+            <LockedList
+              items={investments.locked}
+              money={money}
+              onEdit={startEditLocked}
+              onDelete={(id) =>
+                setInvestments((current) => ({
+                  ...current,
+                  locked: current.locked.filter((item) => item.id !== id),
+                }))
+              }
+            />
+          </MiniPanel>
+
+          <MiniPanel
+            title="Altın Yatırımı"
+            totalLabel="Altın Değeri"
+            total={money(investmentTotals.goldValue)}
+            color="orange"
+            open={goldOpen}
+            onToggle={() => setGoldOpen((value) => !value)}
+          >
+            <AssetForm
+              form={goldForm}
+              onChange={updateGoldForm}
+              buttonText={editingGoldId ? "Altını Güncelle" : "Altın Ekle"}
+              onAdd={addOrUpdateGold}
+              nameLabel="Altın Türü"
+              namePlaceholder="Örn: Gram Altın"
+            />
+
+            {editingGoldId ? (
+              <button
+                type="button"
+                className="deleteButton"
+                onClick={resetGoldForm}
+              >
+                Düzenlemeyi İptal Et
+              </button>
+            ) : null}
+
+            <AssetList
+              items={investments.gold}
+              money={money}
+              onEdit={startEditGold}
+              onDelete={(id) =>
+                setInvestments((current) => ({
+                  ...current,
+                  gold: current.gold.filter((item) => item.id !== id),
+                }))
+              }
+            />
+          </MiniPanel>
+
+          <MiniPanel
+            title="Kripto Yatırımı"
+            totalLabel="Kripto Değeri"
+            total={money(investmentTotals.cryptoValue)}
+            color="rose"
+            open={cryptoOpen}
+            onToggle={() => setCryptoOpen((value) => !value)}
+          >
+            <AssetForm
+              form={cryptoForm}
+              onChange={updateCryptoForm}
+              buttonText={editingCryptoId ? "Kriptoyu Güncelle" : "Kripto Ekle"}
+              onAdd={addOrUpdateCrypto}
+              nameLabel="Coin / Token"
+              namePlaceholder="Örn: SOL"
+            />
+
+            {editingCryptoId ? (
+              <button
+                type="button"
+                className="deleteButton"
+                onClick={resetCryptoForm}
+              >
+                Düzenlemeyi İptal Et
+              </button>
+            ) : null}
+
+            <AssetList
+              items={investments.crypto}
+              money={money}
+              onEdit={startEditCrypto}
+              onDelete={(id) =>
+                setInvestments((current) => ({
+                  ...current,
+                  crypto: current.crypto.filter((item) => item.id !== id),
+                }))
               }
             />
           </MiniPanel>
@@ -1446,7 +2024,7 @@ function InputBox({ label, value, onChange, type = "text", placeholder = "" }) {
         type={type}
         value={value}
         placeholder={placeholder}
-        inputMode={type === "date" ? undefined : "numeric"}
+        inputMode={type === "date" ? undefined : "text"}
         onChange={(event) => onChange(event.target.value)}
       />
     </label>
@@ -1491,6 +2069,58 @@ function SimpleExpenseForm({ form, onChange, onAdd, buttonText }) {
   );
 }
 
+function AssetForm({
+  form,
+  onChange,
+  onAdd,
+  buttonText,
+  nameLabel,
+  namePlaceholder,
+}) {
+  return (
+    <div className="formGrid five">
+      <InputBox
+        label={nameLabel}
+        value={form.title}
+        placeholder={namePlaceholder}
+        onChange={(value) => onChange("title", value)}
+      />
+
+      <InputBox
+        label="Adet / Miktar"
+        value={form.quantity}
+        placeholder="0"
+        onChange={(value) => onChange("quantity", value)}
+      />
+
+      <InputBox
+        label="Alış Fiyatı"
+        value={form.buyPrice}
+        placeholder="0"
+        onChange={(value) => onChange("buyPrice", value)}
+      />
+
+      <InputBox
+        label="Güncel Fiyat"
+        value={form.currentPrice}
+        placeholder="0"
+        onChange={(value) => onChange("currentPrice", value)}
+      />
+
+      <InputBox
+        label="Not"
+        value={form.note}
+        placeholder="Opsiyonel"
+        onChange={(value) => onChange("note", value)}
+      />
+
+      <button type="button" className="premiumButton wide" onClick={onAdd}>
+        {buttonText}
+      </button>
+    </div>
+  );
+}
+
 function CreditList({
   items,
   money,
@@ -1511,13 +2141,9 @@ function CreditList({
 
         let progressClass = "danger";
 
-        if (installment.percent >= 100) {
-          progressClass = "success";
-        } else if (installment.percent >= 70) {
-          progressClass = "warm";
-        } else if (installment.percent >= 35) {
-          progressClass = "mid";
-        }
+        if (installment.percent >= 100) progressClass = "success";
+        else if (installment.percent >= 70) progressClass = "warm";
+        else if (installment.percent >= 35) progressClass = "mid";
 
         return (
           <div key={item.id} className="creditRecord">
@@ -1525,7 +2151,6 @@ function CreditList({
               <div>
                 <div className="recordTitleRow">
                   <h4>{item.title}</h4>
-
                   <span
                     className={
                       installment.completed ? "status done" : "status waiting"
@@ -1535,7 +2160,9 @@ function CreditList({
                   </span>
 
                   {!active ? (
-                    <span className="status deferred">Ödeme tarihi bekleniyor</span>
+                    <span className="status deferred">
+                      Ödeme tarihi bekleniyor
+                    </span>
                   ) : null}
                 </div>
 
@@ -1566,7 +2193,11 @@ function CreditList({
               <span>Başlangıç: {item.paymentStartDate || "Hemen aktif"}</span>
 
               <div className="recordActions">
-                <button type="button" className="editButton" onClick={() => onEdit(item)}>
+                <button
+                  type="button"
+                  className="editButton"
+                  onClick={() => onEdit(item)}
+                >
                   Düzenle
                 </button>
 
@@ -1607,7 +2238,11 @@ function SimpleExpenseList({ items, money, onEdit, onDelete }) {
             <div className="simpleRecordRight">
               <strong>{money(item.amount)}</strong>
 
-              <button type="button" className="editButton" onClick={() => onEdit(item)}>
+              <button
+                type="button"
+                className="editButton"
+                onClick={() => onEdit(item)}
+              >
                 Düzenle
               </button>
 
@@ -1644,7 +2279,11 @@ function IncomeList({ items, money, onEdit, onDelete }) {
             <div className="simpleRecordRight">
               <strong>{money(item.amount)}</strong>
 
-              <button type="button" className="editButton" onClick={() => onEdit(item)}>
+              <button
+                type="button"
+                className="editButton"
+                onClick={() => onEdit(item)}
+              >
                 Düzenle
               </button>
 
@@ -1659,6 +2298,158 @@ function IncomeList({ items, money, onEdit, onDelete }) {
           </div>
         </div>
       ))}
+    </div>
+  );
+}
+
+function BesList({ items, money, onEdit, onDelete }) {
+  if (items.length === 0) {
+    return <EmptyState text="Henüz BES kaydı bulunmuyor." />;
+  }
+
+  return (
+    <div className="recordList">
+      {items.map((item) => (
+        <div key={item.id} className="simpleRecord investmentRecord">
+          <div className="simpleRecordTop">
+            <div>
+              <h4>{item.title}</h4>
+              <p>
+                Aylık katkı: {money(item.monthlyContribution)}{" "}
+                {item.expectedReturn ? `• Beklenti: ${item.expectedReturn}` : ""}
+              </p>
+              {item.note ? <p>{item.note}</p> : null}
+            </div>
+
+            <div className="simpleRecordRight">
+              <strong>{money(item.totalAmount)}</strong>
+              <button
+                type="button"
+                className="editButton"
+                onClick={() => onEdit(item)}
+              >
+                Düzenle
+              </button>
+              <button
+                type="button"
+                className="deleteButton"
+                onClick={() => onDelete(item.id)}
+              >
+                Sil
+              </button>
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function LockedList({ items, money, onEdit, onDelete }) {
+  if (items.length === 0) {
+    return <EmptyState text="Henüz kilitli yatırım kaydı bulunmuyor." />;
+  }
+
+  return (
+    <div className="recordList">
+      {items.map((item) => {
+        const days = daysUntil(item.unlockDate);
+        const unlocked = days !== null && days <= 0;
+
+        return (
+          <div key={item.id} className="simpleRecord investmentRecord">
+            <div className="simpleRecordTop">
+              <div>
+                <div className="recordTitleRow">
+                  <h4>{item.title}</h4>
+                  <span className={unlocked ? "status done" : "status deferred"}>
+                    {unlocked ? "✅ Açıldı" : "🔒 Kilitli"}
+                  </span>
+                </div>
+                <p>
+                  Açılış tarihi: {item.unlockDate || "-"}{" "}
+                  {!unlocked && days !== null ? `• Kalan gün: ${days}` : ""}
+                </p>
+                {item.note ? <p>{item.note}</p> : null}
+              </div>
+
+              <div className="simpleRecordRight">
+                <strong>{money(item.amount)}</strong>
+                <button
+                  type="button"
+                  className="editButton"
+                  onClick={() => onEdit(item)}
+                >
+                  Düzenle
+                </button>
+                <button
+                  type="button"
+                  className="deleteButton"
+                  onClick={() => onDelete(item.id)}
+                >
+                  Sil
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function AssetList({ items, money, onEdit, onDelete }) {
+  if (items.length === 0) {
+    return <EmptyState text="Henüz yatırım kaydı bulunmuyor." />;
+  }
+
+  return (
+    <div className="recordList">
+      {items.map((item) => {
+        const cost = Number(item.quantity || 0) * Number(item.buyPrice || 0);
+        const value =
+          Number(item.quantity || 0) * Number(item.currentPrice || 0);
+        const pnl = value - cost;
+        const pnlRate = cost > 0 ? (pnl / cost) * 100 : 0;
+
+        return (
+          <div key={item.id} className="simpleRecord investmentRecord">
+            <div className="simpleRecordTop">
+              <div>
+                <h4>{item.title}</h4>
+                <p>
+                  Miktar: {item.quantity} • Alış: {money(item.buyPrice)} •
+                  Güncel: {money(item.currentPrice)}
+                </p>
+                <p>
+                  Maliyet: {money(cost)} • Güncel değer: {money(value)}
+                </p>
+                {item.note ? <p>{item.note}</p> : null}
+              </div>
+
+              <div className="simpleRecordRight">
+                <strong className={pnl >= 0 ? "profitText" : "lossText"}>
+                  {money(pnl)} / %{pnlRate.toFixed(2)}
+                </strong>
+                <button
+                  type="button"
+                  className="editButton"
+                  onClick={() => onEdit(item)}
+                >
+                  Düzenle
+                </button>
+                <button
+                  type="button"
+                  className="deleteButton"
+                  onClick={() => onDelete(item.id)}
+                >
+                  Sil
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
