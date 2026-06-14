@@ -5,8 +5,16 @@ import { supabase } from "../lib/supabaseClient";
 
 const LOCAL_BACKUP_KEY = "kisisel-finans-panel-local-backup";
 
-const emptyIncome = { salary: "", mealAllowance: "" };
-const emptyExtraIncome = { title: "", amount: "" };
+const emptyIncome = {
+  salary: "",
+  mealAllowance: "",
+};
+
+const emptyExtraIncome = {
+  title: "",
+  amount: "",
+};
+
 const emptyCredit = {
   title: "",
   monthlyPayment: "",
@@ -14,7 +22,13 @@ const emptyCredit = {
   remainingDebt: "",
   paymentStartDate: "",
 };
-const emptyExpense = { title: "", category: "", amount: "", note: "" };
+
+const emptyExpense = {
+  title: "",
+  category: "",
+  amount: "",
+  note: "",
+};
 
 const emptyInvestments = {
   bes: [],
@@ -120,7 +134,11 @@ function normalizeFinanceData(data) {
 function getLocalBackup() {
   try {
     const raw = window.localStorage.getItem(LOCAL_BACKUP_KEY);
-    if (!raw) return null;
+
+    if (!raw) {
+      return null;
+    }
+
     return normalizeFinanceData(JSON.parse(raw));
   } catch {
     return null;
@@ -134,7 +152,9 @@ function saveLocalBackup(payload) {
 }
 
 function daysUntil(dateText) {
-  if (!dateText) return null;
+  if (!dateText) {
+    return null;
+  }
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -248,7 +268,9 @@ export default function HomePage() {
   }, [session]);
 
   useEffect(() => {
-    if (!session?.user || !financeLoaded) return;
+    if (!session?.user || !financeLoaded) {
+      return;
+    }
 
     const timer = setTimeout(() => {
       saveFinanceData();
@@ -284,7 +306,9 @@ export default function HomePage() {
       .eq("user_id", userId)
       .maybeSingle();
 
-    if (error) console.log(error);
+    if (error) {
+      console.log(error);
+    }
 
     let normalized = normalizeFinanceData(data?.data);
 
@@ -302,7 +326,10 @@ export default function HomePage() {
 
     if (!hasCloudData) {
       const localBackup = getLocalBackup();
-      if (localBackup) normalized = localBackup;
+
+      if (localBackup) {
+        normalized = localBackup;
+      }
     }
 
     setIncome(normalized.income || emptyIncome);
@@ -317,7 +344,9 @@ export default function HomePage() {
   };
 
   const saveFinanceData = async () => {
-    if (!session?.user || !supabase) return;
+    if (!session?.user || !supabase) {
+      return;
+    }
 
     const payload = currentPayload();
 
@@ -334,7 +363,9 @@ export default function HomePage() {
       }
     );
 
-    if (error) console.log(error);
+    if (error) {
+      console.log(error);
+    }
 
     setSaving(false);
   };
@@ -398,6 +429,11 @@ export default function HomePage() {
   const handleVerifyCode = async () => {
     setAuthMessage("");
 
+    if (!supabase) {
+      setAuthMessage("Supabase bağlantısı eksik.");
+      return;
+    }
+
     if (!pendingEmail || !verificationCode.trim()) {
       setAuthMessage("Doğrulama kodunu gir.");
       return;
@@ -432,6 +468,11 @@ export default function HomePage() {
   const handleResendCode = async () => {
     setAuthMessage("");
 
+    if (!supabase) {
+      setAuthMessage("Supabase bağlantısı eksik.");
+      return;
+    }
+
     const targetEmail = pendingEmail || email.trim().toLowerCase();
 
     if (!targetEmail) {
@@ -454,6 +495,11 @@ export default function HomePage() {
 
   const handleLogin = async () => {
     setAuthMessage("");
+
+    if (!supabase) {
+      setAuthMessage("Supabase bağlantısı eksik.");
+      return;
+    }
 
     if (!email.trim() || !password.trim()) {
       setAuthMessage("E-posta ve şifre gir.");
@@ -486,6 +532,11 @@ export default function HomePage() {
   const handleForgotPassword = async () => {
     setAuthMessage("");
 
+    if (!supabase) {
+      setAuthMessage("Supabase bağlantısı eksik.");
+      return;
+    }
+
     if (!email.trim()) {
       setAuthMessage("Şifre sıfırlama için e-posta adresini gir.");
       return;
@@ -513,7 +564,9 @@ export default function HomePage() {
   };
 
   const isCreditActive = (dateText) => {
-    if (!dateText) return true;
+    if (!dateText) {
+      return true;
+    }
 
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -564,12 +617,10 @@ export default function HomePage() {
     const totalIncome = salary + extraIncomeTotal;
 
     const activeCreditTotal = credits.reduce((sum, item) => {
-      if (!isCreditActive(item.paymentStartDate)) return sum;
-      return sum + Number(item.monthlyPayment || 0);
-    }, 0);
+      if (!isCreditActive(item.paymentStartDate)) {
+        return sum;
+      }
 
-    const deferredCreditTotal = credits.reduce((sum, item) => {
-      if (isCreditActive(item.paymentStartDate)) return sum;
       return sum + Number(item.monthlyPayment || 0);
     }, 0);
 
@@ -593,7 +644,6 @@ export default function HomePage() {
       extraIncomeTotal,
       totalIncome,
       activeCreditTotal,
-      deferredCreditTotal,
       cardTotal,
       otherTotal,
       creditDebtTotal,
@@ -651,14 +701,14 @@ export default function HomePage() {
   const updateIncome = (field, value) => {
     setIncome((current) => ({
       ...current,
-      formatNumberInput(value),
+      [field]: formatNumberInput(value),
     }));
   };
 
   const updateExtraIncomeForm = (field, value) => {
     setExtraIncomeForm((current) => ({
       ...current,
-      field === "amount" ? formatNumberInput(value) : value,
+      [field]: field === "amount" ? formatNumberInput(value) : value,
     }));
   };
 
@@ -667,21 +717,21 @@ export default function HomePage() {
 
     setCreditForm((current) => ({
       ...current,
-      amountFields.includes(field) ? formatNumberInput(value) : value,
+      [field]: amountFields.includes(field) ? formatNumberInput(value) : value,
     }));
   };
 
   const updateCardForm = (field, value) => {
     setCardForm((current) => ({
       ...current,
-      field === "amount" ? formatNumberInput(value) : value,
+      [field]: field === "amount" ? formatNumberInput(value) : value,
     }));
   };
 
   const updateOtherForm = (field, value) => {
     setOtherForm((current) => ({
       ...current,
-      field === "amount" ? formatNumberInput(value) : value,
+      [field]: field === "amount" ? formatNumberInput(value) : value,
     }));
   };
 
@@ -690,14 +740,14 @@ export default function HomePage() {
 
     setBesForm((current) => ({
       ...current,
-      amountFields.includes(field) ? formatNumberInput(value) : value,
+      [field]: amountFields.includes(field) ? formatNumberInput(value) : value,
     }));
   };
 
   const updateLockedForm = (field, value) => {
     setLockedForm((current) => ({
       ...current,
-      field === "amount" ? formatNumberInput(value) : value,
+      [field]: field === "amount" ? formatNumberInput(value) : value,
     }));
   };
 
@@ -706,7 +756,7 @@ export default function HomePage() {
 
     setGoldForm((current) => ({
       ...current,
-      amountFields.includes(field) ? formatNumberInput(value) : value,
+      [field]: amountFields.includes(field) ? formatNumberInput(value) : value,
     }));
   };
 
@@ -715,7 +765,7 @@ export default function HomePage() {
 
     setCryptoForm((current) => ({
       ...current,
-      amountFields.includes(field) ? formatNumberInput(value) : value,
+      [field]: amountFields.includes(field) ? formatNumberInput(value) : value,
     }));
   };
 
@@ -774,12 +824,17 @@ export default function HomePage() {
           item.id === editingExtraIncomeId ? { ...item, title, amount } : item
         )
       );
+
       resetExtraIncomeForm();
       return;
     }
 
     setExtraIncomes((current) => [
-      { id: String(Date.now()), title, amount },
+      {
+        id: String(Date.now()),
+        title,
+        amount,
+      },
       ...current,
     ]);
 
@@ -825,11 +880,19 @@ export default function HomePage() {
           item.id === editingCreditId ? { ...item, ...payload } : item
         )
       );
+
       resetCreditForm();
       return;
     }
 
-    setCredits((current) => [{ id: String(Date.now()), ...payload }, ...current]);
+    setCredits((current) => [
+      {
+        id: String(Date.now()),
+        ...payload,
+      },
+      ...current,
+    ]);
+
     setCreditForm(emptyCredit);
   };
 
@@ -873,14 +936,19 @@ export default function HomePage() {
             item.id === editingId ? { ...item, ...payload } : item
           )
         );
+
         resetCardForm();
         return;
       }
 
       setCardExpenses((current) => [
-        { id: String(Date.now()), ...payload },
+        {
+          id: String(Date.now()),
+          ...payload,
+        },
         ...current,
       ]);
+
       setCardForm(emptyExpense);
       return;
     }
@@ -891,14 +959,19 @@ export default function HomePage() {
           item.id === editingId ? { ...item, ...payload } : item
         )
       );
+
       resetOtherForm();
       return;
     }
 
     setOtherExpenses((current) => [
-      { id: String(Date.now()), ...payload },
+      {
+        id: String(Date.now()),
+        ...payload,
+      },
       ...current,
     ]);
+
     setOtherForm(emptyExpense);
   };
 
@@ -951,13 +1024,20 @@ export default function HomePage() {
           item.id === editingBesId ? { ...item, ...payload } : item
         ),
       }));
+
       resetBesForm();
       return;
     }
 
     setInvestments((current) => ({
       ...current,
-      bes: [{ id: String(Date.now()), ...payload }, ...current.bes],
+      bes: [
+        {
+          id: String(Date.now()),
+          ...payload,
+        },
+        ...current.bes,
+      ],
     }));
 
     setBesForm(emptyBesForm);
@@ -999,13 +1079,20 @@ export default function HomePage() {
           item.id === editingLockedId ? { ...item, ...payload } : item
         ),
       }));
+
       resetLockedForm();
       return;
     }
 
     setInvestments((current) => ({
       ...current,
-      locked: [{ id: String(Date.now()), ...payload }, ...current.locked],
+      locked: [
+        {
+          id: String(Date.now()),
+          ...payload,
+        },
+        ...current.locked,
+      ],
     }));
 
     setLockedForm(emptyLockedForm);
@@ -1049,13 +1136,20 @@ export default function HomePage() {
           item.id === editingGoldId ? { ...item, ...payload } : item
         ),
       }));
+
       resetGoldForm();
       return;
     }
 
     setInvestments((current) => ({
       ...current,
-      gold: [{ id: String(Date.now()), ...payload }, ...current.gold],
+      gold: [
+        {
+          id: String(Date.now()),
+          ...payload,
+        },
+        ...current.gold,
+      ],
     }));
 
     setGoldForm(emptyAssetForm);
@@ -1100,13 +1194,20 @@ export default function HomePage() {
           item.id === editingCryptoId ? { ...item, ...payload } : item
         ),
       }));
+
       resetCryptoForm();
       return;
     }
 
     setInvestments((current) => ({
       ...current,
-      crypto: [{ id: String(Date.now()), ...payload }, ...current.crypto],
+      crypto: [
+        {
+          id: String(Date.now()),
+          ...payload,
+        },
+        ...current.crypto,
+      ],
     }));
 
     setCryptoForm(emptyAssetForm);
@@ -1144,6 +1245,7 @@ export default function HomePage() {
 
           <div className="authBrandRow">
             <div className="authLogo">₺</div>
+
             <div>
               <div className="authBrandTitle">Kişisel Finans Yönetimi</div>
               <div className="authBrandSub">
@@ -1729,12 +1831,14 @@ export default function HomePage() {
                 placeholder="Örn: BES"
                 onChange={(value) => updateBesForm("title", value)}
               />
+
               <InputBox
                 label="Toplam Birikim"
                 value={besForm.totalAmount}
                 placeholder="0"
                 onChange={(value) => updateBesForm("totalAmount", value)}
               />
+
               <InputBox
                 label="Aylık Katkı"
                 value={besForm.monthlyContribution}
@@ -1743,12 +1847,14 @@ export default function HomePage() {
                   updateBesForm("monthlyContribution", value)
                 }
               />
+
               <InputBox
                 label="Getiri Beklentisi"
                 value={besForm.expectedReturn}
                 placeholder="Örn: %25"
                 onChange={(value) => updateBesForm("expectedReturn", value)}
               />
+
               <InputBox
                 label="Not"
                 value={besForm.note}
@@ -1803,18 +1909,21 @@ export default function HomePage() {
                 placeholder="Örn: Vadeli / Fon"
                 onChange={(value) => updateLockedForm("title", value)}
               />
+
               <InputBox
                 label="Tutar"
                 value={lockedForm.amount}
                 placeholder="0"
                 onChange={(value) => updateLockedForm("amount", value)}
               />
+
               <InputBox
                 label="Açılış Tarihi"
                 type="date"
                 value={lockedForm.unlockDate}
                 onChange={(value) => updateLockedForm("unlockDate", value)}
               />
+
               <InputBox
                 label="Not"
                 value={lockedForm.note}
@@ -2131,9 +2240,13 @@ function CreditList({
 
         let progressClass = "danger";
 
-        if (installment.percent >= 100) progressClass = "success";
-        else if (installment.percent >= 70) progressClass = "warm";
-        else if (installment.percent >= 35) progressClass = "mid";
+        if (installment.percent >= 100) {
+          progressClass = "success";
+        } else if (installment.percent >= 70) {
+          progressClass = "warm";
+        } else if (installment.percent >= 35) {
+          progressClass = "mid";
+        }
 
         return (
           <div key={item.id} className="creditRecord">
@@ -2141,6 +2254,7 @@ function CreditList({
               <div>
                 <div className="recordTitleRow">
                   <h4>{item.title}</h4>
+
                   <span
                     className={
                       installment.completed ? "status done" : "status waiting"
@@ -2313,6 +2427,7 @@ function BesList({ items, money, onEdit, onDelete }) {
 
             <div className="simpleRecordRight">
               <strong>{money(item.totalAmount)}</strong>
+
               <button
                 type="button"
                 className="editButton"
@@ -2320,6 +2435,7 @@ function BesList({ items, money, onEdit, onDelete }) {
               >
                 Düzenle
               </button>
+
               <button
                 type="button"
                 className="deleteButton"
@@ -2352,19 +2468,23 @@ function LockedList({ items, money, onEdit, onDelete }) {
               <div>
                 <div className="recordTitleRow">
                   <h4>{item.title}</h4>
+
                   <span className={unlocked ? "status done" : "status deferred"}>
                     {unlocked ? "✅ Açıldı" : "🔒 Kilitli"}
                   </span>
                 </div>
+
                 <p>
                   Açılış tarihi: {item.unlockDate || "-"}{" "}
                   {!unlocked && days !== null ? `• Kalan gün: ${days}` : ""}
                 </p>
+
                 {item.note ? <p>{item.note}</p> : null}
               </div>
 
               <div className="simpleRecordRight">
                 <strong>{money(item.amount)}</strong>
+
                 <button
                   type="button"
                   className="editButton"
@@ -2372,6 +2492,7 @@ function LockedList({ items, money, onEdit, onDelete }) {
                 >
                   Düzenle
                 </button>
+
                 <button
                   type="button"
                   className="deleteButton"
@@ -2407,13 +2528,16 @@ function AssetList({ items, money, onEdit, onDelete }) {
             <div className="simpleRecordTop">
               <div>
                 <h4>{item.title}</h4>
+
                 <p>
                   Miktar: {item.quantity} • Alış: {money(item.buyPrice)} •
                   Güncel: {money(item.currentPrice)}
                 </p>
+
                 <p>
                   Maliyet: {money(cost)} • Güncel değer: {money(value)}
                 </p>
+
                 {item.note ? <p>{item.note}</p> : null}
               </div>
 
@@ -2421,6 +2545,7 @@ function AssetList({ items, money, onEdit, onDelete }) {
                 <strong className={pnl >= 0 ? "profitText" : "lossText"}>
                   {money(pnl)} / %{pnlRate.toFixed(2)}
                 </strong>
+
                 <button
                   type="button"
                   className="editButton"
@@ -2428,6 +2553,7 @@ function AssetList({ items, money, onEdit, onDelete }) {
                 >
                   Düzenle
                 </button>
+
                 <button
                   type="button"
                   className="deleteButton"
