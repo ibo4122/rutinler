@@ -5,16 +5,8 @@ import { supabase } from "../lib/supabaseClient";
 
 const LOCAL_BACKUP_KEY = "kisisel-finans-panel-local-backup";
 
-const emptyIncome = {
-  salary: "",
-  mealAllowance: "",
-};
-
-const emptyExtraIncome = {
-  title: "",
-  amount: "",
-};
-
+const emptyIncome = { salary: "", mealAllowance: "" };
+const emptyExtraIncome = { title: "", amount: "" };
 const emptyCredit = {
   title: "",
   monthlyPayment: "",
@@ -22,13 +14,7 @@ const emptyCredit = {
   remainingDebt: "",
   paymentStartDate: "",
 };
-
-const emptyExpense = {
-  title: "",
-  category: "",
-  amount: "",
-  note: "",
-};
+const emptyExpense = { title: "", category: "", amount: "", note: "" };
 
 const emptyInvestments = {
   bes: [],
@@ -77,14 +63,37 @@ function parseAmount(value) {
   return Number(onlyDigits(value));
 }
 
+function parseDecimal(value) {
+  const cleaned = String(value || "")
+    .replace(/\s/g, "")
+    .replace(",", ".")
+    .replace(/[^\d.]/g, "");
+
+  return Number(cleaned || 0);
+}
+
 function formatNumberInput(value) {
   const digits = onlyDigits(value);
-  if (!digits) return "";
+
+  if (!digits) {
+    return "";
+  }
+
   return new Intl.NumberFormat("tr-TR").format(Number(digits));
 }
 
+function money(value) {
+  return new Intl.NumberFormat("tr-TR", {
+    style: "currency",
+    currency: "TRY",
+    maximumFractionDigits: 0,
+  }).format(Number(value || 0));
+}
+
 function normalizeFinanceData(data) {
-  if (!data) return emptyFinanceData;
+  if (!data) {
+    return emptyFinanceData;
+  }
 
   return {
     income: {
@@ -503,14 +512,6 @@ export default function HomePage() {
     setSession(null);
   };
 
-  const money = (value) => {
-    return new Intl.NumberFormat("tr-TR", {
-      style: "currency",
-      currency: "TRY",
-      maximumFractionDigits: 0,
-    }).format(Number(value || 0));
-  };
-
   const isCreditActive = (dateText) => {
     if (!dateText) return true;
 
@@ -585,7 +586,6 @@ export default function HomePage() {
     }, 0);
 
     const totalDebt = creditDebtTotal + cardTotal + otherTotal;
-
     const totalExpense = activeCreditTotal + cardTotal + otherTotal;
 
     return {
@@ -651,14 +651,14 @@ export default function HomePage() {
   const updateIncome = (field, value) => {
     setIncome((current) => ({
       ...current,
-      formatNumberInput(value),
+      [field]: formatNumberInput(value),
     }));
   };
 
   const updateExtraIncomeForm = (field, value) => {
     setExtraIncomeForm((current) => ({
       ...current,
-      field === "amount" ? formatNumberInput(value) : value,
+      [field]: field === "amount" ? formatNumberInput(value) : value,
     }));
   };
 
@@ -667,52 +667,55 @@ export default function HomePage() {
 
     setCreditForm((current) => ({
       ...current,
-      amountFields.includes(field) ? formatNumberInput(value) : value,
+      [field]: amountFields.includes(field) ? formatNumberInput(value) : value,
     }));
   };
 
   const updateCardForm = (field, value) => {
     setCardForm((current) => ({
       ...current,
-      field === "amount" ? formatNumberInput(value) : value,
+      [field]: field === "amount" ? formatNumberInput(value) : value,
     }));
   };
 
   const updateOtherForm = (field, value) => {
     setOtherForm((current) => ({
       ...current,
-      field === "amount" ? formatNumberInput(value) : value,
+      [field]: field === "amount" ? formatNumberInput(value) : value,
     }));
   };
 
   const updateBesForm = (field, value) => {
     const amountFields = ["totalAmount", "monthlyContribution"];
+
     setBesForm((current) => ({
       ...current,
-      amountFields.includes(field) ? formatNumberInput(value) : value,
+      [field]: amountFields.includes(field) ? formatNumberInput(value) : value,
     }));
   };
 
   const updateLockedForm = (field, value) => {
     setLockedForm((current) => ({
       ...current,
-      field === "amount" ? formatNumberInput(value) : value,
+      [field]: field === "amount" ? formatNumberInput(value) : value,
     }));
   };
 
   const updateGoldForm = (field, value) => {
-    const amountFields = ["quantity", "buyPrice", "currentPrice"];
+    const amountFields = ["buyPrice", "currentPrice"];
+
     setGoldForm((current) => ({
       ...current,
-      amountFields.includes(field) ? formatNumberInput(value) : value,
+      [field]: amountFields.includes(field) ? formatNumberInput(value) : value,
     }));
   };
 
   const updateCryptoForm = (field, value) => {
-    const amountFields = ["quantity", "buyPrice", "currentPrice"];
+    const amountFields = ["buyPrice", "currentPrice"];
+
     setCryptoForm((current) => ({
       ...current,
-      amountFields.includes(field) ? formatNumberInput(value) : value,
+      [field]: amountFields.includes(field) ? formatNumberInput(value) : value,
     }));
   };
 
@@ -808,7 +811,7 @@ export default function HomePage() {
       return;
     }
 
-    const itemPayload = {
+    const payload = {
       title,
       monthlyPayment,
       installmentText: creditForm.installmentText.trim(),
@@ -819,18 +822,14 @@ export default function HomePage() {
     if (editingCreditId) {
       setCredits((current) =>
         current.map((item) =>
-          item.id === editingCreditId ? { ...item, ...itemPayload } : item
+          item.id === editingCreditId ? { ...item, ...payload } : item
         )
       );
       resetCreditForm();
       return;
     }
 
-    setCredits((current) => [
-      { id: String(Date.now()), ...itemPayload },
-      ...current,
-    ]);
-
+    setCredits((current) => [{ id: String(Date.now()), ...payload }, ...current]);
     setCreditForm(emptyCredit);
   };
 
@@ -860,7 +859,7 @@ export default function HomePage() {
       return;
     }
 
-    const itemPayload = {
+    const payload = {
       title,
       category: form.category.trim() || (isCard ? "Kredi Kartı" : "Diğer"),
       amount,
@@ -871,7 +870,7 @@ export default function HomePage() {
       if (editingId) {
         setCardExpenses((current) =>
           current.map((item) =>
-            item.id === editingId ? { ...item, ...itemPayload } : item
+            item.id === editingId ? { ...item, ...payload } : item
           )
         );
         resetCardForm();
@@ -879,7 +878,7 @@ export default function HomePage() {
       }
 
       setCardExpenses((current) => [
-        { id: String(Date.now()), ...itemPayload },
+        { id: String(Date.now()), ...payload },
         ...current,
       ]);
       setCardForm(emptyExpense);
@@ -889,7 +888,7 @@ export default function HomePage() {
     if (editingId) {
       setOtherExpenses((current) =>
         current.map((item) =>
-          item.id === editingId ? { ...item, ...itemPayload } : item
+          item.id === editingId ? { ...item, ...payload } : item
         )
       );
       resetOtherForm();
@@ -897,7 +896,7 @@ export default function HomePage() {
     }
 
     setOtherExpenses((current) => [
-      { id: String(Date.now()), ...itemPayload },
+      { id: String(Date.now()), ...payload },
       ...current,
     ]);
     setOtherForm(emptyExpense);
@@ -960,6 +959,7 @@ export default function HomePage() {
       ...current,
       bes: [{ id: String(Date.now()), ...payload }, ...current.bes],
     }));
+
     setBesForm(emptyBesForm);
   };
 
@@ -1007,6 +1007,7 @@ export default function HomePage() {
       ...current,
       locked: [{ id: String(Date.now()), ...payload }, ...current.locked],
     }));
+
     setLockedForm(emptyLockedForm);
   };
 
@@ -1024,7 +1025,7 @@ export default function HomePage() {
 
   const addOrUpdateGold = () => {
     const title = goldForm.title.trim();
-    const quantity = parseAmount(goldForm.quantity);
+    const quantity = parseDecimal(goldForm.quantity);
     const buyPrice = parseAmount(goldForm.buyPrice);
     const currentPrice = parseAmount(goldForm.currentPrice);
 
@@ -1056,6 +1057,7 @@ export default function HomePage() {
       ...current,
       gold: [{ id: String(Date.now()), ...payload }, ...current.gold],
     }));
+
     setGoldForm(emptyAssetForm);
   };
 
@@ -1063,7 +1065,7 @@ export default function HomePage() {
     setEditingGoldId(item.id);
     setGoldForm({
       title: item.title || "",
-      quantity: formatNumberInput(item.quantity),
+      quantity: String(item.quantity || ""),
       buyPrice: formatNumberInput(item.buyPrice),
       currentPrice: formatNumberInput(item.currentPrice),
       note: item.note || "",
@@ -1074,7 +1076,7 @@ export default function HomePage() {
 
   const addOrUpdateCrypto = () => {
     const title = cryptoForm.title.trim().toUpperCase();
-    const quantity = parseAmount(cryptoForm.quantity);
+    const quantity = parseDecimal(cryptoForm.quantity);
     const buyPrice = parseAmount(cryptoForm.buyPrice);
     const currentPrice = parseAmount(cryptoForm.currentPrice);
 
@@ -1106,6 +1108,7 @@ export default function HomePage() {
       ...current,
       crypto: [{ id: String(Date.now()), ...payload }, ...current.crypto],
     }));
+
     setCryptoForm(emptyAssetForm);
   };
 
@@ -1113,7 +1116,7 @@ export default function HomePage() {
     setEditingCryptoId(item.id);
     setCryptoForm({
       title: item.title || "",
-      quantity: formatNumberInput(item.quantity),
+      quantity: String(item.quantity || ""),
       buyPrice: formatNumberInput(item.buyPrice),
       currentPrice: formatNumberInput(item.currentPrice),
       note: item.note || "",
@@ -1162,24 +1165,11 @@ export default function HomePage() {
           </h1>
 
           <p className="authText premiumAuthText">
-            {authMode === "verify" ? (
-              <>
-                <span className="authHighlight">{pendingEmail}</span> adresine
-                gelen doğrulama kodunu gir.
-              </>
-            ) : authMode === "register" ? (
-              <>
-                Ad soyad, e-posta ve şifre bilgilerini gir. Verilerin
-                <span className="authHighlight"> kullanıcıya özel </span>
-                saklanır.
-              </>
-            ) : (
-              <>
-                E-posta ve şifreyle giriş yap. Verilerin
-                <span className="authHighlight"> Supabase üzerinde </span>
-                güvenle saklanır.
-              </>
-            )}
+            {authMode === "verify"
+              ? `${pendingEmail} adresine gelen doğrulama kodunu gir.`
+              : authMode === "register"
+              ? "Ad soyad, e-posta ve şifre bilgilerini gir."
+              : "E-posta ve şifreyle giriş yap."}
           </p>
 
           {authMode === "verify" ? (
@@ -2089,7 +2079,7 @@ function AssetForm({
       <InputBox
         label="Adet / Miktar"
         value={form.quantity}
-        placeholder="0"
+        placeholder="Örn: 4.43"
         onChange={(value) => onChange("quantity", value)}
       />
 
