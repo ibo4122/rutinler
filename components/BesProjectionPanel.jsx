@@ -1,16 +1,21 @@
 "use client";
 
-YearlyInputs = [import { useMemo, useState } from "react";
-  { year: 2025, monthlyContribution: "5000", fundReturn: "30", stateReturn: "20" },
-  { year: 2026, monthlyContribution: "6500", fundReturn: "30", stateReturn: "20" },
-  { year: 2027, monthlyContribution: "10000", fundReturn: "30", stateReturn: "20" },
-  { year: 2028, monthlyContribution: "15000", fundReturn: "30", stateReturn: "20" },
+import { useMemo, useState } from "react";
+
+const defaultYearlyInputs30", stateReturn: "20" },const defaultYearlyInputs = [
   { year: 2029, monthlyContribution: "20000", fundReturn: "30", stateReturn: "20" },
   { year: 2030, monthlyContribution: "25000", fundReturn: "30", stateReturn: "20" },
 ];
 
 function numberValue(value) {
-  return Number(String(value || "").replace(/\./g, "").replace(",", ".").replace(/[^\d.]/g, "")) || 0;
+  return (
+    Number(
+      String(value || "")
+        .replace(/\./g, "")
+        .replace(",", ".")
+        .replace(/[^\d.]/g, "")
+    ) || 0
+  );
 }
 
 function percentValue(value) {
@@ -27,11 +32,16 @@ function money(value) {
 
 function parseProgress(progressText, fallbackTotalMonth) {
   const clean = String(progressText || "").replace(/\s/g, "");
+
   if (!clean.includes("/")) {
-    return { currentMonth: 0, progressTotalMonth: fallbackTotalMonth };
+    return {
+      currentMonth: 0,
+      progressTotalMonth: fallbackTotalMonth,
+    };
   }
 
   const [current, total] = clean.split("/");
+
   return {
     currentMonth: Number(current || 0),
     progressTotalMonth: Number(total || fallbackTotalMonth),
@@ -63,7 +73,6 @@ export default function BesProjectionPanel() {
     let cumulativeStateFundReturn = 0;
 
     const start = new Date(startDate || "2025-01-07");
-
     const rows = [];
 
     for (let month = 1; month <= modelTotalMonths; month += 1) {
@@ -71,6 +80,7 @@ export default function BesProjectionPanel() {
       date.setMonth(start.getMonth() + month - 1);
 
       const year = date.getFullYear();
+
       const yearInput =
         yearlyInputs.find((item) => Number(item.year) === year) ||
         yearlyInputs[yearlyInputs.length - 1];
@@ -84,11 +94,16 @@ export default function BesProjectionPanel() {
 
       principalPaid += monthlyContribution;
 
-      const monthlyFundReturn = (fundOpening + monthlyContribution) * monthlyFundRate;
+      const monthlyFundReturn =
+        (fundOpening + monthlyContribution) * monthlyFundRate;
+
       cumulativeFundReturn += monthlyFundReturn;
-      const fundClosing = fundOpening + monthlyContribution + monthlyFundReturn;
+
+      const fundClosing =
+        fundOpening + monthlyContribution + monthlyFundReturn;
 
       const monthlyStateContribution = monthlyContribution * stateRate;
+
       stateContributionTotal += monthlyStateContribution;
 
       const monthlyStateFundReturn =
@@ -97,12 +112,18 @@ export default function BesProjectionPanel() {
       cumulativeStateFundReturn += monthlyStateFundReturn;
 
       const stateFundClosing =
-        stateFundOpening + monthlyStateContribution + monthlyStateFundReturn;
+        stateFundOpening +
+        monthlyStateContribution +
+        monthlyStateFundReturn;
 
-      const earnedStateAmount = month >= critical ? stateFundClosing * vestRate : 0;
+      const earnedStateAmount =
+        month >= critical ? stateFundClosing * vestRate : 0;
 
-      const estimatedTotalReturn = cumulativeFundReturn + earnedStateAmount;
-      const totalPortfolioValue = principalPaid + estimatedTotalReturn;
+      const estimatedTotalReturn =
+        cumulativeFundReturn + earnedStateAmount;
+
+      const totalPortfolioValue =
+        principalPaid + estimatedTotalReturn;
 
       rows.push({
         month,
@@ -137,6 +158,7 @@ export default function BesProjectionPanel() {
     return {
       rows,
       currentMonth,
+      currentRow,
       remainingMonth: Math.max(modelTotalMonths - currentMonth, 0),
       criticalRow,
       exitRow,
@@ -165,8 +187,8 @@ export default function BesProjectionPanel() {
         <div>
           <h2 className="gradientTitle">BES Projeksiyon</h2>
           <p>
-            7 Ocak 2025 başlangıçlı, Aralık 2029 kritik eşik ve Aralık 2030 çıkış
-            senaryosu.
+            7 Ocak 2025 başlangıçlı, Aralık 2029 kritik eşik ve Aralık 2030
+            çıkış senaryosu.
           </p>
         </div>
 
@@ -182,8 +204,12 @@ export default function BesProjectionPanel() {
         <section className="summaryGrid investmentSummaryGrid">
           <article className="summaryCard blue">
             <div className="summaryLabel">Güncel İlerleme</div>
-            <div className="summaryValue summaryValue-blue">{projection.currentMonth}. Ay</div>
-            <div className="summaryDetail">Kalan ay: {projection.remainingMonth}</div>
+            <div className="summaryValue summaryValue-blue">
+              {projection.currentMonth}. Ay
+            </div>
+            <div className="summaryDetail">
+              Kalan ay: {projection.remainingMonth}
+            </div>
           </article>
 
           <article className="summaryCard purple">
@@ -222,35 +248,53 @@ export default function BesProjectionPanel() {
             <div className="formGrid six besGrid">
               <label className="inputBox">
                 <span>Güncel İlerleme</span>
-                <input value={progressText} onChange={(e) => setProgressText(e.target.value)} />
+                <input
+                  value={progressText}
+                  onChange={(event) => setProgressText(event.target.value)}
+                />
               </label>
 
               <label className="inputBox">
                 <span>Başlangıç Tarihi</span>
-                <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+                <input
+                  type="date"
+                  value={startDate}
+                  onChange={(event) => setStartDate(event.target.value)}
+                />
               </label>
 
               <label className="inputBox">
                 <span>Toplam Ay</span>
-                <input value={totalMonths} onChange={(e) => setTotalMonths(e.target.value)} />
+                <input
+                  value={totalMonths}
+                  onChange={(event) => setTotalMonths(event.target.value)}
+                />
               </label>
 
               <label className="inputBox">
                 <span>Kritik Eşik Ayı</span>
-                <input value={criticalMonth} onChange={(e) => setCriticalMonth(e.target.value)} />
+                <input
+                  value={criticalMonth}
+                  onChange={(event) => setCriticalMonth(event.target.value)}
+                />
               </label>
 
               <label className="inputBox">
                 <span>Devlet Katkısı %</span>
                 <input
                   value={stateContributionRate}
-                  onChange={(e) => setStateContributionRate(e.target.value)}
+                  onChange={(event) =>
+                    setStateContributionRate(event.target.value)
+                  }
                 />
               </label>
 
               <label className="inputBox">
                 <span>Hak Ediş %</span>
-                <input value={vestingRate} onChange={(e) => setVestingRate(e.target.value)} />
+                <input
+                  value={vestingRate}
+                  onChange={(event) => setVestingRate(event.target.value)}
+                />
               </label>
             </div>
           </div>
@@ -259,7 +303,9 @@ export default function BesProjectionPanel() {
         <section className="miniPanel mint">
           <div className="miniHeader">
             <div>
-              <h3 className="miniTitle miniTitle-mint">Yıllık Katkı ve Getiri Varsayımları</h3>
+              <h3 className="miniTitle miniTitle-mint">
+                Yıllık Katkı ve Getiri Varsayımları
+              </h3>
             </div>
           </div>
 
@@ -277,19 +323,27 @@ export default function BesProjectionPanel() {
 
                 <input
                   value={item.monthlyContribution}
-                  onChange={(e) =>
-                    updateYearInput(index, "monthlyContribution", e.target.value)
+                  onChange={(event) =>
+                    updateYearInput(
+                      index,
+                      "monthlyContribution",
+                      event.target.value
+                    )
                   }
                 />
 
                 <input
                   value={item.fundReturn}
-                  onChange={(e) => updateYearInput(index, "fundReturn", e.target.value)}
+                  onChange={(event) =>
+                    updateYearInput(index, "fundReturn", event.target.value)
+                  }
                 />
 
                 <input
                   value={item.stateReturn}
-                  onChange={(e) => updateYearInput(index, "stateReturn", e.target.value)}
+                  onChange={(event) =>
+                    updateYearInput(index, "stateReturn", event.target.value)
+                  }
                 />
               </div>
             ))}
@@ -299,7 +353,9 @@ export default function BesProjectionPanel() {
         <section className="miniPanel orange">
           <div className="miniHeader">
             <div>
-              <h3 className="miniTitle miniTitle-orange">Ay Bazlı Projeksiyon</h3>
+              <h3 className="miniTitle miniTitle-orange">
+                Ay Bazlı Projeksiyon
+              </h3>
             </div>
           </div>
 
@@ -356,4 +412,6 @@ export default function BesProjectionPanel() {
     </section>
   );
 }
-
+  { year: 2025, monthlyContribution: "5000", fundReturn: "30", stateReturn: "20" },
+  { year: 2026, monthlyContribution: "6500", fundReturn: "30", stateReturn: "20" },
+  { year: 2027, monthlyContribution: "10000", fundReturn: "30", stateReturn: "20" },
