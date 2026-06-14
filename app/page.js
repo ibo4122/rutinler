@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
+import BesProjectionPanel from "../components/BesProjectionPanel";
 
 const LOCAL_BACKUP_KEY = "kisisel-finans-panel-local-backup";
 
@@ -1777,7 +1778,18 @@ export default function HomePage() {
             />
           </MiniPanel>
         </Panel>
+                
+<BesProjectionPanel />
 
+<section className="summaryGrid investmentSummaryGrid">
+  <SummaryCard
+    tone="green"
+    title="Toplam Yatırım"
+    value={money(investmentTotals.totalInvestment)}
+    detail="BES + kilitli + altın + kripto"
+  />
+      
+</section>
         <section className="summaryGrid investmentSummaryGrid">
           <SummaryCard
             tone="green"
