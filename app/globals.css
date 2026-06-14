@@ -1,3 +1,218 @@
+* {
+  box-sizing: border-box;
+  padding: 0;
+  margin: 0;
+}
+
+body {
+  background: radial-gradient(circle at top, #1e293b, #020617);
+  color: #e2e8f0;
+  font-family: system-ui, -apple-system, sans-serif;
+}
+
+/* SAYFA */
+
+.financePage {
+  min-height: 100vh;
+  padding: 32px;
+}
+
+.financeShell {
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+/* HEADER */
+
+.topHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
+.topBadge {
+  font-size: 22px;
+  font-weight: 900;
+  color: #60a5fa;
+  text-shadow: 0 6px 20px rgba(59,130,246,0.4);
+}
+
+.saveStatus {
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+/* BUTONLAR */
+
+.premiumButton {
+  background: linear-gradient(135deg, #6366f1, #2563eb);
+  padding: 10px 16px;
+  border-radius: 10px;
+  border: none;
+  color: white;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.secondaryButton {
+  background: #334155;
+  color: #e2e8f0;
+  padding: 8px 14px;
+  border-radius: 10px;
+  border: none;
+  cursor: pointer;
+}
+
+.deleteButton {
+  background: #ef4444;
+  color: white;
+  border: none;
+  padding: 6px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.editButton {
+  background: #0ea5e9;
+  color: white;
+  border: none;
+  padding: 6px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+/* SUMMARY */
+
+.summaryGrid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 20px;
+}
+
+.summaryCard {
+  padding: 18px;
+  border-radius: 14px;
+  backdrop-filter: blur(10px);
+}
+
+.summaryCard.green { background: rgba(34,197,94,0.2); }
+.summaryCard.red { background: rgba(239,68,68,0.2); }
+.summaryCard.blue { background: rgba(59,130,246,0.2); }
+.summaryCard.purple { background: rgba(168,85,247,0.2); }
+
+.summaryLabel {
+  font-size: 13px;
+  opacity: 0.7;
+}
+
+.summaryValue {
+  font-size: 26px;
+  font-weight: 900;
+  margin-top: 6px;
+}
+
+.summaryDetail {
+  font-size: 12px;
+  opacity: 0.6;
+}
+
+/* PANEL */
+
+.panelCard {
+  margin-top: 24px;
+  background: rgba(15,23,42,0.8);
+  padding: 18px;
+  border-radius: 14px;
+}
+
+.panelHeader {
+  display: flex;
+  justify-content: space-between;
+  cursor: pointer;
+}
+
+.panelTotal strong {
+  display: block;
+  font-size: 18px;
+}
+
+/* MINI */
+
+.miniPanel {
+  margin-top: 18px;
+  padding: 14px;
+  border-radius: 12px;
+}
+
+.miniPanel.mint { background: rgba(16,185,129,0.2); }
+.miniPanel.rose { background: rgba(244,63,94,0.2); }
+.miniPanel.orange { background: rgba(251,146,60,0.2); }
+.miniPanel.purple { background: rgba(168,85,247,0.2); }
+
+.miniHeader {
+  display: flex;
+  justify-content: space-between;
+  cursor: pointer;
+}
+
+.miniTitle {
+  font-weight: 800;
+}
+
+.miniTotal strong {
+  display: block;
+}
+
+/* FORM */
+
+.formGrid {
+  display: grid;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.formGrid.two { grid-template-columns: repeat(2,1fr); }
+.formGrid.three { grid-template-columns: repeat(3,1fr); }
+.formGrid.four { grid-template-columns: repeat(4,1fr); }
+.formGrid.five { grid-template-columns: repeat(5,1fr); }
+
+.inputBox {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.inputBox input {
+  padding: 8px;
+  border-radius: 8px;
+  border: none;
+  background: #1e293b;
+  color: white;
+}
+
+/* RECORD */
+
+.recordList {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.simpleRecord {
+  padding: 12px;
+  border-radius: 10px;
+  background: rgba(255,255,255,0.05);
+}
+
+.simpleRecordTop {
+  display: flex;
+  justify-content: space-between;
+}
+
+/* YATIRIM */
+
 .investmentSummaryGrid {
   margin-top: 24px;
 }
@@ -7,30 +222,66 @@
     linear-gradient(145deg, rgba(255,255,255,0.10), rgba(15,23,42,0.64));
 }
 
+/* KAR ZARAR */
+
 .profitText {
-  color: #86efac !important;
-  text-shadow: 0 8px 22px rgba(34, 197, 94, 0.25);
+  color: #86efac;
+  font-weight: 900;
 }
 
 .lossText {
-  color: #fda4af !important;
-  text-shadow: 0 8px 22px rgba(244, 63, 94, 0.25);
+  color: #f87171;
+  font-weight: 900;
 }
 
-.fullAuthInput {
-  position: relative;
-  z-index: 1;
-  display: block;
+/* EMPTY */
+
+.emptyState {
+  padding: 12px;
+  text-align: center;
+  opacity: 0.7;
+}
+
+/* AUTH */
+
+.authPage {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.authCard {
+  width: 420px;
+  padding: 28px;
+  border-radius: 16px;
+  background: #0f172a;
+}
+
+.authTitle {
+  font-size: 26px;
+  text-align: center;
+  margin-bottom: 10px;
+}
+
+.authText {
+  text-align: center;
+  font-size: 13px;
+  margin-bottom: 12px;
+}
+
+.authInputBox input {
   width: 100%;
 }
 
-.fullAuthInput input {
-  text-align: center;
-  font-size: 26px;
-  font-weight: 950;
-  letter-spacing: 0.18em;
+.authButtons {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 12px;
 }
 
-.authBackButton {
-  justify-self: center;
+.authMessage {
+  color: #f87171;
+  margin-top: 8px;
+  text-align: center;
 }
