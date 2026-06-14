@@ -651,14 +651,14 @@ export default function HomePage() {
   const updateIncome = (field, value) => {
     setIncome((current) => ({
       ...current,
-      [field]: formatNumberInput(value),
+      formatNumberInput(value),
     }));
   };
 
   const updateExtraIncomeForm = (field, value) => {
     setExtraIncomeForm((current) => ({
       ...current,
-      [field]: field === "amount" ? formatNumberInput(value) : value,
+      field === "amount" ? formatNumberInput(value) : value,
     }));
   };
 
@@ -667,21 +667,21 @@ export default function HomePage() {
 
     setCreditForm((current) => ({
       ...current,
-      [field]: amountFields.includes(field) ? formatNumberInput(value) : value,
+      amountFields.includes(field) ? formatNumberInput(value) : value,
     }));
   };
 
   const updateCardForm = (field, value) => {
     setCardForm((current) => ({
       ...current,
-      [field]: field === "amount" ? formatNumberInput(value) : value,
+      field === "amount" ? formatNumberInput(value) : value,
     }));
   };
 
   const updateOtherForm = (field, value) => {
     setOtherForm((current) => ({
       ...current,
-      [field]: field === "amount" ? formatNumberInput(value) : value,
+      field === "amount" ? formatNumberInput(value) : value,
     }));
   };
 
@@ -690,14 +690,14 @@ export default function HomePage() {
 
     setBesForm((current) => ({
       ...current,
-      [field]: amountFields.includes(field) ? formatNumberInput(value) : value,
+      amountFields.includes(field) ? formatNumberInput(value) : value,
     }));
   };
 
   const updateLockedForm = (field, value) => {
     setLockedForm((current) => ({
       ...current,
-      [field]: field === "amount" ? formatNumberInput(value) : value,
+      field === "amount" ? formatNumberInput(value) : value,
     }));
   };
 
@@ -706,7 +706,7 @@ export default function HomePage() {
 
     setGoldForm((current) => ({
       ...current,
-      [field]: amountFields.includes(field) ? formatNumberInput(value) : value,
+      amountFields.includes(field) ? formatNumberInput(value) : value,
     }));
   };
 
@@ -715,7 +715,7 @@ export default function HomePage() {
 
     setCryptoForm((current) => ({
       ...current,
-      [field]: amountFields.includes(field) ? formatNumberInput(value) : value,
+      amountFields.includes(field) ? formatNumberInput(value) : value,
     }));
   };
 
