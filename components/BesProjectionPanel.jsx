@@ -2,7 +2,12 @@
 
 import { useMemo, useState } from "react";
 
-const: 2029, monthlyContribution: "20000", fundReturn: "30", stateReturn: "20" },const defaultYearlyInputs = [
+const defaultYearlyInputs = [
+  { year: 2025, monthlyContribution: "5000", fundReturn: "30", stateReturn: "20" },
+  { year: 2026, monthlyContribution: "6500", fundReturn: "30", stateReturn: "20" },
+  { year: 2027, monthlyContribution: "10000", fundReturn: "30", stateReturn: "20" },
+  { year: 2028, monthlyContribution: "15000", fundReturn: "30", stateReturn: "20" },
+  { year: 2029, monthlyContribution: "20000", fundReturn: "30", stateReturn: "20" },
   { year: 2030, monthlyContribution: "25000", fundReturn: "30", stateReturn: "20" },
 ];
 
@@ -63,7 +68,14 @@ function addMonths(dateText, monthCount) {
   return date;
 }
 
-function PanelBlock({ title, subtitle, open, onToggle, color = "purple", children }) {
+function PanelBlock({
+  title,
+  subtitle,
+  open,
+  onToggle,
+  color = "purple",
+  children,
+}) {
   return (
     <section className={`miniPanel ${color}`}>
       <button type="button" className="miniHeader" onClick={onToggle}>
@@ -126,7 +138,9 @@ export default function BesProjectionPanel() {
         yearlyInputs.find((item) => Number(item.year) === year) ||
         yearlyInputs[yearlyInputs.length - 1];
 
-      scheduledPrincipalUntilCurrent += numberValue(yearInput?.monthlyContribution);
+      scheduledPrincipalUntilCurrent += numberValue(
+        yearInput?.monthlyContribution
+      );
     }
 
     const currentPrincipalPaid =
@@ -188,7 +202,9 @@ export default function BesProjectionPanel() {
       } else {
         principalPaid += monthlyContribution;
 
-        monthlyFundReturn = (fundOpening + monthlyContribution) * monthlyFundRate;
+        monthlyFundReturn =
+          (fundOpening + monthlyContribution) * monthlyFundRate;
+
         cumulativeFundReturn += monthlyFundReturn;
 
         const fundClosingFuture =
@@ -203,14 +219,18 @@ export default function BesProjectionPanel() {
         cumulativeStateFundReturn += monthlyStateFundReturn;
 
         const stateFundClosingFuture =
-          stateFundOpening + monthlyStateContribution + monthlyStateFundReturn;
+          stateFundOpening +
+          monthlyStateContribution +
+          monthlyStateFundReturn;
 
         fundOpening = fundClosingFuture;
         stateFundOpening = stateFundClosingFuture;
       }
 
       const fundClosing =
-        month <= currentMonth ? principalPaid + cumulativeFundReturn : fundOpening;
+        month <= currentMonth
+          ? principalPaid + cumulativeFundReturn
+          : fundOpening;
 
       const stateFundClosing =
         month <= currentMonth
@@ -223,11 +243,9 @@ export default function BesProjectionPanel() {
       const grossTotalReturn =
         cumulativeFundReturn + stateContributionTotal + cumulativeStateFundReturn;
 
-      const estimatedTotalReturn =
-        cumulativeFundReturn + earnedStateAmount;
+      const estimatedTotalReturn = cumulativeFundReturn + earnedStateAmount;
 
-      const totalPortfolioValue =
-        principalPaid + estimatedTotalReturn;
+      const totalPortfolioValue = principalPaid + estimatedTotalReturn;
 
       rows.push({
         month,
@@ -307,9 +325,9 @@ export default function BesProjectionPanel() {
         <div>
           <h2 className="gradientTitle">BES Projeksiyon</h2>
           <p>
-            Gerçekleşen ana fon getirisi, devlet katkısı ve devlet katkısı fon getirisi
-            ayrı takip edilir. Hak ediş döneminde devlet katkısı tarafının %{vestingRate}
-            kısmı hesaba alınır.
+            Gerçekleşen ana fon getirisi, devlet katkısı ve devlet katkısı fon
+            getirisi ayrı takip edilir. Hak ediş döneminde devlet katkısı
+            tarafının %{vestingRate} kısmı hesaba alınır.
           </p>
         </div>
 
@@ -357,7 +375,9 @@ export default function BesProjectionPanel() {
               <div className="summaryValue summaryValue-blue">
                 {money(projection.currentRow?.principalPaid)}
               </div>
-              <div className="summaryDetail">Bugüne kadar cebinden çıkan ana para</div>
+              <div className="summaryDetail">
+                Bugüne kadar cebinden çıkan ana para
+              </div>
             </article>
 
             <article className="summaryCard purple">
@@ -381,7 +401,9 @@ export default function BesProjectionPanel() {
               <div className="summaryValue summaryValue-blue">
                 {money(numberValue(actualStateFundReturn))}
               </div>
-              <div className="summaryDetail">Devlet katkısının fon getirisi</div>
+              <div className="summaryDetail">
+                Devlet katkısının fon getirisi
+              </div>
             </article>
 
             <article className="summaryCard red">
@@ -389,7 +411,9 @@ export default function BesProjectionPanel() {
               <div className="summaryValue summaryValue-red">
                 {money(projection.currentRow?.grossTotalReturn)}
               </div>
-              <div className="summaryDetail">Fon + devlet katkısı + devlet fon getirisi</div>
+              <div className="summaryDetail">
+                Fon + devlet katkısı + devlet fon getirisi
+              </div>
             </article>
 
             <article className="summaryCard green">
@@ -455,7 +479,9 @@ export default function BesProjectionPanel() {
                 <span>Gelecek Devlet Katkısı %</span>
                 <input
                   value={stateContributionRate}
-                  onChange={(event) => setStateContributionRate(event.target.value)}
+                  onChange={(event) =>
+                    setStateContributionRate(event.target.value)
+                  }
                 />
               </label>
 
@@ -472,7 +498,9 @@ export default function BesProjectionPanel() {
                 <span>Mevcut Fon Getirisi</span>
                 <input
                   value={actualMainFundReturn}
-                  onChange={(event) => setActualMainFundReturn(event.target.value)}
+                  onChange={(event) =>
+                    setActualMainFundReturn(event.target.value)
+                  }
                 />
               </label>
 
@@ -480,7 +508,9 @@ export default function BesProjectionPanel() {
                 <span>Devlet Katkısı</span>
                 <input
                   value={actualStateContribution}
-                  onChange={(event) => setActualStateContribution(event.target.value)}
+                  onChange={(event) =>
+                    setActualStateContribution(event.target.value)
+                  }
                 />
               </label>
 
@@ -488,7 +518,9 @@ export default function BesProjectionPanel() {
                 <span>Devlet Katkısı Fon Getirisi</span>
                 <input
                   value={actualStateFundReturn}
-                  onChange={(event) => setActualStateFundReturn(event.target.value)}
+                  onChange={(event) =>
+                    setActualStateFundReturn(event.target.value)
+                  }
                 />
               </label>
             </div>
@@ -516,7 +548,11 @@ export default function BesProjectionPanel() {
                   <input
                     value={item.monthlyContribution}
                     onChange={(event) =>
-                      updateYearInput(index, "monthlyContribution", event.target.value)
+                      updateYearInput(
+                        index,
+                        "monthlyContribution",
+                        event.target.value
+                      )
                     }
                   />
 
@@ -603,7 +639,3 @@ export default function BesProjectionPanel() {
     </section>
   );
 }
-  { year: 2025, monthlyContribution: "5000", fundReturn: "30", stateReturn: "20" },
-  { year: 2026, monthlyContribution: "6500", fundReturn: "30", stateReturn: "20" },
-  { year: 2027, monthlyContribution: "10000", fundReturn: "30", stateReturn: "20" },
-  { year: 2028, monthlyContribution: "15000", fundReturn: "30", stateReturn: "20" },
