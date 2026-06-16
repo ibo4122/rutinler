@@ -96,7 +96,7 @@ function assetName(position) {
 }
 
 function migrateLegacy(investments) {
-  if (Array.isArray(investments?.transactions)) return investments.transactions;
+  if (Array.isArray(investments?.transactions) && investments.transactions.length > 0) return investments.transactions;
 
   const legacy = [];
   ["gold", "crypto", "stocks", "forex"].forEach((assetClass) => {
@@ -284,12 +284,12 @@ export default function InvestmentLedger({ investments = {}, setInvestments }) {
       if (!currentPosition || currentPosition.quantity + 0.00000001 < quantity) return alert("Satış miktarı mevcut bakiyeden fazla olamaz.");
     }
 
-    setInvestments((current) => ({ ...current, transactions: [tx, ...(current.transactions || transactions)] }));
+    setInvestments((current) => ({ ...current, transactions: [tx, ...((current.transactions && current.transactions.length > 0) ? current.transactions : transactions)] }));
     setForm({ ...emptyForm, assetClass: form.assetClass, currency: form.assetClass === "crypto" ? "USD" : "TRY", date: new Date().toISOString().slice(0, 10) });
   };
 
   const deleteTransaction = (id) => {
-    setInvestments((current) => ({ ...current, transactions: (current.transactions || transactions).filter((item) => item.id !== id) }));
+    setInvestments((current) => ({ ...current, transactions: ((current.transactions && current.transactions.length > 0) ? current.transactions : transactions).filter((item) => item.id !== id) }));
   };
 
   const updateLivePrices = async () => {
