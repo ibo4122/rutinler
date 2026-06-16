@@ -61,18 +61,19 @@ export default function LiveMarketUpdater({ investments, setInvestments }) {
       setInvestments((current) => {
         const nextCrypto = (current.crypto || []).map((item) => {
           const symbol = getCryptoSymbol(item);
-          const live = data.cryptoTryPrices?.[symbol];
-          if (!live?.tryPrice) return item;
+          const live = data.cryptoPrices?.[symbol] || data.cryptoTryPrices?.[symbol];
+          if (!live?.usdPrice) return item;
 
           cryptoCount += 1;
 
           return {
             ...item,
-            currentPrice: Number(live.tryPrice),
-            currency: "TRY",
-            livePriceSource: live.source === "CoinGecko" ? "CoinGecko" : `Binance ${live.binanceSymbol}`,
-            liveQuotePrice: Number(live.quotePrice || 0),
-            liveQuoteCurrency: live.quote || "USDT",
+            currentPrice: Number(live.usdPrice),
+            currency: "USD",
+            livePriceSource: live.source === "CoinGecko" ? "CoinGecko USD" : `Binance ${live.binanceSymbol}`,
+            liveQuotePrice: Number(live.quotePrice || live.usdPrice || 0),
+            liveQuoteCurrency: live.quote || "USD",
+            liveTryPrice: Number(live.tryPrice || 0),
             livePriceUpdatedAt: data.updatedAt,
           };
         });
@@ -105,7 +106,7 @@ export default function LiveMarketUpdater({ investments, setInvestments }) {
         ? ` Bulunamayan kripto sembolleri: ${data.missingCryptoSymbols.join(", ")}.`
         : "";
 
-      setMessage(`Canlı fiyat güncellemesi tamamlandı. Kripto: ${cryptoCount}, Döviz: ${forexCount}.${missing}`);
+      setMessage(`Canlı fiyat güncellemesi tamamlandı. Kripto USD bazlı güncellendi: ${cryptoCount}, Döviz TRY bazlı güncellendi: ${forexCount}.${missing}`);
     } catch (error) {
       setMessage(error?.message || "Canlı fiyat güncellemesi başarısız oldu.");
     } finally {
@@ -119,7 +120,7 @@ export default function LiveMarketUpdater({ investments, setInvestments }) {
         <div>
           <h3 className="miniTitle miniTitle-mint">Canlı Fiyat Güncelle</h3>
           <p className="sectionDescription">
-            Kripto fiyatları Binance ve CoinGecko üzerinden, döviz kurları Frankfurter üzerinden TRY bazlı güncellenir.
+            Kripto fiyatları USD bazlı güncellenir. Döviz kurları TRY bazlı güncellenir.
           </p>
         </div>
         <button type="button" className="premiumButton" onClick={updateLivePrices} disabled={loading}>
