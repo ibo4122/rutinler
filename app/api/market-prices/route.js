@@ -1,222 +1,351 @@
-export const dynamic = "force-dynamic";
+"use client";
 
-const SUPPORTED_FIAT = ["USD", "EUR", "GBP", "CHF", "JPY", "TRY"];
-const CRYPTO_QUOTES = ["USDT", "USDC", "FDUSD", "TRY"];
-const BINANCE_BASE_URL = "https://data-api.binance.vision/api/v3/ticker/price";
-const FRANKFURTER_BASE_URL = "https://api.frankfurter.app/latest";
-const COINGECKO_SIMPLE_PRICE_URL = "https://api.coingecko.com/api/v3/simple/price";
-const XAUS_SPOT_URL = "https://xaus.com/api/v1/spot";
+import { useMemo, useState } from "react";
 
-const COINGECKO_IDS = {
-  SOL: "solana",
-  SUI: "sui",
-  ENA: "ethena",
-  AVAX: "avalanche-2",
-  AIXBT: "aixbt",
-  RENDER: "render-token",
-  S: "sonic-3",
-  ATOM: "cosmos",
-  ZK: "zksync",
-  LRC: "loopring",
-  APT: "aptos",
-  FET: "fetch-ai",
-  GRT: "the-graph",
-  NEIRO: "neiro-3",
-  UNI: "uniswap",
-  PIXEL: "pixels",
-  DOGS: "dogs-2",
-  THL: "thala",
-};
+const dayNames = [
+  "Pazartesi",
+  "Salı",
+  "Çarşamba",
+  "Perşembe",
+  "Cuma",
+  "Cumartesi",
+  "Pazar",
+];
 
-const GOLD_TYPES = {
-  GRAM: { label: "Gram Altın", unit: "gram", multiplier: 1, purity: 1 },
-  HAS: { label: "Has Altın", unit: "gram", multiplier: 1, purity: 1 },
-  AYAR_24: { label: "24 Ayar Gram", unit: "gram", multiplier: 1, purity: 1 },
-  AYAR_22: { label: "22 Ayar Altın", unit: "gram", multiplier: 1, purity: 0.916 },
-  AYAR_18: { label: "18 Ayar Altın", unit: "gram", multiplier: 1, purity: 0.750 },
-  AYAR_14: { label: "14 Ayar Altın", unit: "gram", multiplier: 1, purity: 0.585 },
-  CEYREK: { label: "Çeyrek Altın", unit: "adet", multiplier: 1.75, purity: 0.916 },
-  YARIM: { label: "Yarım Altın", unit: "adet", multiplier: 3.50, purity: 0.916 },
-  TAM: { label: "Tam Altın", unit: "adet", multiplier: 7.00, purity: 0.916 },
-  CUMHURIYET: { label: "Cumhuriyet Altını", unit: "adet", multiplier: 7.216, purity: 0.916 },
-  ATA: { label: "Ata Altın", unit: "adet", multiplier: 7.216, purity: 0.916 },
-  RESAT: { label: "Reşat Altın", unit: "adet", multiplier: 7.216, purity: 0.916 },
-  GREMSE: { label: "Gremse Altın", unit: "adet", multiplier: 17.50, purity: 0.916 },
-  BESLI: { label: "Beşli Altın", unit: "adet", multiplier: 35.00, purity: 0.916 },
-  ONS: { label: "Ons Altın", unit: "ons", multiplier: 31.1034768, purity: 1 },
-  GUMUS_GRAM: { label: "Gram Gümüş", unit: "gram", multiplier: 1, purity: 1, metal: "silver" },
-};
+const routineTypes = [
+  { value: "work", label: "Günlük İş" },
+  { value: "education", label: "Eğitim" },
+  { value: "personal", label: "Kişisel" },
+];
 
-function cleanSymbol(value) {
-  return String(value || "").trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
+const priorities = [
+  { value: "low", label: "Düşük" },
+  { value: "medium", label: "Orta" },
+  { value: "high", label: "Yüksek" },
+];
+
+function pad(value) {
+  return String(value).padStart(2, "0");
 }
 
-function unique(values) {
-  return [...new Set(values.filter(Boolean))];
+function toDateInputValue(date) {
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
 }
 
-async function fetchJson(url, options = {}) {
-  try {
-    const response = await fetch(url, options);
-    if (!response.ok) return null;
-    return response.json();
-  } catch {
-    return null;
-  }
+function getISOWeek(date) {
+  const target = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  const dayNumber = target.getUTCDay() || 7;
+  target.setUTCDate(target.getUTCDate() + 4 - dayNumber);
+  const yearStart = new Date(Date.UTC(target.getUTCFullYear(), 0, 1));
+  return Math.ceil(((target - yearStart) / 86400000 + 1) / 7);
 }
 
-async function getUsdTryRate() {
-  const data = await fetchJson(`${FRANKFURTER_BASE_URL}?from=USD&to=TRY`, { next: { revalidate: 60 * 30 } });
-  const rate = Number(data?.rates?.TRY || 0);
-  return rate > 0 ? rate : 0;
+function getWeeksInYear(year) {
+  const lastDay = new Date(year, 11, 31);
+  const week = getISOWeek(lastDay);
+  return week === 1 ? 52 : week;
 }
 
-async function getFiatTryRates(currencies) {
-  const result = { TRY: 1 };
-  const targets = unique(currencies.map(cleanSymbol)).filter((currency) => currency !== "TRY" && SUPPORTED_FIAT.includes(currency));
-
-  await Promise.all(targets.map(async (currency) => {
-    const data = await fetchJson(`${FRANKFURTER_BASE_URL}?from=${currency}&to=TRY`, { next: { revalidate: 60 * 30 } });
-    const rate = Number(data?.rates?.TRY || 0);
-    if (rate > 0) result[currency] = rate;
-  }));
-
-  return result;
+function getMondayOfISOWeek(year, week) {
+  const simple = new Date(year, 0, 1 + (week - 1) * 7);
+  const dayOfWeek = simple.getDay() || 7;
+  const monday = new Date(simple);
+  monday.setDate(simple.getDate() - dayOfWeek + 1);
+  return monday;
 }
 
-async function getBinanceTicker(symbol) {
-  const data = await fetchJson(`${BINANCE_BASE_URL}?symbol=${symbol}`, { next: { revalidate: 60 } });
-  const price = Number(data?.price || 0);
-  return price > 0 ? price : 0;
+function formatDate(dateText) {
+  if (!dateText) return "-";
+  return new Intl.DateTimeFormat("tr-TR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  }).format(new Date(dateText));
 }
 
-async function getCoinGeckoUsdPrices(symbols) {
-  const ids = unique(symbols.map((symbol) => COINGECKO_IDS[symbol]).filter(Boolean));
-  const result = {};
-  if (!ids.length) return result;
+function isSameDate(a, b) {
+  return a && b && a === b;
+}
 
-  const url = `${COINGECKO_SIMPLE_PRICE_URL}?ids=${ids.join(",")}&vs_currencies=usd`;
-  const data = await fetchJson(url, { next: { revalidate: 60 * 2 } });
-  if (!data) return result;
+function getTodayText() {
+  return toDateInputValue(new Date());
+}
 
-  Object.entries(COINGECKO_IDS).forEach(([symbol, id]) => {
-    const usdPrice = Number(data?.[id]?.usd || 0);
-    if (usdPrice > 0) result[symbol] = usdPrice;
+function sortByDate(items) {
+  return [...items].sort((a, b) => String(a.date || "").localeCompare(String(b.date || "")));
+}
+
+function typeLabel(type) {
+  return routineTypes.find((item) => item.value === type)?.label || "İş";
+}
+
+function priorityLabel(priority) {
+  return priorities.find((item) => item.value === priority)?.label || "Orta";
+}
+
+export default function RoutinePlanner({ routines = [], setRoutines }) {
+  const today = getTodayText();
+  const now = new Date();
+
+  const [selectedYear, setSelectedYear] = useState(now.getFullYear());
+  const [selectedWeek, setSelectedWeek] = useState(getISOWeek(now));
+  const [form, setForm] = useState({
+    title: "",
+    type: "work",
+    priority: "medium",
+    date: today,
+    note: "",
   });
 
-  return result;
-}
+  const weeksInSelectedYear = getWeeksInYear(Number(selectedYear));
 
-async function getGoldPrices(usdTryRate) {
-  const data = await fetchJson(XAUS_SPOT_URL, { next: { revalidate: 60 * 5 } });
-  const spotUsdOz = Number(data?.spot_usd_oz || 0);
-  const perGramUsdFromApi = Number(data?.per_gram_usd || 0);
-  const gramUsd = perGramUsdFromApi > 0 ? perGramUsdFromApi : spotUsdOz > 0 ? spotUsdOz / 31.1034768 : 0;
-  const gramTry = gramUsd > 0 && usdTryRate > 0 ? gramUsd * usdTryRate : 0;
-
-  const prices = {};
-  Object.entries(GOLD_TYPES).forEach(([key, config]) => {
-    if (config.metal === "silver") return;
-    const pureGramTry = gramTry * config.multiplier * config.purity;
-    const pureGramUsd = gramUsd * config.multiplier * config.purity;
-    prices[key] = {
-      key,
-      label: config.label,
-      unit: config.unit,
-      multiplier: config.multiplier,
-      purity: config.purity,
-      tryPrice: pureGramTry,
-      usdPrice: pureGramUsd,
-      source: "XAUS spot formül",
-    };
-  });
-
-  return {
-    source: "XAUS",
-    updatedAt: data?.updated_at || new Date().toISOString(),
-    spotUsdOz,
-    gramUsd,
-    gramTry,
-    prices,
-  };
-}
-
-async function getBestCryptoPrice(baseSymbol, usdTryRate, coingeckoUsdPrices) {
-  for (const quote of CRYPTO_QUOTES) {
-    const binanceSymbol = `${baseSymbol}${quote}`;
-    const price = await getBinanceTicker(binanceSymbol);
-    if (price <= 0) continue;
-
-    if (["USDT", "USDC", "FDUSD"].includes(quote)) {
-      return { symbol: baseSymbol, source: "Binance", binanceSymbol, quote, quotePrice: price, usdPrice: price, tryPrice: usdTryRate > 0 ? price * usdTryRate : 0 };
-    }
-
-    if (quote === "TRY" && usdTryRate > 0) {
-      return { symbol: baseSymbol, source: "Binance", binanceSymbol, quote, quotePrice: price, usdPrice: price / usdTryRate, tryPrice: price };
-    }
-  }
-
-  const coingeckoUsdPrice = Number(coingeckoUsdPrices?.[baseSymbol] || 0);
-  if (coingeckoUsdPrice > 0) {
-    return { symbol: baseSymbol, source: "CoinGecko", binanceSymbol: null, quote: "USD", quotePrice: coingeckoUsdPrice, usdPrice: coingeckoUsdPrice, tryPrice: usdTryRate > 0 ? coingeckoUsdPrice * usdTryRate : 0 };
-  }
-
-  return null;
-}
-
-async function getCryptoPrices(symbols, usdTryRate) {
-  const result = {};
-  const notFound = [];
-  const normalizedSymbols = unique(symbols.map(cleanSymbol));
-  const coingeckoUsdPrices = await getCoinGeckoUsdPrices(normalizedSymbols);
-
-  await Promise.all(normalizedSymbols.map(async (rawSymbol) => {
-    const baseSymbol = rawSymbol.replace(/USDT$/, "").replace(/USDC$/, "").replace(/FDUSD$/, "").replace(/TRY$/, "");
-    if (!baseSymbol) return;
-
-    const live = await getBestCryptoPrice(baseSymbol, usdTryRate, coingeckoUsdPrices);
-    if (live?.usdPrice) result[baseSymbol] = live;
-    else notFound.push(baseSymbol);
-  }));
-
-  return { prices: result, notFound };
-}
-
-export async function GET(request) {
-  try {
-    const { searchParams } = new URL(request.url);
-    const cryptoSymbols = String(searchParams.get("crypto") || "").split(",").map(cleanSymbol).filter(Boolean);
-    const fiatCurrencies = String(searchParams.get("fiat") || "").split(",").map(cleanSymbol).filter(Boolean);
-
-    const usdTryRate = await getUsdTryRate();
-    const [fiatTryRates, cryptoResult, goldPrices] = await Promise.all([
-      getFiatTryRates(fiatCurrencies),
-      getCryptoPrices(cryptoSymbols, usdTryRate),
-      getGoldPrices(usdTryRate),
-    ]);
-
-    return Response.json({
-      ok: true,
-      updatedAt: new Date().toISOString(),
-      base: "USD",
-      usdTryRate,
-      fiatTryRates,
-      cryptoPrices: cryptoResult.prices,
-      cryptoTryPrices: cryptoResult.prices,
-      missingCryptoSymbols: cryptoResult.notFound,
-      goldPrices,
-      goldPrice: {
-        source: goldPrices.source,
-        unit: "gram",
-        usdPerGram: goldPrices.gramUsd,
-        tryPerGram: goldPrices.gramTry,
-        updatedAt: goldPrices.updatedAt,
-      },
-      goldTypes: GOLD_TYPES,
-      note: "Altın fiyatları ons değil gram bazından hesaplanır. Çeyrek, yarım, tam gibi türler gram fiyatı ve standart gramajla yaklaşık hesaplanır.",
+  const weekDays = useMemo(() => {
+    const monday = getMondayOfISOWeek(Number(selectedYear), Number(selectedWeek));
+    return dayNames.map((name, index) => {
+      const date = new Date(monday);
+      date.setDate(monday.getDate() + index);
+      return {
+        name,
+        date,
+        dateText: toDateInputValue(date),
+      };
     });
-  } catch (error) {
-    return Response.json({ ok: false, message: error?.message || "Canlı fiyatlar alınamadı." }, { status: 500 });
-  }
+  }, [selectedYear, selectedWeek]);
+
+  const weekStart = weekDays[0]?.dateText;
+  const weekEnd = weekDays[6]?.dateText;
+
+  const selectedWeekTasks = useMemo(() => {
+    return routines.filter((item) => item.date >= weekStart && item.date <= weekEnd);
+  }, [routines, weekStart, weekEnd]);
+
+  const upcoming = useMemo(() => {
+    const pending = routines.filter((item) => item.status !== "done");
+    const todayItems = pending.filter((item) => isSameDate(item.date, today));
+    const weekItems = pending.filter((item) => item.date >= today && item.date <= weekEnd && item.date !== today);
+    const overdueItems = pending.filter((item) => item.date < today);
+
+    return {
+      today: sortByDate(todayItems),
+      week: sortByDate(weekItems),
+      overdue: sortByDate(overdueItems),
+    };
+  }, [routines, today, weekEnd]);
+
+  const addRoutine = () => {
+    const title = form.title.trim();
+    if (!title) return alert("İş / eğitim başlığı gir.");
+    if (!form.date) return alert("Tarih seç.");
+
+    const payload = {
+      id: String(Date.now()),
+      title,
+      type: form.type,
+      priority: form.priority,
+      date: form.date,
+      note: form.note.trim(),
+      status: "pending",
+      createdAt: new Date().toISOString(),
+    };
+
+    setRoutines((current) => [payload, ...current]);
+    setForm((current) => ({ ...current, title: "", note: "" }));
+  };
+
+  const toggleStatus = (id) => {
+    setRoutines((current) =>
+      current.map((item) =>
+        item.id === id
+          ? { ...item, status: item.status === "done" ? "pending" : "done" }
+          : item
+      )
+    );
+  };
+
+  const deleteRoutine = (id) => {
+    setRoutines((current) => current.filter((item) => item.id !== id));
+  };
+
+  const changeForm = (field, value) => {
+    setForm((current) => ({ ...current, [field]: value }));
+  };
+
+  return (
+    <section className="routinePageGrid">
+      <div className="routineMainArea">
+        <section className="panelCard routineHeroCard">
+          <div className="panelHeader routineStaticHeader">
+            <div>
+              <h2 className="gradientTitle">Haftalık Rutin</h2>
+              <p>Günlük işler, eğitim planı ve kişisel notlarını yıl boyunca hafta hafta takip et.</p>
+            </div>
+
+            <div className="panelRight">
+              <div className="panelTotal">
+                <span>Seçili Hafta</span>
+                <strong>{selectedWeek}. Hafta</strong>
+              </div>
+            </div>
+          </div>
+
+          <div className="panelBody">
+            <div className="formGrid five">
+              <label className="inputBox">
+                <span>Yıl</span>
+                <select value={selectedYear} onChange={(event) => setSelectedYear(Number(event.target.value))}>
+                  {[now.getFullYear() - 1, now.getFullYear(), now.getFullYear() + 1].map((year) => (
+                    <option key={year} value={year}>{year}</option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="inputBox">
+                <span>Hafta</span>
+                <select value={selectedWeek} onChange={(event) => setSelectedWeek(Number(event.target.value))}>
+                  {Array.from({ length: weeksInSelectedYear }, (_, index) => index + 1).map((week) => (
+                    <option key={week} value={week}>{week}. Hafta</option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="inputBox">
+                <span>Başlık</span>
+                <input value={form.title} placeholder="Örn: SQL tekrar" onChange={(event) => changeForm("title", event.target.value)} />
+              </label>
+
+              <label className="inputBox">
+                <span>Tarih</span>
+                <input type="date" value={form.date} onChange={(event) => changeForm("date", event.target.value)} />
+              </label>
+
+              <label className="inputBox">
+                <span>Tür</span>
+                <select value={form.type} onChange={(event) => changeForm("type", event.target.value)}>
+                  {routineTypes.map((type) => (
+                    <option key={type.value} value={type.value}>{type.label}</option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="inputBox">
+                <span>Öncelik</span>
+                <select value={form.priority} onChange={(event) => changeForm("priority", event.target.value)}>
+                  {priorities.map((priority) => (
+                    <option key={priority.value} value={priority.value}>{priority.label}</option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="inputBox routineWideInput">
+                <span>Not</span>
+                <input value={form.note} placeholder="Opsiyonel not" onChange={(event) => changeForm("note", event.target.value)} />
+              </label>
+
+              <button type="button" className="premiumButton routineAddButton" onClick={addRoutine}>
+                Rutine Ekle
+              </button>
+            </div>
+          </div>
+        </section>
+
+        <section className="routineWeekGrid">
+          {weekDays.map((day) => {
+            const dayTasks = selectedWeekTasks.filter((item) => item.date === day.dateText);
+            return (
+              <article key={day.dateText} className="miniPanel purple routineDayCard">
+                <div className="routineDayHeader">
+                  <div>
+                    <h3 className="miniTitle miniTitle-purple">{day.name}</h3>
+                    <p className="sectionDescription">{formatDate(day.dateText)}</p>
+                  </div>
+                  <span className="status waiting">{dayTasks.length} kayıt</span>
+                </div>
+
+                <div className="recordList">
+                  {dayTasks.length === 0 ? (
+                    <div className="emptyState">
+                      <strong>Bu gün için kayıt yok.</strong>
+                      <span>Yeni rutin eklediğinde burada görünecek.</span>
+                    </div>
+                  ) : (
+                    dayTasks.map((task) => (
+                      <RoutineItem
+                        key={task.id}
+                        task={task}
+                        onToggle={toggleStatus}
+                        onDelete={deleteRoutine}
+                      />
+                    ))
+                  )}
+                </div>
+              </article>
+            );
+          })}
+        </section>
+      </div>
+
+      <aside className="routineSidePanel panelCard">
+        <div className="routineSideHeader">
+          <h2 className="gradientTitle">Yaklaşan İşler</h2>
+          <p>Bugün, bu hafta ve geciken işler.</p>
+        </div>
+
+        <UpcomingGroup title="Bugün" items={upcoming.today} onToggle={toggleStatus} onDelete={deleteRoutine} />
+        <UpcomingGroup title="Bu Hafta" items={upcoming.week} onToggle={toggleStatus} onDelete={deleteRoutine} />
+        <UpcomingGroup title="Gecikenler" items={upcoming.overdue} onToggle={toggleStatus} onDelete={deleteRoutine} danger />
+      </aside>
+    </section>
+  );
+}
+
+function RoutineItem({ task, onToggle, onDelete }) {
+  const priorityClass = task.priority === "high" ? "status deferred" : task.priority === "medium" ? "status waiting" : "status done";
+
+  return (
+    <div className={task.status === "done" ? "simpleRecord routineDoneRecord" : "simpleRecord"}>
+      <div className="simpleRecordTop">
+        <div>
+          <div className="recordTitleRow">
+            <h4>{task.title}</h4>
+            <span className="status waiting">{typeLabel(task.type)}</span>
+            <span className={priorityClass}>{priorityLabel(task.priority)}</span>
+            {task.status === "done" ? <span className="status done">Tamamlandı</span> : null}
+          </div>
+          <p>{formatDate(task.date)}{task.note ? ` • ${task.note}` : ""}</p>
+        </div>
+
+        <div className="simpleRecordRight">
+          <button type="button" className="editButton" onClick={() => onToggle(task.id)}>
+            {task.status === "done" ? "Geri Al" : "Tamamla"}
+          </button>
+          <button type="button" className="deleteButton" onClick={() => onDelete(task.id)}>Sil</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function UpcomingGroup({ title, items, onToggle, onDelete, danger = false }) {
+  return (
+    <section className="routineUpcomingGroup">
+      <div className="routineUpcomingTitle">
+        <h3 className={danger ? "miniTitle miniTitle-rose" : "miniTitle miniTitle-mint"}>{title}</h3>
+        <span className={danger ? "status deferred" : "status waiting"}>{items.length}</span>
+      </div>
+
+      <div className="recordList">
+        {items.length === 0 ? (
+          <div className="emptyState">
+            <strong>Kayıt yok.</strong>
+            <span>Yaklaşan iş olduğunda burada görünür.</span>
+          </div>
+        ) : (
+          items.slice(0, 8).map((task) => (
+            <RoutineItem key={task.id} task={task} onToggle={onToggle} onDelete={onDelete} />
+          ))
+        )}
+      </div>
+    </section>
+  );
 }
 
