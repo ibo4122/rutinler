@@ -16,11 +16,18 @@ function unique(values) {
 function getCryptoSymbol(item) {
   const raw = cleanSymbol(item?.title);
   if (!raw) return "";
-  return raw.endsWith("USDT") ? raw.replace(/USDT$/, "") : raw;
+  return raw
+    .replace(/USDT$/, "")
+    .replace(/USDC$/, "")
+    .replace(/FDUSD$/, "")
+    .replace(/TRY$/, "");
 }
 
 function getForexCurrency(item) {
-  const currency = cleanSymbol(item?.currency || item?.title);
+  const title = cleanSymbol(item?.title);
+  const currency = cleanSymbol(item?.currency);
+
+  if (["USD", "EUR", "GBP", "CHF", "JPY", "TRY"].includes(title)) return title;
   if (currency === "USDT") return "USD";
   return currency;
 }
@@ -48,16 +55,25 @@ export default function LiveMarketUpdater({ investments, setInvestments }) {
         throw new Error(data?.message || "Canlı fiyatlar alınamadı.");
       }
 
+      let updatedCryptoCount = 0;
+      let updatedForexCount = 0;
+
       setInvestments((current) => ({
         ...current,
         crypto: (current.crypto || []).map((item) => {
           const symbol = getCryptoSymbol(item);
           const live = data.cryptoTryPrices?.[symbol];
           if (!live?.tryPrice) return item;
+
+          updatedCryptoCount += 1;
+
           return {
             ...item,
             currentPrice: Number(live.tryPrice),
-            livePriceSource: "Binance + USD/TRY",
+            currency: "TRY",
+            livePriceSource: `Binance ${live.binanceSymbol}`,
+            liveQuotePrice: Number(live.quotePrice || 0),
+            liveQuoteCurrency: live.quote || "USDT",
             livePriceUpdatedAt: data.updatedAt,
           };
         }),
@@ -65,16 +81,25 @@ export default function LiveMarketUpdater({ investments, setInvestments }) {
           const currency = getForexCurrency(item);
           const rate = data.fiatTryRates?.[currency];
           if (!rate) return item;
+
+          updatedForexCount += 1;
+
           return {
             ...item,
             currentPrice: Number(rate),
-            livePriceSource: "Frankfurter",
+            currency: "TRY",
+            livePriceSource: `Frankfurter ${currency}/TRY`,
+            liveBaseCurrency: currency,
             livePriceUpdatedAt: data.updatedAt,
           };
         }),
       }));
 
-      setMessage("Canlı fiyat güncellemesi tamamlandı. Kripto ve döviz güncellendi.");
+      const missing = Array.isArray(data.missingCryptoSymbols) && data.missingCryptoSymbols.length
+        ? ` Bulunamayan kripto sembolleri: ${data.missingCryptoSymbols.join(", ")}.`
+        : "";
+
+      setMessage(`Canlı fiyat güncellemesi tamamlandı. Kripto: ${updatedCryptoCount}, Döviz: ${updatedForexCount}.${missing}`);
     } catch (error) {
       setMessage(error?.message || "Canlı fiyat güncellemesi başarısız oldu.");
     } finally {
@@ -88,7 +113,7 @@ export default function LiveMarketUpdater({ investments, setInvestments }) {
         <div>
           <h3 className="miniTitle miniTitle-mint">Canlı Fiyat Güncelle</h3>
           <p className="sectionDescription">
-            İlk sürümde döviz ve kripto fiyatları güncellenir. Altın ve hisse için sonraki adımda API key ile entegrasyon yapılır.
+            Kripto fiyatları Binance üzerinden, döviz kurları Frankfurter üzerinden TRY bazlı güncellenir.
           </p>
         </div>
         <button type="button" className="premiumButton" onClick={updateLivePrices} disabled={loading}>
