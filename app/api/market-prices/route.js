@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 
 const SUPPORTED_FIAT = ["USD", "EUR", "GBP", "CHF", "JPY", "TRY"];
+const CRYPTO_QUOTES = ["USDT", "USDC", "FDUSD", "TRY"];
 const BINANCE_BASE_URL = "https://api.binance.com/api/v3/ticker/price";
 const FRANKFURTER_BASE_URL = "https://api.frankfurter.app/latest";
 
@@ -15,17 +16,19 @@ function unique(values) {
   return [...new Set(values.filter(Boolean))];
 }
 
+async function fetchJson(url, options = {}) {
+  const response = await fetch(url, options);
+  if (!response.ok) return null;
+  return response.json();
+}
+
 async function getUsdTryRate() {
-  const response = await fetch(`${FRANKFURTER_BASE_URL}?from=USD&to=TRY`, {
+  const data = await fetchJson(`${FRANKFURTER_BASE_URL}?from=USD&to=TRY`, {
     next: { revalidate: 60 * 30 },
   });
 
-  if (!response.ok) {
-    throw new Error("USD/TRY kuru alınamadı.");
-  }
-
-  const data = await response.json();
-  return Number(data?.rates?.TRY || 0);
+  const rate = Number(data?.rates?.TRY || 0);
+  return rate > 0 ? rate : 0;
 }
 
 async function getFiatTryRates(currencies) {
@@ -36,64 +39,89 @@ async function getFiatTryRates(currencies) {
 
   await Promise.all(
     targets.map(async (currency) => {
-      try {
-        const response = await fetch(`${FRANKFURTER_BASE_URL}?from=${currency}&to=TRY`, {
-          next: { revalidate: 60 * 30 },
-        });
+      const data = await fetchJson(`${FRANKFURTER_BASE_URL}?from=${currency}&to=TRY`, {
+        next: { revalidate: 60 * 30 },
+      });
 
-        if (!response.ok) return;
-
-        const data = await response.json();
-        const rate = Number(data?.rates?.TRY || 0);
-        if (rate > 0) result[currency] = rate;
-      } catch {}
+      const rate = Number(data?.rates?.TRY || 0);
+      if (rate > 0) result[currency] = rate;
     })
   );
 
   return result;
 }
 
+async function getBinanceTicker(symbol) {
+  const data = await fetchJson(`${BINANCE_BASE_URL}?symbol=${symbol}`, {
+    next: { revalidate: 60 },
+  });
+
+  const price = Number(data?.price || 0);
+  return price > 0 ? price : 0;
+}
+
+async function getBestCryptoPrice(baseSymbol, usdTryRate) {
+  for (const quote of CRYPTO_QUOTES) {
+    const binanceSymbol = `${baseSymbol}${quote}`;
+    const price = await getBinanceTicker(binanceSymbol);
+
+    if (price <= 0) continue;
+
+    if (quote === "TRY") {
+      return {
+        symbol: baseSymbol,
+        binanceSymbol,
+        quote,
+        quotePrice: price,
+        tryPrice: price,
+      };
+    }
+
+    if (["USDT", "USDC", "FDUSD"].includes(quote) && usdTryRate > 0) {
+      return {
+        symbol: baseSymbol,
+        binanceSymbol,
+        quote,
+        quotePrice: price,
+        tryPrice: price * usdTryRate,
+      };
+    }
+  }
+
+  return null;
+}
+
 async function getCryptoTryPrices(symbols, usdTryRate) {
   const result = {};
+  const notFound = [];
   const normalizedSymbols = unique(symbols.map(cleanSymbol));
 
   await Promise.all(
     normalizedSymbols.map(async (rawSymbol) => {
-      const baseSymbol = rawSymbol.endsWith("USDT")
-        ? rawSymbol.replace(/USDT$/, "")
-        : rawSymbol;
+      const baseSymbol = rawSymbol
+        .replace(/USDT$/, "")
+        .replace(/USDC$/, "")
+        .replace(/FDUSD$/, "")
+        .replace(/TRY$/, "");
 
       if (!baseSymbol) return;
 
-      const binanceSymbol = `${baseSymbol}USDT`;
-
-      try {
-        const response = await fetch(`${BINANCE_BASE_URL}?symbol=${binanceSymbol}`, {
-          next: { revalidate: 60 },
-        });
-
-        if (!response.ok) return;
-
-        const data = await response.json();
-        const usdtPrice = Number(data?.price || 0);
-        if (usdtPrice > 0 && usdTryRate > 0) {
-          result[baseSymbol] = {
-            symbol: baseSymbol,
-            binanceSymbol,
-            usdtPrice,
-            tryPrice: usdtPrice * usdTryRate,
-          };
-        }
-      } catch {}
+      const live = await getBestCryptoPrice(baseSymbol, usdTryRate);
+      if (live?.tryPrice) {
+        result[baseSymbol] = live;
+      } else {
+        notFound.push(baseSymbol);
+      }
     })
   );
 
-  return result;
+  return { prices: result, notFound };
 }
 
 export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url);
+
     const cryptoSymbols = String(searchParams.get("crypto") || "")
       .split(",")
       .map(cleanSymbol)
@@ -105,7 +133,7 @@ export async function GET(request) {
       .filter(Boolean);
 
     const usdTryRate = await getUsdTryRate();
-    const [fiatTryRates, cryptoTryPrices] = await Promise.all([
+    const [fiatTryRates, cryptoResult] = await Promise.all([
       getFiatTryRates(fiatCurrencies),
       getCryptoTryPrices(cryptoSymbols, usdTryRate),
     ]);
@@ -116,8 +144,9 @@ export async function GET(request) {
       base: "TRY",
       usdTryRate,
       fiatTryRates,
-      cryptoTryPrices,
-      note: "Fiyatlar bilgilendirme amaçlıdır. Frankfurter günlük referans kur, Binance public ticker fiyatı kullanır.",
+      cryptoTryPrices: cryptoResult.prices,
+      missingCryptoSymbols: cryptoResult.notFound,
+      note: "Fiyatlar bilgilendirme amaçlıdır. Döviz için Frankfurter, kripto için Binance public ticker kullanılır.",
     });
   } catch (error) {
     return Response.json(
