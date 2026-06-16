@@ -5,7 +5,7 @@ const CRYPTO_QUOTES = ["USDT", "USDC", "FDUSD", "TRY"];
 const BINANCE_BASE_URL = "https://data-api.binance.vision/api/v3/ticker/price";
 const FRANKFURTER_BASE_URL = "https://api.frankfurter.app/latest";
 const COINGECKO_SIMPLE_PRICE_URL = "https://api.coingecko.com/api/v3/simple/price";
-const XAUS_SPOT_URL = "https://xaus.com/api/v1/spot?currency=TRY&unit=gram";
+const XAUS_SPOT_URL = "https://xaus.com/api/v1/spot";
 
 const COINGECKO_IDS = {
   SOL: "solana",
@@ -26,6 +26,25 @@ const COINGECKO_IDS = {
   PIXEL: "pixels",
   DOGS: "dogs-2",
   THL: "thala",
+};
+
+const GOLD_TYPES = {
+  GRAM: { label: "Gram Altın", unit: "gram", multiplier: 1, purity: 1 },
+  HAS: { label: "Has Altın", unit: "gram", multiplier: 1, purity: 1 },
+  AYAR_24: { label: "24 Ayar Gram", unit: "gram", multiplier: 1, purity: 1 },
+  AYAR_22: { label: "22 Ayar Altın", unit: "gram", multiplier: 1, purity: 0.916 },
+  AYAR_18: { label: "18 Ayar Altın", unit: "gram", multiplier: 1, purity: 0.750 },
+  AYAR_14: { label: "14 Ayar Altın", unit: "gram", multiplier: 1, purity: 0.585 },
+  CEYREK: { label: "Çeyrek Altın", unit: "adet", multiplier: 1.75, purity: 0.916 },
+  YARIM: { label: "Yarım Altın", unit: "adet", multiplier: 3.50, purity: 0.916 },
+  TAM: { label: "Tam Altın", unit: "adet", multiplier: 7.00, purity: 0.916 },
+  CUMHURIYET: { label: "Cumhuriyet Altını", unit: "adet", multiplier: 7.216, purity: 0.916 },
+  ATA: { label: "Ata Altın", unit: "adet", multiplier: 7.216, purity: 0.916 },
+  RESAT: { label: "Reşat Altın", unit: "adet", multiplier: 7.216, purity: 0.916 },
+  GREMSE: { label: "Gremse Altın", unit: "adet", multiplier: 17.50, purity: 0.916 },
+  BESLI: { label: "Beşli Altın", unit: "adet", multiplier: 35.00, purity: 0.916 },
+  ONS: { label: "Ons Altın", unit: "ons", multiplier: 31.1034768, purity: 1 },
+  GUMUS_GRAM: { label: "Gram Gümüş", unit: "gram", multiplier: 1, purity: 1, metal: "silver" },
 };
 
 function cleanSymbol(value) {
@@ -88,19 +107,37 @@ async function getCoinGeckoUsdPrices(symbols) {
   return result;
 }
 
-async function getGoldPrice() {
+async function getGoldPrices(usdTryRate) {
   const data = await fetchJson(XAUS_SPOT_URL, { next: { revalidate: 60 * 5 } });
-  const usdPerGram = Number(data?.per_gram_usd || 0);
-  const tryPerGram = Number(data?.xau?.price || 0);
+  const spotUsdOz = Number(data?.spot_usd_oz || 0);
+  const perGramUsdFromApi = Number(data?.per_gram_usd || 0);
+  const gramUsd = perGramUsdFromApi > 0 ? perGramUsdFromApi : spotUsdOz > 0 ? spotUsdOz / 31.1034768 : 0;
+  const gramTry = gramUsd > 0 && usdTryRate > 0 ? gramUsd * usdTryRate : 0;
 
-  if (usdPerGram <= 0 && tryPerGram <= 0) return null;
+  const prices = {};
+  Object.entries(GOLD_TYPES).forEach(([key, config]) => {
+    if (config.metal === "silver") return;
+    const pureGramTry = gramTry * config.multiplier * config.purity;
+    const pureGramUsd = gramUsd * config.multiplier * config.purity;
+    prices[key] = {
+      key,
+      label: config.label,
+      unit: config.unit,
+      multiplier: config.multiplier,
+      purity: config.purity,
+      tryPrice: pureGramTry,
+      usdPrice: pureGramUsd,
+      source: "XAUS spot formül",
+    };
+  });
 
   return {
     source: "XAUS",
-    unit: "gram",
-    usdPerGram,
-    tryPerGram,
     updatedAt: data?.updated_at || new Date().toISOString(),
+    spotUsdOz,
+    gramUsd,
+    gramTry,
+    prices,
   };
 }
 
@@ -152,10 +189,10 @@ export async function GET(request) {
     const fiatCurrencies = String(searchParams.get("fiat") || "").split(",").map(cleanSymbol).filter(Boolean);
 
     const usdTryRate = await getUsdTryRate();
-    const [fiatTryRates, cryptoResult, goldPrice] = await Promise.all([
+    const [fiatTryRates, cryptoResult, goldPrices] = await Promise.all([
       getFiatTryRates(fiatCurrencies),
       getCryptoPrices(cryptoSymbols, usdTryRate),
-      getGoldPrice(),
+      getGoldPrices(usdTryRate),
     ]);
 
     return Response.json({
@@ -167,8 +204,16 @@ export async function GET(request) {
       cryptoPrices: cryptoResult.prices,
       cryptoTryPrices: cryptoResult.prices,
       missingCryptoSymbols: cryptoResult.notFound,
-      goldPrice,
-      note: "Kripto güncel fiyatları USD bazlı döner. Altın gram USD ve TRY döner. Döviz TRY bazlı döner.",
+      goldPrices,
+      goldPrice: {
+        source: goldPrices.source,
+        unit: "gram",
+        usdPerGram: goldPrices.gramUsd,
+        tryPerGram: goldPrices.gramTry,
+        updatedAt: goldPrices.updatedAt,
+      },
+      goldTypes: GOLD_TYPES,
+      note: "Altın fiyatları ons değil gram bazından hesaplanır. Çeyrek, yarım, tam gibi türler gram fiyatı ve standart gramajla yaklaşık hesaplanır.",
     });
   } catch (error) {
     return Response.json({ ok: false, message: error?.message || "Canlı fiyatlar alınamadı." }, { status: 500 });
