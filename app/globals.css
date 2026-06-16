@@ -379,9 +379,11 @@ button {
 .inputBox input,
 .authInputBox input,
 .inputBox select,
-.authInputBox select {
+.authInputBox select,
+.inputBox textarea,
+.authInputBox textarea {
   width: 100%;
-  height: 58px;
+  min-height: 58px;
   padding: 0 16px;
   outline: none;
   border-radius: 18px;
@@ -393,6 +395,12 @@ button {
     0 16px 34px rgba(0, 0, 0, 0.16);
 }
 
+.inputBox textarea,
+.authInputBox textarea {
+  padding: 16px;
+  resize: vertical;
+}
+
 .inputBox select option,
 .authInputBox select option {
   color: #0f172a;
@@ -400,14 +408,18 @@ button {
 }
 
 .inputBox input::placeholder,
-.authInputBox input::placeholder {
+.authInputBox input::placeholder,
+.inputBox textarea::placeholder,
+.authInputBox textarea::placeholder {
   color: rgba(203, 213, 225, 0.46);
 }
 
 .inputBox input:focus,
 .authInputBox input:focus,
 .inputBox select:focus,
-.authInputBox select:focus {
+.authInputBox select:focus,
+.inputBox textarea:focus,
+.authInputBox textarea:focus {
   border-color: rgba(125, 211, 252, 0.78);
   box-shadow:
     0 0 0 4px rgba(56, 189, 248, 0.14),
@@ -548,6 +560,11 @@ button {
   margin-top: 14px;
   color: rgba(255, 255, 255, 0.68);
   font-size: 13px;
+}
+
+.simpleRecordRight {
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 .simpleRecordRight strong {
@@ -1006,7 +1023,7 @@ button {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
-/* Haftalık Rutin / Takvim Ekranı */
+/* Haftalık Rutin / Takvim Ekranı - eski stabil classlar */
 .routinePageGrid {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 380px;
@@ -1123,152 +1140,8 @@ button {
   justify-content: flex-end;
 }
 
-@media (max-width: 1180px) {
-  .summaryGrid,
-  .formGrid.four,
-  .formGrid.five {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .formGrid.six,
-  .besGrid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .panelHeader,
-  .miniHeader {
-    align-items: stretch;
-    flex-direction: column;
-  }
-
-  .panelRight,
-  .miniRight {
-    width: 100%;
-    justify-content: space-between;
-  }
-
-  .besYearHeader,
-  .besYearRow {
-    grid-template-columns: 1fr;
-  }
-
-  .besLogicGrid,
-  .besProgressTop,
-  .besCurrentGrid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .routinePageGrid {
-    grid-template-columns: 1fr;
-  }
-
-  .routineSidePanel {
-    position: relative;
-    top: 0;
-  }
-
-  .routineWeekGrid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-
-@media (max-width: 720px) {
-  .financePage {
-    padding: 16px;
-  }
-
-  .summaryGrid,
-  .formGrid.two,
-  .formGrid.three,
-  .formGrid.four,
-  .formGrid.five,
-  .formGrid.six,
-  .besGrid,
-  .authFormGrid,
-  .besLogicGrid,
-  .besProgressTop,
-  .besCurrentGrid,
-  .routineWeekGrid {
-    grid-template-columns: 1fr;
-  }
-
-  .tabBar {
-    flex-direction: column;
-  }
-
-  .tabButton {
-    width: 100%;
-  }
-
-  .topHeader,
-  .appHeader,
-  .panelHeader,
-  .miniHeader,
-  .creditRecordTop,
-  .simpleRecordTop,
-  .recordFooter,
-  .recordActions,
-  .simpleRecordRight,
-  .authOptionsRow,
-  .routineDayHeader,
-  .routineUpcomingTitle {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .panelRight,
-  .miniRight {
-    width: 100%;
-    justify-content: space-between;
-  }
-
-  .panelTotal,
-  .miniTotal,
-  .toggleButton,
-  .miniToggle {
-    width: 100%;
-    min-width: 0;
-  }
-
-  .summaryCard {
-    transform: none;
-  }
-
-  .premiumAuthCard,
-  .authCard {
-    padding: 24px;
-    border-radius: 28px;
-  }
-
-  .routinePageGrid {
-    gap: 16px;
-  }
-
-  .routineWideInput {
-    grid-column: auto;
-  }
-
-  .routineSidePanel {
-    gap: 14px;
-  }
-
-  .routineDayCard {
-    min-height: auto;
-  }
-
-  .routineDayCard .simpleRecordTop,
-  .routineUpcomingGroup .simpleRecordTop {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .routineDayCard .simpleRecordRight,
-  .routineUpcomingGroup .simpleRecordRight {
-    width: 100%;
-    justify-content: flex-start;
-  }
-
-  .routineProShell {
+/* Yeni takvim classları - sadece yeni RoutinePlanner kullanılırsa devreye girer */
+.routineProShell {
   display: grid;
   gap: 18px;
   color: #1f2937;
@@ -1493,11 +1366,6 @@ button {
   font-weight: 900;
 }
 
-.routineSidePanel {
-  display: grid;
-  gap: 18px;
-}
-
 .routineFormCard,
 .routineUpcomingCard {
   padding: 18px;
@@ -1568,12 +1436,60 @@ button {
   font-weight: 800;
 }
 
-@media (max-width: 1100px) {
+@media (max-width: 1180px) {
+  .summaryGrid,
+  .formGrid.four,
+  .formGrid.five {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .formGrid.six,
+  .besGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .panelHeader,
+  .miniHeader {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .panelRight,
+  .miniRight {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .besYearHeader,
+  .besYearRow {
+    grid-template-columns: 1fr;
+  }
+
+  .besLogicGrid,
+  .besProgressTop,
+  .besCurrentGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .routinePageGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .routineSidePanel {
+    position: relative;
+    top: 0;
+  }
+
+  .routineWeekGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .routineHero,
   .routineLayoutGrid {
     grid-template-columns: 1fr;
     display: grid;
   }
+
   .routineStatsGrid {
     min-width: 0;
   }
@@ -1584,12 +1500,112 @@ button {
   .routineStatsGrid {
     grid-template-columns: 1fr;
   }
+
   .routineCalendarGrid,
   .routineWeekHeader {
     gap: 6px;
   }
+
   .routineDayCell {
     min-height: 92px;
     padding: 8px;
   }
 }
+
+@media (max-width: 720px) {
+  .financePage {
+    padding: 16px;
+  }
+
+  .summaryGrid,
+  .formGrid.two,
+  .formGrid.three,
+  .formGrid.four,
+  .formGrid.five,
+  .formGrid.six,
+  .besGrid,
+  .authFormGrid,
+  .besLogicGrid,
+  .besProgressTop,
+  .besCurrentGrid,
+  .routineWeekGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .tabBar {
+    flex-direction: column;
+  }
+
+  .tabButton {
+    width: 100%;
+  }
+
+  .topHeader,
+  .appHeader,
+  .panelHeader,
+  .miniHeader,
+  .creditRecordTop,
+  .simpleRecordTop,
+  .recordFooter,
+  .recordActions,
+  .simpleRecordRight,
+  .authOptionsRow,
+  .routineDayHeader,
+  .routineUpcomingTitle {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .panelRight,
+  .miniRight {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .panelTotal,
+  .miniTotal,
+  .toggleButton,
+  .miniToggle {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .summaryCard {
+    transform: none;
+  }
+
+  .premiumAuthCard,
+  .authCard {
+    padding: 24px;
+    border-radius: 28px;
+  }
+
+  .routinePageGrid {
+    gap: 16px;
+  }
+
+  .routineWideInput {
+    grid-column: auto;
+  }
+
+  .routineSidePanel {
+    gap: 14px;
+  }
+
+  .routineDayCard {
+    min-height: auto;
+  }
+
+  .routineDayCard .simpleRecordTop,
+  .routineUpcomingGroup .simpleRecordTop {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .routineDayCard .simpleRecordRight,
+  .routineUpcomingGroup .simpleRecordRight {
+    width: 100%;
+    justify-content: flex-start;
+  }
+}
+
