@@ -217,11 +217,11 @@ export default function HomePage() {
 
   const handleRegister = async () => {
     setAuthMessage("");
-    if (!supabase) return setAuthMessage("Supabase baÄŸlantÄ±sÄ± eksik.");
-    if (!fullName.trim() || !email.trim() || !password.trim() || !passwordAgain.trim()) return setAuthMessage("Ad soyad, e-posta, ÅŸifre ve ÅŸifre tekrarÄ± gir.");
-    if (!email.includes("@")) return setAuthMessage("GeÃ§erli bir e-posta adresi gir.");
-    if (password.length < 6) return setAuthMessage("Åifre en az 6 karakter olmalÄ±.");
-    if (password !== passwordAgain) return setAuthMessage("Åifreler eÅŸleÅŸmiyor.");
+    if (!supabase) return setAuthMessage("Supabase bağlantısı eksik.");
+    if (!fullName.trim() || !email.trim() || !password.trim() || !passwordAgain.trim()) return setAuthMessage("Ad soyad, e-posta, şifre ve şifre tekrarı gir.");
+    if (!email.includes("@")) return setAuthMessage("Geçerli bir e-posta adresi gir.");
+    if (password.length < 6) return setAuthMessage("Şifre en az 6 karakter olmalı.");
+    if (password !== passwordAgain) return setAuthMessage("Şifreler eşleşmiyor.");
 
     const cleanEmail = email.trim().toLowerCase();
     const { error } = await supabase.auth.signUp({
@@ -233,20 +233,20 @@ export default function HomePage() {
     if (error) return setAuthMessage(error.message);
     setPendingEmail(cleanEmail);
     setAuthMode("verify");
-    setAuthMessage("Hesap oluÅŸturuldu. Mailine gelen doÄŸrulama kodunu gir.");
+    setAuthMessage("Hesap oluşturuldu. Mailine gelen doğrulama kodunu gir.");
   };
 
   const handleVerifyCode = async () => {
     setAuthMessage("");
-    if (!pendingEmail || !verificationCode.trim()) return setAuthMessage("DoÄŸrulama kodunu gir.");
+    if (!pendingEmail || !verificationCode.trim()) return setAuthMessage("Doğrulama kodunu gir.");
 
     const firstTry = await supabase.auth.verifyOtp({ email: pendingEmail, token: verificationCode.trim(), type: "signup" });
     if (firstTry.error) {
       const secondTry = await supabase.auth.verifyOtp({ email: pendingEmail, token: verificationCode.trim(), type: "email" });
-      if (secondTry.error) return setAuthMessage("Kod doÄŸrulanamadÄ±. Kodu kontrol et.");
+      if (secondTry.error) return setAuthMessage("Kod doğrulanamadı. Kodu kontrol et.");
     }
 
-    setAuthMessage("Hesap doÄŸrulandÄ±. Åimdi giriÅŸ yapabilirsin.");
+    setAuthMessage("Hesap doğrulandı. Şimdi giriş yapabilirsin.");
     setAuthMode("login");
     setVerificationCode("");
     setPassword("");
@@ -255,17 +255,17 @@ export default function HomePage() {
 
   const handleResendCode = async () => {
     const targetEmail = pendingEmail || email.trim().toLowerCase();
-    if (!targetEmail) return setAuthMessage("Ã–nce e-posta adresini gir.");
+    if (!targetEmail) return setAuthMessage("Önce e-posta adresini gir.");
     const { error } = await supabase.auth.resend({ type: "signup", email: targetEmail });
-    setAuthMessage(error ? error.message : "Yeni doÄŸrulama kodu gÃ¶nderildi.");
+    setAuthMessage(error ? error.message : "Yeni doğrulama kodu gönderildi.");
   };
 
   const handleLogin = async () => {
     setAuthMessage("");
-    if (!email.trim() || !password.trim()) return setAuthMessage("E-posta ve ÅŸifre gir.");
+    if (!email.trim() || !password.trim()) return setAuthMessage("E-posta ve şifre gir.");
     const cleanEmail = email.trim().toLowerCase();
     const { error } = await supabase.auth.signInWithPassword({ email: cleanEmail, password });
-    if (error) return setAuthMessage("GiriÅŸ baÅŸarÄ±sÄ±z. E-posta doÄŸrulanmamÄ±ÅŸ olabilir veya ÅŸifre hatalÄ± olabilir.");
+    if (error) return setAuthMessage("Giriş başarısız. E-posta doğrulanmamış olabilir veya şifre hatalı olabilir.");
 
     try {
       rememberMe ? window.localStorage.setItem("remembered-finance-email", cleanEmail) : window.localStorage.removeItem("remembered-finance-email");
@@ -273,9 +273,9 @@ export default function HomePage() {
   };
 
   const handleForgotPassword = async () => {
-    if (!email.trim()) return setAuthMessage("Åifre sÄ±fÄ±rlama iÃ§in e-posta adresini gir.");
+    if (!email.trim()) return setAuthMessage("Şifre sıfırlama için e-posta adresini gir.");
     const { error } = await supabase.auth.resetPasswordForEmail(email.trim().toLowerCase(), { redirectTo: window.location.origin });
-    setAuthMessage(error ? error.message : "Åifre sÄ±fÄ±rlama baÄŸlantÄ±sÄ± e-posta adresine gÃ¶nderildi.");
+    setAuthMessage(error ? error.message : "Şifre sıfırlama bağlantısı e-posta adresine gönderildi.");
   };
 
   const handleLogout = async () => {
@@ -359,7 +359,7 @@ export default function HomePage() {
   const addOrUpdateExtraIncome = () => {
     const title = extraIncomeForm.title.trim();
     const amount = parseAmount(extraIncomeForm.amount);
-    if (!title || amount <= 0) return alert("Ek gelir adÄ± ve geÃ§erli tutar gir.");
+    if (!title || amount <= 0) return alert("Ek gelir adı ve geçerli tutar gir.");
     if (editingExtraIncomeId) {
       setExtraIncomes((current) => current.map((item) => (item.id === editingExtraIncomeId ? { ...item, title, amount } : item)));
       resetExtraIncomeForm();
@@ -380,8 +380,8 @@ export default function HomePage() {
     const title = creditForm.title.trim();
     const monthlyPayment = parseAmount(creditForm.monthlyPayment);
     const remainingDebt = parseAmount(creditForm.remainingDebt);
-    if (!title || monthlyPayment <= 0) return alert("Kredi adÄ± ve taksit tutarÄ± gir.");
-    if (!String(creditForm.installmentText || "").includes("/")) return alert("Taksit alanÄ±nÄ± 8/24 formatÄ±nda gir.");
+    if (!title || monthlyPayment <= 0) return alert("Kredi adı ve taksit tutarı gir.");
+    if (!String(creditForm.installmentText || "").includes("/")) return alert("Taksit alanını 8/24 formatında gir.");
     const payload = { title, monthlyPayment, installmentText: creditForm.installmentText.trim(), remainingDebt, paymentStartDate: creditForm.paymentStartDate || "" };
     if (editingCreditId) {
       setCredits((current) => current.map((item) => (item.id === editingCreditId ? { ...item, ...payload } : item)));
@@ -406,8 +406,8 @@ export default function HomePage() {
     const setter = isCard ? setCardExpenses : setOtherExpenses;
     const title = form.title.trim();
     const amount = parseAmount(form.amount);
-    if (!title || amount <= 0) return alert("Gider adÄ± ve geÃ§erli tutar gir.");
-    const payload = { title, category: form.category.trim() || (isCard ? "Kredi KartÄ±" : "DiÄŸer"), amount, note: form.note.trim() };
+    if (!title || amount <= 0) return alert("Gider adı ve geçerli tutar gir.");
+    const payload = { title, category: form.category.trim() || (isCard ? "Kredi Kartı" : "Diğer"), amount, note: form.note.trim() };
     if (editingId) {
       setter((current) => current.map((item) => (item.id === editingId ? { ...item, ...payload } : item)));
       isCard ? resetCardForm() : resetOtherForm();
@@ -436,7 +436,7 @@ export default function HomePage() {
     const quantity = parseDecimal(goldForm.quantity);
     const buyPrice = parseAmount(goldForm.buyPrice);
     const currentPrice = parseAmount(goldForm.currentPrice);
-    if (!title || quantity <= 0 || buyPrice <= 0 || currentPrice <= 0) return alert("AltÄ±n adÄ±, adet/gram, alÄ±ÅŸ fiyatÄ± ve gÃ¼ncel fiyat gir.");
+    if (!title || quantity <= 0 || buyPrice <= 0 || currentPrice <= 0) return alert("Altın adı, adet/gram, alış fiyatı ve güncel fiyat gir.");
     const payload = { title, quantity, buyPrice, currentPrice, note: goldForm.note.trim() };
     setInvestments((current) => ({ ...current, gold: editingGoldId ? current.gold.map((item) => (item.id === editingGoldId ? { ...item, ...payload } : item)) : [{ id: String(Date.now()), ...payload }, ...current.gold] }));
     resetGoldForm();
@@ -454,7 +454,7 @@ export default function HomePage() {
     const quantity = parseDecimal(cryptoForm.quantity);
     const buyPrice = parseAmount(cryptoForm.buyPrice);
     const currentPrice = parseAmount(cryptoForm.currentPrice);
-    if (!title || quantity <= 0 || buyPrice <= 0 || currentPrice <= 0) return alert("Coin adÄ±, adet, alÄ±ÅŸ fiyatÄ± ve gÃ¼ncel fiyat gir.");
+    if (!title || quantity <= 0 || buyPrice <= 0 || currentPrice <= 0) return alert("Coin adı, adet, alış fiyatı ve güncel fiyat gir.");
     const payload = { title, quantity, buyPrice, currentPrice, note: cryptoForm.note.trim() };
     setInvestments((current) => ({ ...current, crypto: editingCryptoId ? current.crypto.map((item) => (item.id === editingCryptoId ? { ...item, ...payload } : item)) : [{ id: String(Date.now()), ...payload }, ...current.crypto] }));
     resetCryptoForm();
@@ -468,7 +468,7 @@ export default function HomePage() {
   };
 
   if (authLoading) {
-    return <main className="financePage authPage"><section className="authCard premiumAuthCard"><h1 className="authTitle premiumAuthTitle">YÃ¼kleniyor...</h1></section></main>;
+    return <main className="financePage authPage"><section className="authCard premiumAuthCard"><h1 className="authTitle premiumAuthTitle">Yükleniyor...</h1></section></main>;
   }
 
   if (!session) {
@@ -479,16 +479,16 @@ export default function HomePage() {
     <main className="financePage">
       <div className="financeShell">
         <header className="topHeader appHeader">
-          <div><div className="topBadge">KiÅŸisel Finans YÃ¶netimi</div><p className="saveStatus">{saving ? "Kaydediliyor..." : "Veriler Supabase Ã¼zerinde gÃ¼vende"}</p></div>
-          <button type="button" className="secondaryButton" onClick={handleLogout}>Ã‡Ä±kÄ±ÅŸ Yap</button>
+          <div><div className="topBadge">Kişisel Finans Yönetimi</div><p className="saveStatus">{saving ? "Kaydediliyor..." : "Veriler Supabase üzerinde güvende"}</p></div>
+          <button type="button" className="secondaryButton" onClick={handleLogout}>Çıkış Yap</button>
         </header>
 
         <div className="tabBar">
           <button type="button" className={activeTab === "finance" ? "tabButton active" : "tabButton"} onClick={() => setActiveTab("finance")}>Gelir / Gider</button>
-          <button type="button" className={activeTab === "investments" ? "tabButton active" : "tabButton"} onClick={() => setActiveTab("investments")}>YatÄ±rÄ±mlar</button>
+          <button type="button" className={activeTab === "investments" ? "tabButton active" : "tabButton"} onClick={() => setActiveTab("investments")}>Yatırımlar</button>
         </div>
 
-        {dataLoading ? <section className="panelCard"><div className="emptyState"><strong>Veriler yÃ¼kleniyor...</strong></div></section> : null}
+        {dataLoading ? <section className="panelCard"><div className="emptyState"><strong>Veriler yükleniyor...</strong></div></section> : null}
 
         {activeTab === "finance" ? <FinanceTab financeTotals={financeTotals} income={income} updateIncome={updateIncome} incomeOpen={incomeOpen} setIncomeOpen={setIncomeOpen} extraIncomeOpen={extraIncomeOpen} setExtraIncomeOpen={setExtraIncomeOpen} extraIncomeForm={extraIncomeForm} updateExtraIncomeForm={updateExtraIncomeForm} addOrUpdateExtraIncome={addOrUpdateExtraIncome} editingExtraIncomeId={editingExtraIncomeId} resetExtraIncomeForm={resetExtraIncomeForm} extraIncomes={extraIncomes} startEditExtraIncome={startEditExtraIncome} setExtraIncomes={setExtraIncomes} expensesOpen={expensesOpen} setExpensesOpen={setExpensesOpen} creditsOpen={creditsOpen} setCreditsOpen={setCreditsOpen} creditForm={creditForm} updateCreditForm={updateCreditForm} addOrUpdateCredit={addOrUpdateCredit} editingCreditId={editingCreditId} resetCreditForm={resetCreditForm} credits={credits} parseInstallment={parseInstallment} isCreditActive={isCreditActive} startEditCredit={startEditCredit} setCredits={setCredits} cardsOpen={cardsOpen} setCardsOpen={setCardsOpen} cardForm={cardForm} updateCardForm={updateCardForm} addOrUpdateSimpleExpense={addOrUpdateSimpleExpense} editingCardId={editingCardId} resetCardForm={resetCardForm} cardExpenses={cardExpenses} startEditCard={startEditCard} setCardExpenses={setCardExpenses} othersOpen={othersOpen} setOthersOpen={setOthersOpen} otherForm={otherForm} updateOtherForm={updateOtherForm} editingOtherId={editingOtherId} resetOtherForm={resetOtherForm} otherExpenses={otherExpenses} startEditOther={startEditOther} setOtherExpenses={setOtherExpenses} /> : null}
 
@@ -506,31 +506,31 @@ function AuthView(props) {
       <section className="authCard premiumAuthCard">
         <div className="authGlow authGlowOne" />
         <div className="authGlow authGlowTwo" />
-        <div className="authBrandRow"><div className="authLogo">â‚º</div><div><div className="authBrandTitle">KiÅŸisel Finans YÃ¶netimi</div><div className="authBrandSub">{authMode === "verify" ? "OTP doÄŸrulama ekranÄ±" : authMode === "register" ? "Yeni hesap oluÅŸtur" : "GÃ¼venli kullanÄ±cÄ± paneli"}</div></div></div>
-        <h1 className="authTitle premiumAuthTitle">{authMode === "verify" ? "Kodu Gir" : authMode === "register" ? "Hesap OluÅŸtur" : "GiriÅŸ Yap"}</h1>
-        <p className="authText premiumAuthText">{authMode === "verify" ? `${pendingEmail} adresine gelen doÄŸrulama kodunu gir.` : authMode === "register" ? "Ad soyad, e-posta ve ÅŸifre bilgilerini gir." : "E-posta ve ÅŸifreyle giriÅŸ yap."}</p>
+        <div className="authBrandRow"><div className="authLogo">₺</div><div><div className="authBrandTitle">Kişisel Finans Yönetimi</div><div className="authBrandSub">{authMode === "verify" ? "OTP doğrulama ekranı" : authMode === "register" ? "Yeni hesap oluştur" : "Güvenli kullanıcı paneli"}</div></div></div>
+        <h1 className="authTitle premiumAuthTitle">{authMode === "verify" ? "Kodu Gir" : authMode === "register" ? "Hesap Oluştur" : "Giriş Yap"}</h1>
+        <p className="authText premiumAuthText">{authMode === "verify" ? `${pendingEmail} adresine gelen doğrulama kodunu gir.` : authMode === "register" ? "Ad soyad, e-posta ve şifre bilgilerini gir." : "E-posta ve şifreyle giriş yap."}</p>
 
         {authMode === "verify" ? (
           <>
-            <label className="authInputBox fullAuthInput"><span>DoÄŸrulama Kodu</span><input value={verificationCode} placeholder="Mailine gelen kod" onChange={(event) => setVerificationCode(event.target.value)} /></label>
+            <label className="authInputBox fullAuthInput"><span>Doğrulama Kodu</span><input value={verificationCode} placeholder="Mailine gelen kod" onChange={(event) => setVerificationCode(event.target.value)} /></label>
             {authMessage ? <div className="authMessage">{authMessage}</div> : null}
-            <div className="authButtons"><button type="button" className="premiumButton authPrimaryButton" onClick={handleVerifyCode}>Kodu DoÄŸrula</button><button type="button" className="secondaryButton authSecondaryButton" onClick={handleResendCode}>Kodu Tekrar GÃ¶nder</button><button type="button" className="linkButton authBackButton" onClick={() => setAuthMode("login")}>GiriÅŸ ekranÄ±na dÃ¶n</button></div>
+            <div className="authButtons"><button type="button" className="premiumButton authPrimaryButton" onClick={handleVerifyCode}>Kodu Doğrula</button><button type="button" className="secondaryButton authSecondaryButton" onClick={handleResendCode}>Kodu Tekrar Gönder</button><button type="button" className="linkButton authBackButton" onClick={() => setAuthMode("login")}>Giriş ekranına dön</button></div>
           </>
         ) : authMode === "register" ? (
           <>
-            <div className="authFormGrid"><InputBox label="Ad Soyad" value={fullName} placeholder="Ad Soyad" onChange={setFullName} /><InputBox label="E-posta" type="email" value={email} placeholder="ornek@mail.com" onChange={setEmail} /><InputBox label="Åifre" type="password" value={password} placeholder="En az 6 karakter" onChange={setPassword} /><InputBox label="Åifre TekrarÄ±" type="password" value={passwordAgain} placeholder="Åifreyi tekrar gir" onChange={setPasswordAgain} /></div>
+            <div className="authFormGrid"><InputBox label="Ad Soyad" value={fullName} placeholder="Ad Soyad" onChange={setFullName} /><InputBox label="E-posta" type="email" value={email} placeholder="ornek@mail.com" onChange={setEmail} /><InputBox label="Şifre" type="password" value={password} placeholder="En az 6 karakter" onChange={setPassword} /><InputBox label="Şifre Tekrarı" type="password" value={passwordAgain} placeholder="Şifreyi tekrar gir" onChange={setPasswordAgain} /></div>
             {authMessage ? <div className="authMessage">{authMessage}</div> : null}
-            <div className="authButtons"><button type="button" className="premiumButton authPrimaryButton" onClick={handleRegister}>KaydÄ± OluÅŸtur</button><button type="button" className="secondaryButton authSecondaryButton" onClick={() => setAuthMode("login")}>GiriÅŸ EkranÄ±na DÃ¶n</button></div>
+            <div className="authButtons"><button type="button" className="premiumButton authPrimaryButton" onClick={handleRegister}>Kaydı Oluştur</button><button type="button" className="secondaryButton authSecondaryButton" onClick={() => setAuthMode("login")}>Giriş Ekranına Dön</button></div>
           </>
         ) : (
           <>
-            <div className="authFormGrid"><InputBox label="E-posta" type="email" value={email} placeholder="ornek@mail.com" onChange={setEmail} /><InputBox label="Åifre" type="password" value={password} placeholder="Åifren" onChange={setPassword} /></div>
-            <div className="authOptionsRow"><label className="rememberBox"><input type="checkbox" checked={rememberMe} onChange={(event) => setRememberMe(event.target.checked)} /><span>Beni hatÄ±rla</span></label><button type="button" className="linkButton" onClick={handleForgotPassword}>Åifremi unuttum</button></div>
+            <div className="authFormGrid"><InputBox label="E-posta" type="email" value={email} placeholder="ornek@mail.com" onChange={setEmail} /><InputBox label="Şifre" type="password" value={password} placeholder="Şifren" onChange={setPassword} /></div>
+            <div className="authOptionsRow"><label className="rememberBox"><input type="checkbox" checked={rememberMe} onChange={(event) => setRememberMe(event.target.checked)} /><span>Beni hatırla</span></label><button type="button" className="linkButton" onClick={handleForgotPassword}>Şifremi unuttum</button></div>
             {authMessage ? <div className="authMessage">{authMessage}</div> : null}
-            <div className="authButtons"><button type="button" className="premiumButton authPrimaryButton" onClick={handleLogin}>GiriÅŸ Yap</button><button type="button" className="secondaryButton authSecondaryButton" onClick={() => setAuthMode("register")}>Hesap OluÅŸtur</button></div>
+            <div className="authButtons"><button type="button" className="premiumButton authPrimaryButton" onClick={handleLogin}>Giriş Yap</button><button type="button" className="secondaryButton authSecondaryButton" onClick={() => setAuthMode("register")}>Hesap Oluştur</button></div>
           </>
         )}
-        <div className="authFooterNote">{authMode === "verify" ? "Mailine gelen kodu girdikten sonra hesabÄ±n doÄŸrulanÄ±r." : authMode === "register" ? "KayÄ±t sonrasÄ± OTP doÄŸrulama ekranÄ±na geÃ§ilir." : "Ä°lk kez kullanÄ±yorsan Hesap OluÅŸtur butonuna bas."}</div>
+        <div className="authFooterNote">{authMode === "verify" ? "Mailine gelen kodu girdikten sonra hesabın doğrulanır." : authMode === "register" ? "Kayıt sonrası OTP doğrulama ekranına geçilir." : "İlk kez kullanıyorsan Hesap Oluştur butonuna bas."}</div>
       </section>
     </main>
   );
@@ -539,24 +539,24 @@ function AuthView(props) {
 function FinanceTab(p) {
   return (
     <>
-      <section className="summaryGrid"><SummaryCard tone="green" title="Toplam Gelir" value={money(p.financeTotals.totalIncome)} detail={`Yemek parasÄ±: ${money(p.financeTotals.mealAllowance)} â€¢ Gelire dahil deÄŸil`} /><SummaryCard tone="red" title="Toplam Gider" value={money(p.financeTotals.totalExpense)} detail="Kredi + kart + diÄŸer giderler" /><SummaryCard tone="blue" title="AylÄ±k Kalan" value={money(p.financeTotals.balance)} detail="Gelir - gider hesabÄ±" /><SummaryCard tone="purple" title="Toplam BorÃ§" value={money(p.financeTotals.totalDebt)} detail="Kredi + kart + diÄŸer borÃ§lar" /></section>
-      <Panel title="Gelirler" subtitle="MaaÅŸ, yemek parasÄ± ve ek gelir yÃ¶netimi" totalLabel="Toplam Gelir" total={money(p.financeTotals.totalIncome)} open={p.incomeOpen} onToggle={() => p.setIncomeOpen((value) => !value)}>
-        <div className="formGrid two"><InputBox label="MaaÅŸ" value={p.income.salary} placeholder="0" onChange={(value) => p.updateIncome("salary", value)} /><InputBox label="Yemek ParasÄ±" value={p.income.mealAllowance} placeholder="0" onChange={(value) => p.updateIncome("mealAllowance", value)} /></div>
+      <section className="summaryGrid"><SummaryCard tone="green" title="Toplam Gelir" value={money(p.financeTotals.totalIncome)} detail={`Yemek parası: ${money(p.financeTotals.mealAllowance)} • Gelire dahil değil`} /><SummaryCard tone="red" title="Toplam Gider" value={money(p.financeTotals.totalExpense)} detail="Kredi + kart + diğer giderler" /><SummaryCard tone="blue" title="Aylık Kalan" value={money(p.financeTotals.balance)} detail="Gelir - gider hesabı" /><SummaryCard tone="purple" title="Toplam Borç" value={money(p.financeTotals.totalDebt)} detail="Kredi + kart + diğer borçlar" /></section>
+      <Panel title="Gelirler" subtitle="Maaş, yemek parası ve ek gelir yönetimi" totalLabel="Toplam Gelir" total={money(p.financeTotals.totalIncome)} open={p.incomeOpen} onToggle={() => p.setIncomeOpen((value) => !value)}>
+        <div className="formGrid two"><InputBox label="Maaş" value={p.income.salary} placeholder="0" onChange={(value) => p.updateIncome("salary", value)} /><InputBox label="Yemek Parası" value={p.income.mealAllowance} placeholder="0" onChange={(value) => p.updateIncome("mealAllowance", value)} /></div>
         <MiniPanel title="Ek Gelirler" totalLabel="Total Ek Gelir" total={money(p.financeTotals.extraIncomeTotal)} color="mint" open={p.extraIncomeOpen} onToggle={() => p.setExtraIncomeOpen((value) => !value)}>
-          <div className="formGrid three"><InputBox label="Ek Gelir AdÄ±" value={p.extraIncomeForm.title} placeholder="Ã–rn: Prim" onChange={(value) => p.updateExtraIncomeForm("title", value)} /><InputBox label="Tutar" value={p.extraIncomeForm.amount} placeholder="0" onChange={(value) => p.updateExtraIncomeForm("amount", value)} /><button type="button" className="premiumButton" onClick={p.addOrUpdateExtraIncome}>{p.editingExtraIncomeId ? "Ek Geliri GÃ¼ncelle" : "Ek Gelir Ekle"}</button></div>
-          {p.editingExtraIncomeId ? <button type="button" className="deleteButton" onClick={p.resetExtraIncomeForm}>DÃ¼zenlemeyi Ä°ptal Et</button> : null}
+          <div className="formGrid three"><InputBox label="Ek Gelir Adı" value={p.extraIncomeForm.title} placeholder="Örn: Prim" onChange={(value) => p.updateExtraIncomeForm("title", value)} /><InputBox label="Tutar" value={p.extraIncomeForm.amount} placeholder="0" onChange={(value) => p.updateExtraIncomeForm("amount", value)} /><button type="button" className="premiumButton" onClick={p.addOrUpdateExtraIncome}>{p.editingExtraIncomeId ? "Ek Geliri Güncelle" : "Ek Gelir Ekle"}</button></div>
+          {p.editingExtraIncomeId ? <button type="button" className="deleteButton" onClick={p.resetExtraIncomeForm}>Düzenlemeyi İptal Et</button> : null}
           <IncomeList items={p.extraIncomes} money={money} onEdit={p.startEditExtraIncome} onDelete={(id) => p.setExtraIncomes((current) => current.filter((item) => item.id !== id))} />
         </MiniPanel>
       </Panel>
-      <Panel title="Giderler" subtitle="Krediler, kredi kartÄ± ve diÄŸer borÃ§/giderler" totalLabel="Toplam Gider" total={money(p.financeTotals.totalExpense)} open={p.expensesOpen} onToggle={() => p.setExpensesOpen((value) => !value)}>
-        <MiniPanel title="Krediler" totalLabel="Total Kredi Ã–demesi" total={money(p.financeTotals.activeCreditTotal)} color="purple" open={p.creditsOpen} onToggle={() => p.setCreditsOpen((value) => !value)}>
-          <p className="sectionDescription">Taksit alanÄ±nÄ± <strong>8/24</strong> formatÄ±nda yaz. Ã–deme baÅŸlangÄ±Ã§ tarihi gelmeyen krediler toplam gidere eklenmez.</p>
-          <div className="formGrid five"><InputBox label="Kredi AdÄ±" value={p.creditForm.title} placeholder="Ã–rn: Garanti Kredi" onChange={(value) => p.updateCreditForm("title", value)} /><InputBox label="Taksit TutarÄ±" value={p.creditForm.monthlyPayment} placeholder="0" onChange={(value) => p.updateCreditForm("monthlyPayment", value)} /><InputBox label="Taksit" value={p.creditForm.installmentText} placeholder="Ã–rn: 8/24" onChange={(value) => p.updateCreditForm("installmentText", value)} /><InputBox label="Kalan BorÃ§" value={p.creditForm.remainingDebt} placeholder="0" onChange={(value) => p.updateCreditForm("remainingDebt", value)} /><InputBox label="Ã–deme BaÅŸlangÄ±Ã§ Tarihi" type="date" value={p.creditForm.paymentStartDate} onChange={(value) => p.updateCreditForm("paymentStartDate", value)} /><button type="button" className="premiumButton wide" onClick={p.addOrUpdateCredit}>{p.editingCreditId ? "Krediyi GÃ¼ncelle" : "Kredi Ekle"}</button></div>
-          {p.editingCreditId ? <button type="button" className="deleteButton" onClick={p.resetCreditForm}>DÃ¼zenlemeyi Ä°ptal Et</button> : null}
+      <Panel title="Giderler" subtitle="Krediler, kredi kartı ve diğer borç/giderler" totalLabel="Toplam Gider" total={money(p.financeTotals.totalExpense)} open={p.expensesOpen} onToggle={() => p.setExpensesOpen((value) => !value)}>
+        <MiniPanel title="Krediler" totalLabel="Total Kredi Ödemesi" total={money(p.financeTotals.activeCreditTotal)} color="purple" open={p.creditsOpen} onToggle={() => p.setCreditsOpen((value) => !value)}>
+          <p className="sectionDescription">Taksit alanını <strong>8/24</strong> formatında yaz. Ödeme başlangıç tarihi gelmeyen krediler toplam gidere eklenmez.</p>
+          <div className="formGrid five"><InputBox label="Kredi Adı" value={p.creditForm.title} placeholder="Örn: Garanti Kredi" onChange={(value) => p.updateCreditForm("title", value)} /><InputBox label="Taksit Tutarı" value={p.creditForm.monthlyPayment} placeholder="0" onChange={(value) => p.updateCreditForm("monthlyPayment", value)} /><InputBox label="Taksit" value={p.creditForm.installmentText} placeholder="Örn: 8/24" onChange={(value) => p.updateCreditForm("installmentText", value)} /><InputBox label="Kalan Borç" value={p.creditForm.remainingDebt} placeholder="0" onChange={(value) => p.updateCreditForm("remainingDebt", value)} /><InputBox label="Ödeme Başlangıç Tarihi" type="date" value={p.creditForm.paymentStartDate} onChange={(value) => p.updateCreditForm("paymentStartDate", value)} /><button type="button" className="premiumButton wide" onClick={p.addOrUpdateCredit}>{p.editingCreditId ? "Krediyi Güncelle" : "Kredi Ekle"}</button></div>
+          {p.editingCreditId ? <button type="button" className="deleteButton" onClick={p.resetCreditForm}>Düzenlemeyi İptal Et</button> : null}
           <CreditList items={p.credits} money={money} parseInstallment={p.parseInstallment} isCreditActive={p.isCreditActive} onEdit={p.startEditCredit} onDelete={(id) => p.setCredits((current) => current.filter((item) => item.id !== id))} />
         </MiniPanel>
-        <MiniPanel title="Kredi KartÄ± Giderleri" totalLabel="Total Kredi KartÄ±" total={money(p.financeTotals.cardTotal)} color="rose" open={p.cardsOpen} onToggle={() => p.setCardsOpen((value) => !value)}><SimpleExpenseForm form={p.cardForm} onChange={p.updateCardForm} onAdd={() => p.addOrUpdateSimpleExpense("card")} buttonText={p.editingCardId ? "Kart Giderini GÃ¼ncelle" : "Kart Gideri Ekle"} />{p.editingCardId ? <button type="button" className="deleteButton" onClick={p.resetCardForm}>DÃ¼zenlemeyi Ä°ptal Et</button> : null}<SimpleExpenseList items={p.cardExpenses} money={money} onEdit={p.startEditCard} onDelete={(id) => p.setCardExpenses((current) => current.filter((item) => item.id !== id))} /></MiniPanel>
-        <MiniPanel title="DiÄŸer BorÃ§ / Nakit Giderler" totalLabel="Total DiÄŸer" total={money(p.financeTotals.otherTotal)} color="orange" open={p.othersOpen} onToggle={() => p.setOthersOpen((value) => !value)}><SimpleExpenseForm form={p.otherForm} onChange={p.updateOtherForm} onAdd={() => p.addOrUpdateSimpleExpense("other")} buttonText={p.editingOtherId ? "DiÄŸer Gideri GÃ¼ncelle" : "DiÄŸer Gider Ekle"} />{p.editingOtherId ? <button type="button" className="deleteButton" onClick={p.resetOtherForm}>DÃ¼zenlemeyi Ä°ptal Et</button> : null}<SimpleExpenseList items={p.otherExpenses} money={money} onEdit={p.startEditOther} onDelete={(id) => p.setOtherExpenses((current) => current.filter((item) => item.id !== id))} /></MiniPanel>
+        <MiniPanel title="Kredi Kartı Giderleri" totalLabel="Total Kredi Kartı" total={money(p.financeTotals.cardTotal)} color="rose" open={p.cardsOpen} onToggle={() => p.setCardsOpen((value) => !value)}><SimpleExpenseForm form={p.cardForm} onChange={p.updateCardForm} onAdd={() => p.addOrUpdateSimpleExpense("card")} buttonText={p.editingCardId ? "Kart Giderini Güncelle" : "Kart Gideri Ekle"} />{p.editingCardId ? <button type="button" className="deleteButton" onClick={p.resetCardForm}>Düzenlemeyi İptal Et</button> : null}<SimpleExpenseList items={p.cardExpenses} money={money} onEdit={p.startEditCard} onDelete={(id) => p.setCardExpenses((current) => current.filter((item) => item.id !== id))} /></MiniPanel>
+        <MiniPanel title="Diğer Borç / Nakit Giderler" totalLabel="Total Diğer" total={money(p.financeTotals.otherTotal)} color="orange" open={p.othersOpen} onToggle={() => p.setOthersOpen((value) => !value)}><SimpleExpenseForm form={p.otherForm} onChange={p.updateOtherForm} onAdd={() => p.addOrUpdateSimpleExpense("other")} buttonText={p.editingOtherId ? "Diğer Gideri Güncelle" : "Diğer Gider Ekle"} />{p.editingOtherId ? <button type="button" className="deleteButton" onClick={p.resetOtherForm}>Düzenlemeyi İptal Et</button> : null}<SimpleExpenseList items={p.otherExpenses} money={money} onEdit={p.startEditOther} onDelete={(id) => p.setOtherExpenses((current) => current.filter((item) => item.id !== id))} /></MiniPanel>
       </Panel>
     </>
   );
@@ -565,24 +565,24 @@ function FinanceTab(p) {
 function InvestmentsTab(p) {
   return (
     <>
-      <section className="summaryGrid investmentSummaryGrid"><SummaryCard tone="green" title="Toplam YatÄ±rÄ±m" value={money(p.investmentTotals.totalInvestment)} detail="BES projeksiyon + blokajlÄ± + altÄ±n + kripto" /><SummaryCard tone="purple" title="BlokajlÄ± YatÄ±rÄ±m" value={money(p.investmentTotals.blockedTotal)} detail="BES projeksiyon toplamÄ±" /><SummaryCard tone="blue" title="KullanÄ±labilir" value={money(p.investmentTotals.availableInvestment)} detail="Toplam yatÄ±rÄ±m - blokajlÄ± yatÄ±rÄ±m" /><SummaryCard tone={p.investmentTotals.totalPnl >= 0 ? "green" : "red"} title="Kar / Zarar" value={money(p.investmentTotals.totalPnl)} detail={`Oran: %${p.investmentTotals.totalPnlRate.toFixed(2)}`} /></section>
+      <section className="summaryGrid investmentSummaryGrid"><SummaryCard tone="green" title="Toplam Yatırım" value={money(p.investmentTotals.totalInvestment)} detail="BES projeksiyon + blokajlı + altın + kripto" /><SummaryCard tone="purple" title="Blokajlı Yatırım" value={money(p.investmentTotals.blockedTotal)} detail="BES projeksiyon toplamı" /><SummaryCard tone="blue" title="Kullanılabilir" value={money(p.investmentTotals.availableInvestment)} detail="Toplam yatırım - blokajlı yatırım" /><SummaryCard tone={p.investmentTotals.totalPnl >= 0 ? "green" : "red"} title="Kar / Zarar" value={money(p.investmentTotals.totalPnl)} detail={`Oran: %${p.investmentTotals.totalPnlRate.toFixed(2)}`} /></section>
       <BesProjectionPanel onTotalChange={p.setBesProjectionTotal} />
-      <Panel title="YatÄ±rÄ±m Geliri" subtitle="AltÄ±n ve kripto takip paneli" totalLabel="Toplam YatÄ±rÄ±m" total={money(p.investmentTotals.totalInvestment)} open={p.investmentOpen} onToggle={() => p.setInvestmentOpen((value) => !value)}>
-        <MiniPanel title="AltÄ±n YatÄ±rÄ±mÄ±" totalLabel="AltÄ±n DeÄŸeri" total={money(p.investmentTotals.goldValue)} color="orange" open={p.goldOpen} onToggle={() => p.setGoldOpen((value) => !value)}><AssetForm form={p.goldForm} onChange={p.updateGoldForm} buttonText={p.editingGoldId ? "AltÄ±nÄ± GÃ¼ncelle" : "AltÄ±n Ekle"} onAdd={p.addOrUpdateGold} nameLabel="AltÄ±n TÃ¼rÃ¼" namePlaceholder="Ã–rn: Gram AltÄ±n" />{p.editingGoldId ? <button type="button" className="deleteButton" onClick={p.resetGoldForm}>DÃ¼zenlemeyi Ä°ptal Et</button> : null}<AssetList items={p.investments.gold} money={money} onEdit={p.startEditGold} onDelete={(id) => p.setInvestments((current) => ({ ...current, gold: current.gold.filter((item) => item.id !== id) }))} /></MiniPanel>
-        <MiniPanel title="Kripto YatÄ±rÄ±mÄ±" totalLabel="Kripto DeÄŸeri" total={money(p.investmentTotals.cryptoValue)} color="rose" open={p.cryptoOpen} onToggle={() => p.setCryptoOpen((value) => !value)}><AssetForm form={p.cryptoForm} onChange={p.updateCryptoForm} buttonText={p.editingCryptoId ? "Kriptoyu GÃ¼ncelle" : "Kripto Ekle"} onAdd={p.addOrUpdateCrypto} nameLabel="Coin / Token" namePlaceholder="Ã–rn: SOL" />{p.editingCryptoId ? <button type="button" className="deleteButton" onClick={p.resetCryptoForm}>DÃ¼zenlemeyi Ä°ptal Et</button> : null}<AssetList items={p.investments.crypto} money={money} onEdit={p.startEditCrypto} onDelete={(id) => p.setInvestments((current) => ({ ...current, crypto: current.crypto.filter((item) => item.id !== id) }))} /></MiniPanel>
+      <Panel title="Yatırım Geliri" subtitle="Altın ve kripto takip paneli" totalLabel="Toplam Yatırım" total={money(p.investmentTotals.totalInvestment)} open={p.investmentOpen} onToggle={() => p.setInvestmentOpen((value) => !value)}>
+        <MiniPanel title="Altın Yatırımı" totalLabel="Altın Değeri" total={money(p.investmentTotals.goldValue)} color="orange" open={p.goldOpen} onToggle={() => p.setGoldOpen((value) => !value)}><AssetForm form={p.goldForm} onChange={p.updateGoldForm} buttonText={p.editingGoldId ? "Altınını Güncelle" : "Altın Ekle"} onAdd={p.addOrUpdateGold} nameLabel="Altın Türü" namePlaceholder="Örn: Gram Altın" />{p.editingGoldId ? <button type="button" className="deleteButton" onClick={p.resetGoldForm}>Düzenlemeyi İptal Et</button> : null}<AssetList items={p.investments.gold} money={money} onEdit={p.startEditGold} onDelete={(id) => p.setInvestments((current) => ({ ...current, gold: current.gold.filter((item) => item.id !== id) }))} /></MiniPanel>
+        <MiniPanel title="Kripto Yatırımı" totalLabel="Kripto Değeri" total={money(p.investmentTotals.cryptoValue)} color="rose" open={p.cryptoOpen} onToggle={() => p.setCryptoOpen((value) => !value)}><AssetForm form={p.cryptoForm} onChange={p.updateCryptoForm} buttonText={p.editingCryptoId ? "Kriptoyu Güncelle" : "Kripto Ekle"} onAdd={p.addOrUpdateCrypto} nameLabel="Coin / Token" namePlaceholder="Örn: SOL" />{p.editingCryptoId ? <button type="button" className="deleteButton" onClick={p.resetCryptoForm}>Düzenlemeyi İptal Et</button> : null}<AssetList items={p.investments.crypto} money={money} onEdit={p.startEditCrypto} onDelete={(id) => p.setInvestments((current) => ({ ...current, crypto: current.crypto.filter((item) => item.id !== id) }))} /></MiniPanel>
       </Panel>
     </>
   );
 }
 
 function SummaryCard({ title, value, detail, tone }) { return <article className={`summaryCard ${tone}`}><div className="summaryLabel">{title}</div><div className={`summaryValue summaryValue-${tone}`}>{value}</div><div className="summaryDetail">{detail}</div></article>; }
-function Panel({ title, subtitle, totalLabel, total, open, onToggle, children }) { return <section className="panelCard"><button type="button" className="panelHeader" onClick={onToggle}><div><h2 className="gradientTitle">{title}</h2><p>{subtitle}</p></div><div className="panelRight"><div className="panelTotal"><span>{totalLabel}</span><strong>{total}</strong></div><div className="toggleButton">{open ? "âˆ’" : "+"}</div></div></button>{open ? <div className="panelBody">{children}</div> : null}</section>; }
-function MiniPanel({ title, totalLabel, total, color, open, onToggle, children }) { return <section className={`miniPanel ${color}`}><button type="button" className="miniHeader" onClick={onToggle}><div><h3 className={`miniTitle miniTitle-${color}`}>{title}</h3></div><div className="miniRight"><div className="miniTotal"><span>{totalLabel}</span><strong>{total}</strong></div><div className="miniToggle">{open ? "âˆ’" : "+"}</div></div></button>{open ? <div className="miniBody">{children}</div> : null}</section>; }
+function Panel({ title, subtitle, totalLabel, total, open, onToggle, children }) { return <section className="panelCard"><button type="button" className="panelHeader" onClick={onToggle}><div><h2 className="gradientTitle">{title}</h2><p>{subtitle}</p></div><div className="panelRight"><div className="panelTotal"><span>{totalLabel}</span><strong>{total}</strong></div><div className="toggleButton">{open ? "−" : "+"}</div></div></button>{open ? <div className="panelBody">{children}</div> : null}</section>; }
+function MiniPanel({ title, totalLabel, total, color, open, onToggle, children }) { return <section className={`miniPanel ${color}`}><button type="button" className="miniHeader" onClick={onToggle}><div><h3 className={`miniTitle miniTitle-${color}`}>{title}</h3></div><div className="miniRight"><div className="miniTotal"><span>{totalLabel}</span><strong>{total}</strong></div><div className="miniToggle">{open ? "−" : "+"}</div></div></button>{open ? <div className="miniBody">{children}</div> : null}</section>; }
 function InputBox({ label, value, onChange, type = "text", placeholder = "" }) { return <label className="inputBox"><span>{label}</span><input type={type} value={value} placeholder={placeholder} inputMode={type === "date" ? undefined : "text"} onChange={(event) => onChange(event.target.value)} /></label>; }
-function SimpleExpenseForm({ form, onChange, onAdd, buttonText }) { return <div className="formGrid four"><InputBox label="Gider AdÄ±" value={form.title} placeholder="Ã–rn: Market" onChange={(value) => onChange("title", value)} /><InputBox label="Kategori" value={form.category} placeholder="Ã–rn: AlÄ±ÅŸveriÅŸ" onChange={(value) => onChange("category", value)} /><InputBox label="Tutar" value={form.amount} placeholder="0" onChange={(value) => onChange("amount", value)} /><InputBox label="Not" value={form.note} placeholder="Opsiyonel" onChange={(value) => onChange("note", value)} /><button type="button" className="premiumButton wide" onClick={onAdd}>{buttonText}</button></div>; }
-function AssetForm({ form, onChange, onAdd, buttonText, nameLabel, namePlaceholder }) { return <div className="formGrid five"><InputBox label={nameLabel} value={form.title} placeholder={namePlaceholder} onChange={(value) => onChange("title", value)} /><InputBox label="Adet / Miktar" value={form.quantity} placeholder="Ã–rn: 4.43" onChange={(value) => onChange("quantity", value)} /><InputBox label="AlÄ±ÅŸ FiyatÄ±" value={form.buyPrice} placeholder="0" onChange={(value) => onChange("buyPrice", value)} /><InputBox label="GÃ¼ncel Fiyat" value={form.currentPrice} placeholder="0" onChange={(value) => onChange("currentPrice", value)} /><InputBox label="Not" value={form.note} placeholder="Opsiyonel" onChange={(value) => onChange("note", value)} /><button type="button" className="premiumButton wide" onClick={onAdd}>{buttonText}</button></div>; }
-function CreditList({ items, money, parseInstallment, isCreditActive, onEdit, onDelete }) { if (items.length === 0) return <EmptyState text="HenÃ¼z kredi kaydÄ± bulunmuyor." />; return <div className="recordList">{items.map((item) => { const installment = parseInstallment(item.installmentText); const active = isCreditActive(item.paymentStartDate); const progressClass = installment.percent >= 100 ? "success" : installment.percent >= 70 ? "warm" : installment.percent >= 35 ? "mid" : "danger"; return <div key={item.id} className="creditRecord"><div className="creditRecordTop"><div><div className="recordTitleRow"><h4>{item.title}</h4><span className={installment.completed ? "status done" : "status waiting"}>{installment.completed ? "âœ… TamamlandÄ±" : "â³ Devam ediyor"}</span>{!active ? <span className="status deferred">Ã–deme tarihi bekleniyor</span> : null}</div><p className="recordSubText">Taksit: {item.installmentText || "0/0"} â€¢ Kalan borÃ§: {money(item.remainingDebt)}</p></div><div className="recordAmount">{money(item.monthlyPayment)}</div></div><div className="progressWrap"><div className="progressInfo"><span>Ã–deme ilerlemesi</span><strong>{installment.percent}%</strong></div><div className="progressTrack"><div className={`progressBar ${progressClass}`} style={{ width: `${installment.percent}%` }} /></div></div><div className="recordFooter"><span>BaÅŸlangÄ±Ã§: {item.paymentStartDate || "Hemen aktif"}</span><div className="recordActions"><button type="button" className="editButton" onClick={() => onEdit(item)}>DÃ¼zenle</button><button type="button" className="deleteButton" onClick={() => onDelete(item.id)}>Sil</button></div></div></div>; })}</div>; }
-function SimpleExpenseList({ items, money, onEdit, onDelete }) { if (items.length === 0) return <EmptyState text="HenÃ¼z kayÄ±t bulunmuyor." />; return <div className="recordList">{items.map((item) => <div key={item.id} className="simpleRecord"><div className="simpleRecordTop"><div><h4>{item.title}</h4><p>{item.category}{item.note ? ` â€¢ ${item.note}` : ""}</p></div><div className="simpleRecordRight"><strong>{money(item.amount)}</strong><button type="button" className="editButton" onClick={() => onEdit(item)}>DÃ¼zenle</button><button type="button" className="deleteButton" onClick={() => onDelete(item.id)}>Sil</button></div></div></div>)}</div>; }
-function IncomeList({ items, money, onEdit, onDelete }) { if (items.length === 0) return <EmptyState text="HenÃ¼z ek gelir kaydÄ± bulunmuyor." />; return <div className="recordList">{items.map((item) => <div key={item.id} className="simpleRecord"><div className="simpleRecordTop"><div><h4>{item.title}</h4><p>Ek gelir</p></div><div className="simpleRecordRight"><strong>{money(item.amount)}</strong><button type="button" className="editButton" onClick={() => onEdit(item)}>DÃ¼zenle</button><button type="button" className="deleteButton" onClick={() => onDelete(item.id)}>Sil</button></div></div></div>)}</div>; }
-function AssetList({ items, money, onEdit, onDelete }) { if (items.length === 0) return <EmptyState text="HenÃ¼z yatÄ±rÄ±m kaydÄ± bulunmuyor." />; return <div className="recordList">{items.map((item) => { const cost = Number(item.quantity || 0) * Number(item.buyPrice || 0); const value = Number(item.quantity || 0) * Number(item.currentPrice || 0); const pnl = value - cost; const pnlRate = cost > 0 ? (pnl / cost) * 100 : 0; return <div key={item.id} className="simpleRecord investmentRecord"><div className="simpleRecordTop"><div><h4>{item.title}</h4><p>Miktar: {item.quantity} â€¢ AlÄ±ÅŸ: {money(item.buyPrice)} â€¢ GÃ¼ncel: {money(item.currentPrice)}</p><p>Maliyet: {money(cost)} â€¢ GÃ¼ncel deÄŸer: {money(value)}</p>{item.note ? <p>{item.note}</p> : null}</div><div className="simpleRecordRight"><strong className={pnl >= 0 ? "profitText" : "lossText"}>{money(pnl)} / %{pnlRate.toFixed(2)}</strong><button type="button" className="editButton" onClick={() => onEdit(item)}>DÃ¼zenle</button><button type="button" className="deleteButton" onClick={() => onDelete(item.id)}>Sil</button></div></div></div>; })}</div>; }
-function EmptyState({ text }) { return <div className="emptyState"><strong>{text}</strong><span>Yeni kayÄ±t eklediÄŸinde burada gÃ¶rÃ¼ntÃ¼lenecek.</span></div>; }
+function SimpleExpenseForm({ form, onChange, onAdd, buttonText }) { return <div className="formGrid four"><InputBox label="Gider Adı" value={form.title} placeholder="Örn: Market" onChange={(value) => onChange("title", value)} /><InputBox label="Kategori" value={form.category} placeholder="Örn: Alışveriş" onChange={(value) => onChange("category", value)} /><InputBox label="Tutar" value={form.amount} placeholder="0" onChange={(value) => onChange("amount", value)} /><InputBox label="Not" value={form.note} placeholder="Opsiyonel" onChange={(value) => onChange("note", value)} /><button type="button" className="premiumButton wide" onClick={onAdd}>{buttonText}</button></div>; }
+function AssetForm({ form, onChange, onAdd, buttonText, nameLabel, namePlaceholder }) { return <div className="formGrid five"><InputBox label={nameLabel} value={form.title} placeholder={namePlaceholder} onChange={(value) => onChange("title", value)} /><InputBox label="Adet / Miktar" value={form.quantity} placeholder="Örn: 4.43" onChange={(value) => onChange("quantity", value)} /><InputBox label="Alış Fiyatı" value={form.buyPrice} placeholder="0" onChange={(value) => onChange("buyPrice", value)} /><InputBox label="Güncel Fiyat" value={form.currentPrice} placeholder="0" onChange={(value) => onChange("currentPrice", value)} /><InputBox label="Not" value={form.note} placeholder="Opsiyonel" onChange={(value) => onChange("note", value)} /><button type="button" className="premiumButton wide" onClick={onAdd}>{buttonText}</button></div>; }
+function CreditList({ items, money, parseInstallment, isCreditActive, onEdit, onDelete }) { if (items.length === 0) return <EmptyState text="Henüz kredi kaydı bulunmuyor." />; return <div className="recordList">{items.map((item) => { const installment = parseInstallment(item.installmentText); const active = isCreditActive(item.paymentStartDate); const progressClass = installment.percent >= 100 ? "success" : installment.percent >= 70 ? "warm" : installment.percent >= 35 ? "mid" : "danger"; return <div key={item.id} className="creditRecord"><div className="creditRecordTop"><div><div className="recordTitleRow"><h4>{item.title}</h4><span className={installment.completed ? "status done" : "status waiting"}>{installment.completed ? "✅ Tamamlandı" : "⏳ Devam ediyor"}</span>{!active ? <span className="status deferred">Ödeme tarihi bekleniyor</span> : null}</div><p className="recordSubText">Taksit: {item.installmentText || "0/0"} • Kalan borç: {money(item.remainingDebt)}</p></div><div className="recordAmount">{money(item.monthlyPayment)}</div></div><div className="progressWrap"><div className="progressInfo"><span>Ödeme ilerlemesi</span><strong>{installment.percent}%</strong></div><div className="progressTrack"><div className={`progressBar ${progressClass}`} style={{ width: `${installment.percent}%` }} /></div></div><div className="recordFooter"><span>Başlangıç: {item.paymentStartDate || "Hemen aktif"}</span><div className="recordActions"><button type="button" className="editButton" onClick={() => onEdit(item)}>Düzenle</button><button type="button" className="deleteButton" onClick={() => onDelete(item.id)}>Sil</button></div></div></div>; })}</div>; }
+function SimpleExpenseList({ items, money, onEdit, onDelete }) { if (items.length === 0) return <EmptyState text="Henüz kayıt bulunmuyor." />; return <div className="recordList">{items.map((item) => <div key={item.id} className="simpleRecord"><div className="simpleRecordTop"><div><h4>{item.title}</h4><p>{item.category}{item.note ? ` • ${item.note}` : ""}</p></div><div className="simpleRecordRight"><strong>{money(item.amount)}</strong><button type="button" className="editButton" onClick={() => onEdit(item)}>Düzenle</button><button type="button" className="deleteButton" onClick={() => onDelete(item.id)}>Sil</button></div></div></div>)}</div>; }
+function IncomeList({ items, money, onEdit, onDelete }) { if (items.length === 0) return <EmptyState text="Henüz ek gelir kaydı bulunmuyor." />; return <div className="recordList">{items.map((item) => <div key={item.id} className="simpleRecord"><div className="simpleRecordTop"><div><h4>{item.title}</h4><p>Ek gelir</p></div><div className="simpleRecordRight"><strong>{money(item.amount)}</strong><button type="button" className="editButton" onClick={() => onEdit(item)}>Düzenle</button><button type="button" className="deleteButton" onClick={() => onDelete(item.id)}>Sil</button></div></div></div>)}</div>; }
+function AssetList({ items, money, onEdit, onDelete }) { if (items.length === 0) return <EmptyState text="Henüz yatırım kaydı bulunmuyor." />; return <div className="recordList">{items.map((item) => { const cost = Number(item.quantity || 0) * Number(item.buyPrice || 0); const value = Number(item.quantity || 0) * Number(item.currentPrice || 0); const pnl = value - cost; const pnlRate = cost > 0 ? (pnl / cost) * 100 : 0; return <div key={item.id} className="simpleRecord investmentRecord"><div className="simpleRecordTop"><div><h4>{item.title}</h4><p>Miktar: {item.quantity} • Alış: {money(item.buyPrice)} • Güncel: {money(item.currentPrice)}</p><p>Maliyet: {money(cost)} • Güncel değer: {money(value)}</p>{item.note ? <p>{item.note}</p> : null}</div><div className="simpleRecordRight"><strong className={pnl >= 0 ? "profitText" : "lossText"}>{money(pnl)} / %{pnlRate.toFixed(2)}</strong><button type="button" className="editButton" onClick={() => onEdit(item)}>Düzenle</button><button type="button" className="deleteButton" onClick={() => onDelete(item.id)}>Sil</button></div></div></div>; })}</div>; }
+function EmptyState({ text }) { return <div className="emptyState"><strong>{text}</strong><span>Yeni kayıt eklediğinde burada görüntülenecek.</span></div>; }
