@@ -1,10 +1,72 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
 * {
   box-sizing: border-box;
   margin: 0;
   padding: 0;
 }
 
-);html,
+html,
+body {
+  min-height: 100%;
+  background:
+    radial-gradient(circle at 10% 10%, rgba(59, 130, 246, 0.22), transparent 28%),
+    radial-gradient(circle at 90% 5%, rgba(168, 85, 247, 0.18), transparent 30%),
+    radial-gradient(circle at 50% 100%, rgba(34, 197, 94, 0.10), transparent 35%),
+    linear-gradient(135deg, #020617 0%, #0f172a 45%, #111827 100%);
+  color: #f8fafc;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+body {
+  overflow-x: hidden;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+  transition: 0.22s ease;
+}
+
+.financePage {
+  min-height: 100vh;
+  padding: 32px;
+}
+
+.financeShell {
+  width: min(1500px, 100%);
+  margin: 0 auto;
+}
+
+.topHeader,
+.appHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 26px;
+}
+
+.topBadge {
+  display: inline-flex;
+  align-items: center;
+  padding: 16px 24px;
+  border-radius: 999px;
+  color: #ffffff;
+  font-size: 15px;
+  font-weight: 950;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.14);
   box-shadow:
     0 20px 55px rgba(59, 130, 246, 0.16),
     inset 0 1px 0 rgba(255, 255, 255, 0.10);
@@ -1101,60 +1163,3 @@
     border-radius: 28px;
   }
 }
-body {
-  min-height: 100%;
-  background:
-    radial-gradient(circle at 10% 10%, rgba(59, 130, 246, 0.22), transparent 28%),
-    radial-gradient(circle at 90% 5%, rgba(168, 85, 247, 0.18), transparent 30%),
-    radial-gradient(circle at 50% 100%, rgba(34, 197, 94, 0.10), transparent 35%),
-    linear-gradient(135deg, #020617 0%, #0f172a 45%, #111827 100%);
-  color: #f8fafc;
-  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-}
-
-body {
-  overflow-x: hidden;
-}
-
-button,
-input,
-select,
-textarea {
-  font: inherit;
-}
-
-button {
-  cursor: pointer;
-  transition: 0.22s ease;
-}
-
-.financePage {
-  min-height: 100vh;
-  padding: 32px;
-}
-
-.financeShell {
-  width: min(1500px, 100%);
-  margin: 0 auto;
-}
-
-.topHeader,
-.appHeader {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 16px;
-  margin-bottom: 26px;
-}
-
-.topBadge {
-  display: inline-flex;
-  align-items: center;
-  padding: 16px 24px;
-  border-radius: 999px;
-  color: #ffffff;
-  font-size: 15px;
-  font-weight: 950;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  background: rgba(255, 255, 255, 0.08);
