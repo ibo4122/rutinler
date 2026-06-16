@@ -112,45 +112,48 @@ async function getBestCryptoPrice(baseSymbol, usdTryRate, coingeckoUsdPrices) {
 
     if (price <= 0) continue;
 
-    if (quote === "TRY") {
+    if (["USDT", "USDC", "FDUSD"].includes(quote)) {
       return {
         symbol: baseSymbol,
         source: "Binance",
         binanceSymbol,
         quote,
         quotePrice: price,
-        tryPrice: price,
+        usdPrice: price,
+        tryPrice: usdTryRate > 0 ? price * usdTryRate : 0,
       };
     }
 
-    if (["USDT", "USDC", "FDUSD"].includes(quote) && usdTryRate > 0) {
+    if (quote === "TRY" && usdTryRate > 0) {
       return {
         symbol: baseSymbol,
         source: "Binance",
         binanceSymbol,
         quote,
         quotePrice: price,
-        tryPrice: price * usdTryRate,
+        usdPrice: price / usdTryRate,
+        tryPrice: price,
       };
     }
   }
 
   const coingeckoUsdPrice = Number(coingeckoUsdPrices?.[baseSymbol] || 0);
-  if (coingeckoUsdPrice > 0 && usdTryRate > 0) {
+  if (coingeckoUsdPrice > 0) {
     return {
       symbol: baseSymbol,
       source: "CoinGecko",
       binanceSymbol: null,
       quote: "USD",
       quotePrice: coingeckoUsdPrice,
-      tryPrice: coingeckoUsdPrice * usdTryRate,
+      usdPrice: coingeckoUsdPrice,
+      tryPrice: usdTryRate > 0 ? coingeckoUsdPrice * usdTryRate : 0,
     };
   }
 
   return null;
 }
 
-async function getCryptoTryPrices(symbols, usdTryRate) {
+async function getCryptoPrices(symbols, usdTryRate) {
   const result = {};
   const notFound = [];
   const normalizedSymbols = unique(symbols.map(cleanSymbol));
@@ -167,7 +170,7 @@ async function getCryptoTryPrices(symbols, usdTryRate) {
       if (!baseSymbol) return;
 
       const live = await getBestCryptoPrice(baseSymbol, usdTryRate, coingeckoUsdPrices);
-      if (live?.tryPrice) {
+      if (live?.usdPrice) {
         result[baseSymbol] = live;
       } else {
         notFound.push(baseSymbol);
@@ -195,18 +198,19 @@ export async function GET(request) {
     const usdTryRate = await getUsdTryRate();
     const [fiatTryRates, cryptoResult] = await Promise.all([
       getFiatTryRates(fiatCurrencies),
-      getCryptoTryPrices(cryptoSymbols, usdTryRate),
+      getCryptoPrices(cryptoSymbols, usdTryRate),
     ]);
 
     return Response.json({
       ok: true,
       updatedAt: new Date().toISOString(),
-      base: "TRY",
+      base: "USD",
       usdTryRate,
       fiatTryRates,
+      cryptoPrices: cryptoResult.prices,
       cryptoTryPrices: cryptoResult.prices,
       missingCryptoSymbols: cryptoResult.notFound,
-      note: "Fiyatlar bilgilendirme amaçlıdır. Döviz için Frankfurter, kripto için Binance market data ve CoinGecko fallback kullanılır.",
+      note: "Kripto güncel fiyatları USD bazlı döner. TRY karşılığı ayrıca tryPrice alanında bulunur.",
     });
   } catch (error) {
     return Response.json(
