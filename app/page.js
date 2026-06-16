@@ -3,12 +3,19 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
 import BesProjectionPanel from "../components/BesProjectionPanel";
+import RoutinePlanner from "../components/RoutinePlanner";
 
 const LOCAL_BACKUP_KEY = "kisisel-finans-panel-local-backup";
 
 const emptyIncome = { salary: "", mealAllowance: "" };
 const emptyExtraIncome = { title: "", amount: "" };
-const emptyCredit = { title: "", monthlyPayment: "", installmentText: "", remainingDebt: "", paymentStartDate: "" };
+const emptyCredit = {
+  title: "",
+  monthlyPayment: "",
+  installmentText: "",
+  remainingDebt: "",
+  paymentStartDate: "",
+};
 const emptyExpense = { title: "", category: "", amount: "", note: "" };
 const emptyInvestments = { bes: [], locked: [], gold: [], crypto: [] };
 const emptyAssetForm = { title: "", quantity: "", buyPrice: "", currentPrice: "", note: "" };
@@ -19,6 +26,7 @@ const emptyFinanceData = {
   cardExpenses: [],
   otherExpenses: [],
   investments: emptyInvestments,
+  routines: [],
 };
 
 function onlyDigits(value) {
@@ -64,6 +72,7 @@ function normalizeFinanceData(data) {
       gold: Array.isArray(data.investments?.gold) ? data.investments.gold : [],
       crypto: Array.isArray(data.investments?.crypto) ? data.investments.crypto : [],
     },
+    routines: Array.isArray(data.routines) ? data.routines : [],
   };
 }
 
@@ -116,6 +125,7 @@ export default function HomePage() {
   const [cardExpenses, setCardExpenses] = useState([]);
   const [otherExpenses, setOtherExpenses] = useState([]);
   const [investments, setInvestments] = useState(emptyInvestments);
+  const [routines, setRoutines] = useState([]);
 
   const [extraIncomeForm, setExtraIncomeForm] = useState(emptyExtraIncome);
   const [creditForm, setCreditForm] = useState(emptyCredit);
@@ -168,9 +178,17 @@ export default function HomePage() {
     if (!session?.user || !financeLoaded) return;
     const timer = setTimeout(saveFinanceData, 650);
     return () => clearTimeout(timer);
-  }, [income, extraIncomes, credits, cardExpenses, otherExpenses, investments, session, financeLoaded]);
+  }, [income, extraIncomes, credits, cardExpenses, otherExpenses, investments, routines, session, financeLoaded]);
 
-  const currentPayload = () => ({ income, extraIncomes, credits, cardExpenses, otherExpenses, investments });
+  const currentPayload = () => ({
+    income,
+    extraIncomes,
+    credits,
+    cardExpenses,
+    otherExpenses,
+    investments,
+    routines,
+  });
 
   const loadFinanceData = async (userId) => {
     setDataLoading(true);
@@ -188,7 +206,8 @@ export default function HomePage() {
       normalized.investments.bes.length ||
       normalized.investments.locked.length ||
       normalized.investments.gold.length ||
-      normalized.investments.crypto.length;
+      normalized.investments.crypto.length ||
+      normalized.routines.length;
 
     if (!hasCloudData) {
       const localBackup = getLocalBackup();
@@ -201,6 +220,7 @@ export default function HomePage() {
     setCardExpenses(normalized.cardExpenses);
     setOtherExpenses(normalized.otherExpenses);
     setInvestments(normalized.investments);
+    setRoutines(normalized.routines || []);
     setFinanceLoaded(true);
     setDataLoading(false);
   };
@@ -486,6 +506,7 @@ export default function HomePage() {
         <div className="tabBar">
           <button type="button" className={activeTab === "finance" ? "tabButton active" : "tabButton"} onClick={() => setActiveTab("finance")}>Gelir / Gider</button>
           <button type="button" className={activeTab === "investments" ? "tabButton active" : "tabButton"} onClick={() => setActiveTab("investments")}>Yatırımlar</button>
+          <button type="button" className={activeTab === "routines" ? "tabButton active" : "tabButton"} onClick={() => setActiveTab("routines")}>Haftalık Rutin</button>
         </div>
 
         {dataLoading ? <section className="panelCard"><div className="emptyState"><strong>Veriler yükleniyor...</strong></div></section> : null}
@@ -493,6 +514,8 @@ export default function HomePage() {
         {activeTab === "finance" ? <FinanceTab financeTotals={financeTotals} income={income} updateIncome={updateIncome} incomeOpen={incomeOpen} setIncomeOpen={setIncomeOpen} extraIncomeOpen={extraIncomeOpen} setExtraIncomeOpen={setExtraIncomeOpen} extraIncomeForm={extraIncomeForm} updateExtraIncomeForm={updateExtraIncomeForm} addOrUpdateExtraIncome={addOrUpdateExtraIncome} editingExtraIncomeId={editingExtraIncomeId} resetExtraIncomeForm={resetExtraIncomeForm} extraIncomes={extraIncomes} startEditExtraIncome={startEditExtraIncome} setExtraIncomes={setExtraIncomes} expensesOpen={expensesOpen} setExpensesOpen={setExpensesOpen} creditsOpen={creditsOpen} setCreditsOpen={setCreditsOpen} creditForm={creditForm} updateCreditForm={updateCreditForm} addOrUpdateCredit={addOrUpdateCredit} editingCreditId={editingCreditId} resetCreditForm={resetCreditForm} credits={credits} parseInstallment={parseInstallment} isCreditActive={isCreditActive} startEditCredit={startEditCredit} setCredits={setCredits} cardsOpen={cardsOpen} setCardsOpen={setCardsOpen} cardForm={cardForm} updateCardForm={updateCardForm} addOrUpdateSimpleExpense={addOrUpdateSimpleExpense} editingCardId={editingCardId} resetCardForm={resetCardForm} cardExpenses={cardExpenses} startEditCard={startEditCard} setCardExpenses={setCardExpenses} othersOpen={othersOpen} setOthersOpen={setOthersOpen} otherForm={otherForm} updateOtherForm={updateOtherForm} editingOtherId={editingOtherId} resetOtherForm={resetOtherForm} otherExpenses={otherExpenses} startEditOther={startEditOther} setOtherExpenses={setOtherExpenses} /> : null}
 
         {activeTab === "investments" ? <InvestmentsTab investmentTotals={investmentTotals} investmentOpen={investmentOpen} setInvestmentOpen={setInvestmentOpen} goldOpen={goldOpen} setGoldOpen={setGoldOpen} goldForm={goldForm} updateGoldForm={updateGoldForm} addOrUpdateGold={addOrUpdateGold} editingGoldId={editingGoldId} resetGoldForm={resetGoldForm} startEditGold={startEditGold} cryptoOpen={cryptoOpen} setCryptoOpen={setCryptoOpen} cryptoForm={cryptoForm} updateCryptoForm={updateCryptoForm} addOrUpdateCrypto={addOrUpdateCrypto} editingCryptoId={editingCryptoId} resetCryptoForm={resetCryptoForm} startEditCrypto={startEditCrypto} investments={investments} setInvestments={setInvestments} setBesProjectionTotal={setBesProjectionTotal} /> : null}
+
+        {activeTab === "routines" ? <RoutinePlanner routines={routines} setRoutines={setRoutines} /> : null}
       </div>
     </main>
   );
@@ -586,3 +609,4 @@ function SimpleExpenseList({ items, money, onEdit, onDelete }) { if (items.lengt
 function IncomeList({ items, money, onEdit, onDelete }) { if (items.length === 0) return <EmptyState text="Henüz ek gelir kaydı bulunmuyor." />; return <div className="recordList">{items.map((item) => <div key={item.id} className="simpleRecord"><div className="simpleRecordTop"><div><h4>{item.title}</h4><p>Ek gelir</p></div><div className="simpleRecordRight"><strong>{money(item.amount)}</strong><button type="button" className="editButton" onClick={() => onEdit(item)}>Düzenle</button><button type="button" className="deleteButton" onClick={() => onDelete(item.id)}>Sil</button></div></div></div>)}</div>; }
 function AssetList({ items, money, onEdit, onDelete }) { if (items.length === 0) return <EmptyState text="Henüz yatırım kaydı bulunmuyor." />; return <div className="recordList">{items.map((item) => { const cost = Number(item.quantity || 0) * Number(item.buyPrice || 0); const value = Number(item.quantity || 0) * Number(item.currentPrice || 0); const pnl = value - cost; const pnlRate = cost > 0 ? (pnl / cost) * 100 : 0; return <div key={item.id} className="simpleRecord investmentRecord"><div className="simpleRecordTop"><div><h4>{item.title}</h4><p>Miktar: {item.quantity} • Alış: {money(item.buyPrice)} • Güncel: {money(item.currentPrice)}</p><p>Maliyet: {money(cost)} • Güncel değer: {money(value)}</p>{item.note ? <p>{item.note}</p> : null}</div><div className="simpleRecordRight"><strong className={pnl >= 0 ? "profitText" : "lossText"}>{money(pnl)} / %{pnlRate.toFixed(2)}</strong><button type="button" className="editButton" onClick={() => onEdit(item)}>Düzenle</button><button type="button" className="deleteButton" onClick={() => onDelete(item.id)}>Sil</button></div></div></div>; })}</div>; }
 function EmptyState({ text }) { return <div className="emptyState"><strong>{text}</strong><span>Yeni kayıt eklediğinde burada görüntülenecek.</span></div>; }
+
