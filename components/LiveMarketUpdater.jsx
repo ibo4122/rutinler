@@ -2,6 +2,28 @@
 
 import { useState } from "react";
 
+const cryptoAliases = {
+  BTC: ["BTC", "BITCOIN"],
+  ETH: ["ETH", "ETHER", "ETHEREUM"],
+  SOL: ["SOL", "SOLANA"],
+  BNB: ["BNB", "BINANCE"],
+  XRP: ["XRP", "RIPPLE"],
+  ADA: ["ADA", "CARDANO"],
+  AVAX: ["AVAX", "AVALANCHE"],
+  DOGE: ["DOGE", "DOGECOIN"],
+  LINK: ["LINK", "CHAINLINK"],
+  DOT: ["DOT", "POLKADOT"],
+  MATIC: ["MATIC", "POLYGON"],
+  TRX: ["TRX", "TRON"],
+  LTC: ["LTC", "LITECOIN"],
+  BCH: ["BCH", "BITCOINCASH"],
+  ATOM: ["ATOM", "COSMOS"],
+  NEAR: ["NEAR"],
+  APT: ["APT", "APTOS"],
+  ARB: ["ARB", "ARBITRUM"],
+  OP: ["OP", "OPTIMISM"],
+};
+
 function normalizeSymbol(value) {
   return String(value || "").trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
 }
@@ -14,19 +36,24 @@ function pickNumber(...values) {
   return 0;
 }
 
-function findPrice(source, keys) {
+function findDirectPrice(source, keys) {
   if (!source) return 0;
   for (const key of keys) {
     const direct = source[key];
     const lower = source[String(key).toLowerCase()];
     const upper = source[String(key).toUpperCase()];
-    const directNumber = pickNumber(direct, direct?.price, direct?.TRY, direct?.try, direct?.USD, direct?.usd);
-    const lowerNumber = pickNumber(lower, lower?.price, lower?.TRY, lower?.try, lower?.USD, lower?.usd);
-    const upperNumber = pickNumber(upper, upper?.price, upper?.TRY, upper?.try, upper?.USD, upper?.usd);
-    const number = pickNumber(directNumber, lowerNumber, upperNumber);
+    const number = pickNumber(direct, lower, upper, direct?.price, lower?.price, upper?.price);
     if (number > 0) return number;
   }
   return 0;
+}
+
+function findCryptoSymbol(title) {
+  const normalized = normalizeSymbol(title);
+  for (const [symbol, aliases] of Object.entries(cryptoAliases)) {
+    if (aliases.some((alias) => normalized.includes(alias))) return symbol;
+  }
+  return normalized;
 }
 
 export default function LiveMarketUpdater({ investments, setInvestments }) {
@@ -54,71 +81,43 @@ export default function LiveMarketUpdater({ investments, setInvestments }) {
       const stocks = prices.stocks || {};
       const forex = prices.forex || {};
       const usdTryRate = pickNumber(prices.usdTryRate, prices.usdTry, forex.USDTRY, forex.USD);
-
       let updateCount = 0;
 
       setInvestments((current) => {
         const nextGold = (current.gold || []).map((item) => {
           const goldType = item.goldType || "GRAM";
-          const price = findPrice(gold, [goldType, normalizeSymbol(item.title), item.title, "GRAM"]);
+          const price = findDirectPrice(gold, [goldType, normalizeSymbol(item.title), item.title, "GRAM"]);
           if (price <= 0) return item;
           updateCount += 1;
-          return {
-            ...item,
-            currentPrice: price,
-            currentPriceTry: price,
-            currency: "TRY",
-            livePriceSource: "Canlı Altın",
-          };
+          return { ...item, currentPrice: price, currentPriceTry: price, currency: "TRY", livePriceSource: "Canlı Altın" };
         });
 
         const nextCrypto = (current.crypto || []).map((item) => {
-          const symbol = normalizeSymbol(item.title);
-          const price = findPrice(crypto, [symbol, `${symbol}USDT`, item.title]);
+          const symbol = findCryptoSymbol(item.title);
+          const price = findDirectPrice(crypto, [symbol, `${symbol}USDT`, item.title]);
           if (price <= 0) return item;
           updateCount += 1;
-          return {
-            ...item,
-            currentPrice: price,
-            currency: item.currency || "USD",
-            usdTryRate,
-            livePriceSource: "Canlı Kripto",
-          };
+          return { ...item, currentPrice: price, currency: item.currency || "USD", usdTryRate, livePriceSource: "Canlı Kripto" };
         });
 
         const nextStocks = (current.stocks || []).map((item) => {
           const symbol = normalizeSymbol(item.title);
-          const price = findPrice(stocks, [symbol, item.title]);
+          const price = findDirectPrice(stocks, [symbol, item.title]);
           if (price <= 0) return item;
           updateCount += 1;
-          return {
-            ...item,
-            currentPrice: price,
-            livePriceSource: "Canlı Hisse",
-          };
+          return { ...item, currentPrice: price, livePriceSource: "Canlı Hisse" };
         });
 
         const nextForex = (current.forex || []).map((item) => {
           const symbol = normalizeSymbol(item.title);
           const currency = item.currency || symbol || "USD";
-          const price = findPrice(forex, [symbol, currency, `${currency}TRY`, item.title]);
+          const price = findDirectPrice(forex, [symbol, currency, `${currency}TRY`, item.title]);
           if (price <= 0) return item;
           updateCount += 1;
-          return {
-            ...item,
-            currentPrice: price,
-            currency,
-            livePriceSource: "Canlı Döviz",
-          };
+          return { ...item, currentPrice: price, currency, livePriceSource: "Canlı Döviz" };
         });
 
-        return {
-          ...current,
-          gold: nextGold,
-          crypto: nextCrypto,
-          stocks: nextStocks,
-          forex: nextForex,
-        };
+        return { ...current, gold: nextGold, crypto: nextCrypto, stocks: nextStocks, forex: nextForex };
       });
 
       setTimeout(() => {
