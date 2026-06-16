@@ -71,25 +71,10 @@ async function getCryptoPrices() {
   const prices = {};
 
   const binanceSymbols = [
-    "BTCUSDT",
-    "ETHUSDT",
-    "SOLUSDT",
-    "BNBUSDT",
-    "XRPUSDT",
-    "ADAUSDT",
-    "AVAXUSDT",
-    "DOGEUSDT",
-    "LINKUSDT",
-    "DOTUSDT",
-    "MATICUSDT",
-    "TRXUSDT",
-    "LTCUSDT",
-    "BCHUSDT",
-    "ATOMUSDT",
-    "NEARUSDT",
-    "APTUSDT",
-    "ARBUSDT",
-    "OPUSDT",
+    "BTCUSDT", "ETHUSDT", "SOLUSDT", "SUIUSDT", "ENAUSDT", "AVAXUSDT", "AIXBTUSDT", "RENDERUSDT",
+    "SUSDT", "ATOMUSDT", "ZKUSDT", "LRCUSDT", "APTUSDT", "FETUSDT", "GRTUSDT", "NEIROUSDT",
+    "UNIUSDT", "PIXELUSDT", "DOGSUSDT", "THLUSDT", "BNBUSDT", "XRPUSDT", "ADAUSDT", "DOGEUSDT",
+    "LINKUSDT", "DOTUSDT", "MATICUSDT", "TRXUSDT", "LTCUSDT", "BCHUSDT", "NEARUSDT", "ARBUSDT", "OPUSDT"
   ];
 
   const binanceData = await safeJson(
@@ -105,25 +90,11 @@ async function getCryptoPrices() {
   }
 
   const coinGeckoIds = [
-    "bitcoin",
-    "ethereum",
-    "solana",
-    "binancecoin",
-    "ripple",
-    "cardano",
-    "avalanche-2",
-    "dogecoin",
-    "chainlink",
-    "polkadot",
-    "polygon",
-    "tron",
-    "litecoin",
-    "bitcoin-cash",
-    "cosmos",
-    "near",
-    "aptos",
-    "arbitrum",
-    "optimism",
+    "bitcoin", "ethereum", "solana", "sui", "ethena", "avalanche-2", "aixbt", "render-token",
+    "sonic-3", "cosmos", "zksync", "loopring", "aptos", "artificial-superintelligence-alliance",
+    "the-graph", "neiro-3", "uniswap", "pixels", "dogs-2", "thala", "binancecoin", "ripple",
+    "cardano", "dogecoin", "chainlink", "polkadot", "polygon", "tron", "litecoin", "bitcoin-cash",
+    "near", "arbitrum", "optimism"
   ].join(",");
 
   const geckoData = await safeJson(
@@ -134,14 +105,42 @@ async function getCryptoPrices() {
     BTC: "bitcoin",
     BITCOIN: "bitcoin",
     ETH: "ethereum",
-    ETHER: "ethereum",
     ETHEREUM: "ethereum",
     SOL: "solana",
     SOLANA: "solana",
+    SUI: "sui",
+    ENA: "ethena",
+    ETHENA: "ethena",
+    AVAX: "avalanche-2",
+    AVALANCHE: "avalanche-2",
+    AIXBT: "aixbt",
+    RENDER: "render-token",
+    RNDR: "render-token",
+    S: "sonic-3",
+    SONIC: "sonic-3",
+    ATOM: "cosmos",
+    COSMOS: "cosmos",
+    ZK: "zksync",
+    ZKSYNC: "zksync",
+    LRC: "loopring",
+    LOOPRING: "loopring",
+    APT: "aptos",
+    APTOS: "aptos",
+    FET: "artificial-superintelligence-alliance",
+    ASI: "artificial-superintelligence-alliance",
+    GRT: "the-graph",
+    GRAPH: "the-graph",
+    NEIRO: "neiro-3",
+    UNI: "uniswap",
+    UNISWAP: "uniswap",
+    PIXEL: "pixels",
+    PIXELS: "pixels",
+    DOGS: "dogs-2",
+    THL: "thala",
+    THALA: "thala",
     BNB: "binancecoin",
     XRP: "ripple",
     ADA: "cardano",
-    AVAX: "avalanche-2",
     DOGE: "dogecoin",
     LINK: "chainlink",
     DOT: "polkadot",
@@ -150,9 +149,7 @@ async function getCryptoPrices() {
     TRX: "tron",
     LTC: "litecoin",
     BCH: "bitcoin-cash",
-    ATOM: "cosmos",
     NEAR: "near",
-    APT: "aptos",
     ARB: "arbitrum",
     OP: "optimism",
   };
@@ -177,46 +174,79 @@ async function getGoldPrices(usdTryRate) {
 
   if (gram > 0) {
     result.GRAM = gram;
+    result.GRAMALTIN = gram;
     result.HAS = gram;
+    result.HASALTIN = gram;
     result.AYAR_24 = gram;
+    result.AYAR24 = gram;
     result.AYAR_22 = gram * 0.916;
+    result.AYAR22 = gram * 0.916;
     result.AYAR_18 = gram * 0.75;
+    result.AYAR18 = gram * 0.75;
     result.AYAR_14 = gram * 0.585;
+    result.AYAR14 = gram * 0.585;
   }
 
-  if (ceyrek > 0) result.CEYREK = ceyrek;
-  if (yarim > 0) result.YARIM = yarim;
-  if (tam > 0) result.TAM = tam;
-
+  if (ceyrek > 0) {
+    result.CEYREK = ceyrek;
+    result.CEYREKALTIN = ceyrek;
+  }
+  if (yarim > 0) {
+    result.YARIM = yarim;
+    result.YARIMALTIN = yarim;
+  }
+  if (tam > 0) {
+    result.TAM = tam;
+    result.TAMALTIN = tam;
+  }
   if (cumhuriyet > 0) {
     result.CUMHURIYET = cumhuriyet;
+    result.CUMHURIYETALTINI = cumhuriyet;
     result.ATA = cumhuriyet;
+    result.ATAALTIN = cumhuriyet;
     result.RESAT = cumhuriyet;
+    result.RESATALTIN = cumhuriyet;
   }
-
-  if (gram > 0) result.GREMSE = gram * 2.5;
+  if (gram > 0) {
+    result.GREMSE = gram * 2.5;
+    result.GREMSEALTIN = gram * 2.5;
+  }
 
   const paxg = await safeJson("https://api.binance.com/api/v3/ticker/price?symbol=PAXGUSDT");
   const onsUsd = numberOrZero(paxg?.price);
 
   if (onsUsd > 0 && usdTryRate > 0) {
     result.ONS = onsUsd * usdTryRate;
+    result.ONSALTIN = onsUsd * usdTryRate;
 
     if (!result.GRAM) {
       const estimatedGram = (onsUsd * usdTryRate) / 31.1034768;
       result.GRAM = estimatedGram;
+      result.GRAMALTIN = estimatedGram;
       result.HAS = estimatedGram;
+      result.HASALTIN = estimatedGram;
       result.AYAR_24 = estimatedGram;
+      result.AYAR24 = estimatedGram;
       result.AYAR_22 = estimatedGram * 0.916;
+      result.AYAR22 = estimatedGram * 0.916;
       result.AYAR_18 = estimatedGram * 0.75;
+      result.AYAR18 = estimatedGram * 0.75;
       result.AYAR_14 = estimatedGram * 0.585;
+      result.AYAR14 = estimatedGram * 0.585;
       result.CEYREK = estimatedGram * 1.75;
+      result.CEYREKALTIN = estimatedGram * 1.75;
       result.YARIM = estimatedGram * 3.5;
+      result.YARIMALTIN = estimatedGram * 3.5;
       result.TAM = estimatedGram * 7;
+      result.TAMALTIN = estimatedGram * 7;
       result.CUMHURIYET = estimatedGram * 7.216;
+      result.CUMHURIYETALTINI = estimatedGram * 7.216;
       result.ATA = estimatedGram * 7.216;
+      result.ATAALTIN = estimatedGram * 7.216;
       result.RESAT = estimatedGram * 7.216;
+      result.RESATALTIN = estimatedGram * 7.216;
       result.GREMSE = estimatedGram * 17.5;
+      result.GREMSEALTIN = estimatedGram * 17.5;
     }
   }
 
