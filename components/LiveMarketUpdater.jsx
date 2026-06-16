@@ -6,10 +6,26 @@ const cryptoAliases = {
   BTC: ["BTC", "BITCOIN"],
   ETH: ["ETH", "ETHER", "ETHEREUM"],
   SOL: ["SOL", "SOLANA"],
+  SUI: ["SUI"],
+  ENA: ["ENA", "ETHENA"],
+  AVAX: ["AVAX", "AVALANCHE"],
+  AIXBT: ["AIXBT"],
+  RENDER: ["RENDER", "RNDR"],
+  S: ["S", "SONIC"],
+  ATOM: ["ATOM", "COSMOS"],
+  ZK: ["ZK", "ZKSYNC"],
+  LRC: ["LRC", "LOOPRING"],
+  APT: ["APT", "APTOS"],
+  FET: ["FET", "ASI"],
+  GRT: ["GRT", "GRAPH"],
+  NEIRO: ["NEIRO"],
+  UNI: ["UNI", "UNISWAP"],
+  PIXEL: ["PIXEL", "PIXELS"],
+  DOGS: ["DOGS"],
+  THL: ["THL", "THALA"],
   BNB: ["BNB", "BINANCE"],
   XRP: ["XRP", "RIPPLE"],
   ADA: ["ADA", "CARDANO"],
-  AVAX: ["AVAX", "AVALANCHE"],
   DOGE: ["DOGE", "DOGECOIN"],
   LINK: ["LINK", "CHAINLINK"],
   DOT: ["DOT", "POLKADOT"],
@@ -17,15 +33,25 @@ const cryptoAliases = {
   TRX: ["TRX", "TRON"],
   LTC: ["LTC", "LITECOIN"],
   BCH: ["BCH", "BITCOINCASH"],
-  ATOM: ["ATOM", "COSMOS"],
   NEAR: ["NEAR"],
-  APT: ["APT", "APTOS"],
   ARB: ["ARB", "ARBITRUM"],
   OP: ["OP", "OPTIMISM"],
 };
 
+const goldAliases = {
+  GRAM: ["GRAM", "GRAMALTIN", "GRAMALTINI"],
+  CEYREK: ["CEYREK", "CEYREKALTIN", "CEYREKALTINI"],
+  YARIM: ["YARIM", "YARIMALTIN", "YARIMALTINI"],
+  TAM: ["TAM", "TAMALTIN", "TAMALTINI"],
+  CUMHURIYET: ["CUMHURIYET", "CUMHURIYETALTIN", "CUMHURIYETALTINI"],
+  ATA: ["ATA", "ATAALTIN", "ATAALTINI"],
+  RESAT: ["RESAT", "RESATALTIN", "RESATALTINI", "REŞAT", "REŞATALTIN"],
+  GREMSE: ["GREMSE", "GREMSEALTIN", "GREMSEALTINI"],
+  ONS: ["ONS", "ONSALTIN", "ONSALTINI"],
+};
+
 function normalizeSymbol(value) {
-  return String(value || "").trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
+  return String(value || "").trim().toUpperCase().replace(/İ/g, "I").replace(/Ğ/g, "G").replace(/Ü/g, "U").replace(/Ş/g, "S").replace(/Ö/g, "O").replace(/Ç/g, "C").replace(/[^A-Z0-9]/g, "");
 }
 
 function pickNumber(...values) {
@@ -39,10 +65,12 @@ function pickNumber(...values) {
 function findDirectPrice(source, keys) {
   if (!source) return 0;
   for (const key of keys) {
+    const normalizedKey = normalizeSymbol(key);
     const direct = source[key];
+    const normalized = source[normalizedKey];
     const lower = source[String(key).toLowerCase()];
     const upper = source[String(key).toUpperCase()];
-    const number = pickNumber(direct, lower, upper, direct?.price, lower?.price, upper?.price);
+    const number = pickNumber(direct, normalized, lower, upper, direct?.price, normalized?.price, lower?.price, upper?.price);
     if (number > 0) return number;
   }
   return 0;
@@ -51,9 +79,17 @@ function findDirectPrice(source, keys) {
 function findCryptoSymbol(title) {
   const normalized = normalizeSymbol(title);
   for (const [symbol, aliases] of Object.entries(cryptoAliases)) {
-    if (aliases.some((alias) => normalized.includes(alias))) return symbol;
+    if (aliases.some((alias) => normalized === alias || normalized.includes(alias))) return symbol;
   }
   return normalized;
+}
+
+function findGoldSymbol(title, goldType) {
+  const normalized = normalizeSymbol(`${goldType || ""} ${title || ""}`);
+  for (const [symbol, aliases] of Object.entries(goldAliases)) {
+    if (aliases.some((alias) => normalized.includes(alias))) return symbol;
+  }
+  return goldType || "GRAM";
 }
 
 export default function LiveMarketUpdater({ investments, setInvestments }) {
@@ -62,14 +98,12 @@ export default function LiveMarketUpdater({ investments, setInvestments }) {
 
   const updateLivePrices = async () => {
     if (loading) return;
-
     setLoading(true);
     setMessage("");
 
     try {
       const response = await fetch("/api/market-prices", { cache: "no-store" });
       const payload = await response.json().catch(() => null);
-
       if (!response.ok || !payload?.prices) {
         setMessage("Fiyat verisi alınamadı");
         return;
@@ -85,11 +119,11 @@ export default function LiveMarketUpdater({ investments, setInvestments }) {
 
       setInvestments((current) => {
         const nextGold = (current.gold || []).map((item) => {
-          const goldType = item.goldType || "GRAM";
-          const price = findDirectPrice(gold, [goldType, normalizeSymbol(item.title), item.title, "GRAM"]);
+          const symbol = findGoldSymbol(item.title, item.goldType);
+          const price = findDirectPrice(gold, [symbol, item.goldType, item.title, "GRAM"]);
           if (price <= 0) return item;
           updateCount += 1;
-          return { ...item, currentPrice: price, currentPriceTry: price, currency: "TRY", livePriceSource: "Canlı Altın" };
+          return { ...item, currentPrice: price, currentPriceTry: price, currency: "TRY", goldType: symbol, livePriceSource: "Canlı Altın" };
         });
 
         const nextCrypto = (current.crypto || []).map((item) => {
