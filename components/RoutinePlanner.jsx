@@ -22,18 +22,18 @@ const PRIORITIES = [
 ];
 
 const MONTH_GRADIENTS = [
-  "linear-gradient(145deg, rgba(59,130,246,.35), rgba(14,165,233,.12))",
-  "linear-gradient(145deg, rgba(168,85,247,.35), rgba(99,102,241,.12))",
-  "linear-gradient(145deg, rgba(16,185,129,.35), rgba(20,184,166,.12))",
-  "linear-gradient(145deg, rgba(251,191,36,.35), rgba(245,158,11,.12))",
-  "linear-gradient(145deg, rgba(244,63,94,.35), rgba(251,113,133,.12))",
-  "linear-gradient(145deg, rgba(34,211,238,.35), rgba(59,130,246,.12))",
-  "linear-gradient(145deg, rgba(132,204,22,.35), rgba(16,185,129,.12))",
-  "linear-gradient(145deg, rgba(249,115,22,.35), rgba(251,191,36,.12))",
-  "linear-gradient(145deg, rgba(99,102,241,.35), rgba(168,85,247,.12))",
-  "linear-gradient(145deg, rgba(236,72,153,.35), rgba(244,63,94,.12))",
-  "linear-gradient(145deg, rgba(20,184,166,.35), rgba(34,211,238,.12))",
-  "linear-gradient(145deg, rgba(148,163,184,.34), rgba(96,165,250,.12))",
+  "linear-gradient(145deg, rgba(59,130,246,.36), rgba(14,165,233,.13))",
+  "linear-gradient(145deg, rgba(168,85,247,.36), rgba(99,102,241,.13))",
+  "linear-gradient(145deg, rgba(16,185,129,.36), rgba(20,184,166,.13))",
+  "linear-gradient(145deg, rgba(251,191,36,.36), rgba(245,158,11,.13))",
+  "linear-gradient(145deg, rgba(244,63,94,.36), rgba(251,113,133,.13))",
+  "linear-gradient(145deg, rgba(34,211,238,.36), rgba(59,130,246,.13))",
+  "linear-gradient(145deg, rgba(132,204,22,.36), rgba(16,185,129,.13))",
+  "linear-gradient(145deg, rgba(249,115,22,.36), rgba(251,191,36,.13))",
+  "linear-gradient(145deg, rgba(99,102,241,.36), rgba(168,85,247,.13))",
+  "linear-gradient(145deg, rgba(236,72,153,.36), rgba(244,63,94,.13))",
+  "linear-gradient(145deg, rgba(20,184,166,.36), rgba(34,211,238,.13))",
+  "linear-gradient(145deg, rgba(148,163,184,.36), rgba(96,165,250,.13))",
 ];
 
 const baseGlass = {
@@ -48,21 +48,26 @@ const inputStyle = {
   background: "rgba(2,6,23,.58)",
   color: "#f8fafc",
   borderRadius: "15px",
-  padding: "13px 14px",
+  padding: "12px 13px",
   outline: "none",
 };
 
+function pad(value) {
+  return String(value).padStart(2, "0");
+}
+
+function localISO(date) {
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+}
+
 function todayISO() {
-  return new Date().toISOString().slice(0, 10);
+  return localISO(new Date());
 }
 
 function dateFromISO(value) {
   const safe = value || todayISO();
-  return new Date(`${safe}T12:00:00`);
-}
-
-function toISO(date) {
-  return date.toISOString().slice(0, 10);
+  const [year, month, day] = safe.split("-").map(Number);
+  return new Date(year || new Date().getFullYear(), (month || 1) - 1, day || 1, 12, 0, 0, 0);
 }
 
 function addDays(date, amount) {
@@ -75,7 +80,7 @@ function startOfWeek(date) {
   const next = new Date(date);
   const day = next.getDay() || 7;
   next.setDate(next.getDate() - day + 1);
-  next.setHours(0, 0, 0, 0);
+  next.setHours(12, 0, 0, 0);
   return next;
 }
 
@@ -88,8 +93,8 @@ function weekNumber(date) {
 }
 
 function buildWeeks(year) {
-  const first = new Date(Number(year), 0, 1);
-  const last = new Date(Number(year), 11, 31);
+  const first = new Date(Number(year), 0, 1, 12, 0, 0, 0);
+  const last = new Date(Number(year), 11, 31, 12, 0, 0, 0);
   let cursor = startOfWeek(first);
   const weeks = [];
 
@@ -97,7 +102,7 @@ function buildWeeks(year) {
     const days = Array.from({ length: 7 }, (_, index) => addDays(cursor, index));
     const visibleDay = days.find((day) => day.getFullYear() === Number(year)) || days[0];
     weeks.push({
-      id: `${year}-${toISO(cursor)}`,
+      id: `${year}-${localISO(cursor)}`,
       number: weekNumber(cursor),
       monthIndex: visibleDay.getMonth(),
       monthName: MONTHS[visibleDay.getMonth()],
@@ -146,9 +151,7 @@ function Field({ label, children }) {
 function Select({ value, onChange, options }) {
   return (
     <select value={value} onChange={(event) => onChange(event.target.value)} style={inputStyle}>
-      {options.map((option) => (
-        <option key={option.value} value={option.value}>{option.label}</option>
-      ))}
+      {options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
     </select>
   );
 }
@@ -165,48 +168,36 @@ export default function RoutinePlanner({ routines, setRoutines }) {
   const [search, setSearch] = useState("");
   const [selectedDate, setSelectedDate] = useState(todayISO());
   const [dayNote, setDayNote] = useState("");
+  const [quickTitle, setQuickTitle] = useState("");
+  const [quickCategory, setQuickCategory] = useState("gunluk");
+  const [quickPriority, setQuickPriority] = useState("orta");
   const [form, setForm] = useState({ title: "", category: "egitim", priority: "orta", date: todayISO(), note: "" });
-  const [openPanels, setOpenPanels] = useState({
-    hero: true,
-    add: true,
-    filters: true,
-    months: true,
-    calendar: true,
-    dayNote: true,
-    upcoming: true,
-    categories: true,
-  });
+  const [openPanels, setOpenPanels] = useState({ hero: true, add: true, filters: true, months: true, calendar: true, dayNote: true, upcoming: true, categories: true });
 
   const normalized = useMemo(() => list.map(normalizeRoutine), [list]);
   const weeks = useMemo(() => buildWeeks(selectedYear), [selectedYear]);
 
-  const filtered = useMemo(() => {
-    return normalized.filter((item) => {
-      const date = dateFromISO(item.date);
-      const monthOk = selectedMonth === "all" || date.getMonth() === Number(selectedMonth);
-      const statusOk = statusFilter === "all" || (statusFilter === "done" ? item.done : !item.done);
-      const categoryOk = categoryFilter === "all" || item.category === categoryFilter;
-      const priorityOk = priorityFilter === "all" || item.priority === priorityFilter;
-      const searchOk = !search.trim() || `${item.title} ${item.note}`.toLowerCase().includes(search.toLowerCase());
-      return date.getFullYear() === Number(selectedYear) && monthOk && statusOk && categoryOk && priorityOk && searchOk;
-    });
-  }, [normalized, selectedYear, selectedMonth, statusFilter, categoryFilter, priorityFilter, search]);
+  const filtered = useMemo(() => normalized.filter((item) => {
+    const date = dateFromISO(item.date);
+    const monthOk = selectedMonth === "all" || date.getMonth() === Number(selectedMonth);
+    const statusOk = statusFilter === "all" || (statusFilter === "done" ? item.done : !item.done);
+    const categoryOk = categoryFilter === "all" || item.category === categoryFilter;
+    const priorityOk = priorityFilter === "all" || item.priority === priorityFilter;
+    const searchOk = !search.trim() || `${item.title} ${item.note}`.toLowerCase().includes(search.toLowerCase());
+    return date.getFullYear() === Number(selectedYear) && monthOk && statusOk && categoryOk && priorityOk && searchOk;
+  }), [normalized, selectedYear, selectedMonth, statusFilter, categoryFilter, priorityFilter, search]);
 
-  const byDate = useMemo(() => {
-    return filtered.reduce((map, item) => {
-      if (!map[item.date]) map[item.date] = [];
-      map[item.date].push(item);
-      return map;
-    }, {});
-  }, [filtered]);
+  const byDate = useMemo(() => filtered.reduce((map, item) => {
+    if (!map[item.date]) map[item.date] = [];
+    map[item.date].push(item);
+    return map;
+  }, {}), [filtered]);
 
-  const allByDate = useMemo(() => {
-    return normalized.reduce((map, item) => {
-      if (!map[item.date]) map[item.date] = [];
-      map[item.date].push(item);
-      return map;
-    }, {});
-  }, [normalized]);
+  const allByDate = useMemo(() => normalized.reduce((map, item) => {
+    if (!map[item.date]) map[item.date] = [];
+    map[item.date].push(item);
+    return map;
+  }, {}), [normalized]);
 
   const selectedDateTasks = allByDate[selectedDate] || [];
 
@@ -217,52 +208,37 @@ export default function RoutinePlanner({ routines, setRoutines }) {
   }, [filtered]);
 
   const upcoming = useMemo(() => {
-    const today = new Date(`${todayISO()}T00:00:00`);
+    const today = dateFromISO(todayISO());
     return normalized
-      .filter((item) => !item.done && new Date(`${item.date}T00:00:00`) >= today)
+      .filter((item) => !item.done && dateFromISO(item.date) >= today)
       .sort((a, b) => String(a.date).localeCompare(String(b.date)))
       .slice(0, 10);
   }, [normalized]);
 
-  const togglePanel = (key) => {
-    setOpenPanels((current) => ({ ...current, [key]: !current[key] }));
+  const togglePanel = (key) => setOpenPanels((current) => ({ ...current, [key]: !current[key] }));
+
+  const addItem = (payload) => {
+    setRoutines?.((current) => [{ id: String(Date.now()), done: false, completed: false, ...payload }, ...(Array.isArray(current) ? current : [])]);
   };
 
   const addRoutine = () => {
     const title = form.title.trim();
     if (!title) return alert("Rutin / iş adı gir.");
-
-    const next = {
-      id: String(Date.now()),
-      title,
-      category: form.category,
-      priority: form.priority,
-      date: form.date || selectedDate || todayISO(),
-      note: form.note.trim(),
-      done: false,
-      completed: false,
-    };
-
-    setRoutines?.((current) => [next, ...(Array.isArray(current) ? current : [])]);
+    addItem({ title, category: form.category, priority: form.priority, date: form.date || selectedDate || todayISO(), note: form.note.trim() });
     setForm({ title: "", category: form.category, priority: "orta", date: selectedDate || todayISO(), note: "" });
+  };
+
+  const addQuickTask = () => {
+    const title = quickTitle.trim();
+    if (!title) return alert("Bu güne eklenecek iş / not başlığı gir.");
+    addItem({ title, category: quickCategory, priority: quickPriority, date: selectedDate, note: "" });
+    setQuickTitle("");
   };
 
   const addDayNote = () => {
     const note = dayNote.trim();
     if (!note) return alert("Not gir.");
-
-    const next = {
-      id: String(Date.now()),
-      title: `Gün Notu - ${formatDate(selectedDate)}`,
-      category: "not",
-      priority: "orta",
-      date: selectedDate || todayISO(),
-      note,
-      done: false,
-      completed: false,
-    };
-
-    setRoutines?.((current) => [next, ...(Array.isArray(current) ? current : [])]);
+    addItem({ title: `Gün Notu - ${formatDate(selectedDate)}`, category: "not", priority: "orta", date: selectedDate, note });
     setDayNote("");
   };
 
@@ -273,18 +249,14 @@ export default function RoutinePlanner({ routines, setRoutines }) {
   };
 
   const toggleRoutine = (id) => {
-    setRoutines?.((current) =>
-      (Array.isArray(current) ? current : []).map((item) => {
-        if (String(item.id) !== String(id)) return item;
-        const nextDone = !Boolean(item.done || item.completed);
-        return { ...item, done: nextDone, completed: nextDone };
-      })
-    );
+    setRoutines?.((current) => (Array.isArray(current) ? current : []).map((item) => {
+      if (String(item.id) !== String(id)) return item;
+      const nextDone = !Boolean(item.done || item.completed);
+      return { ...item, done: nextDone, completed: nextDone };
+    }));
   };
 
-  const deleteRoutine = (id) => {
-    setRoutines?.((current) => (Array.isArray(current) ? current : []).filter((item) => String(item.id) !== String(id)));
-  };
+  const deleteRoutine = (id) => setRoutines?.((current) => (Array.isArray(current) ? current : []).filter((item) => String(item.id) !== String(id)));
 
   const pageGrid = { display: "grid", gridTemplateColumns: "minmax(0, 1fr) 360px", gap: "22px", alignItems: "start" };
   const gridTwo = { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "12px" };
@@ -298,11 +270,9 @@ export default function RoutinePlanner({ routines, setRoutines }) {
           <div style={{ display: "flex", justifyContent: "space-between", gap: "18px", flexWrap: "wrap" }}>
             <div>
               <h2 style={{ margin: 0, fontSize: "clamp(28px, 4vw, 44px)", color: "#f8fafc", letterSpacing: "-0.04em", textShadow: "0 14px 35px rgba(0,0,0,.35)" }}>{selectedYear} Rutin Planı</h2>
-              <p style={{ color: "#e0f2fe", maxWidth: "760px", lineHeight: 1.6 }}>Ay, hafta, kategori, öncelik, gün notu ve yaklaşan iş yönetimi.</p>
+              <p style={{ color: "#e0f2fe", maxWidth: "760px", lineHeight: 1.6 }}>Gün seçince doğru gün seçilir. Güne direkt hızlı veri girişi yapılır.</p>
             </div>
-            <Field label="Yıl">
-              <Select value={selectedYear} onChange={setSelectedYear} options={[currentYear - 1, currentYear, currentYear + 1].map((year) => ({ value: year, label: String(year) }))} />
-            </Field>
+            <Field label="Yıl"><Select value={selectedYear} onChange={setSelectedYear} options={[currentYear - 1, currentYear, currentYear + 1].map((year) => ({ value: year, label: String(year) }))} /></Field>
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: "12px", marginTop: "22px" }}>
             <Stat label="Toplam" value={stats.total} gradient="linear-gradient(145deg, rgba(59,130,246,.42), rgba(14,165,233,.18))" />
@@ -319,7 +289,7 @@ export default function RoutinePlanner({ routines, setRoutines }) {
             <Field label="Öncelik"><Select value={form.priority} onChange={(value) => setForm((current) => ({ ...current, priority: value }))} options={PRIORITIES.map((item) => ({ value: item.value, label: `${item.icon} ${item.label}` }))} /></Field>
             <Field label="Tarih"><input style={inputStyle} type="date" value={form.date} onChange={(event) => setForm((current) => ({ ...current, date: event.target.value }))} /></Field>
             <Field label="Not"><input style={inputStyle} value={form.note} placeholder="Opsiyonel" onChange={(event) => setForm((current) => ({ ...current, note: event.target.value }))} /></Field>
-            <button type="button" onClick={addRoutine} style={{ border: 0, borderRadius: "16px", padding: "14px 18px", color: "#08111f", fontWeight: 900, cursor: "pointer", background: "linear-gradient(135deg, #fef08a, #34d399, #22d3ee)", boxShadow: "0 16px 34px rgba(34,211,238,.26)", alignSelf: "end" }}>Ekle</button>
+            <button type="button" onClick={addRoutine} style={primaryButtonStyle("linear-gradient(135deg, #fef08a, #34d399, #22d3ee)")}>Ekle</button>
           </div>
         </Panel>
 
@@ -349,7 +319,8 @@ export default function RoutinePlanner({ routines, setRoutines }) {
         <Panel title="📌 Haftalık Takvim" gradient="linear-gradient(145deg, rgba(8,47,73,.88), rgba(15,23,42,.88))" open={openPanels.calendar} onToggle={() => togglePanel("calendar")}>
           <div style={gridWeek}>
             {weeks.filter((week) => selectedMonth === "all" || week.monthIndex === Number(selectedMonth)).map((week) => {
-              const weekTasks = week.days.reduce((arr, day) => [...arr, ...(byDate[toISO(day)] || [])], []);
+              const weekTasks = week.days.reduce((arr, day) => [...arr, ...(byDate[localISO(day)] || [])], []);
+              const selectedInThisWeek = week.days.some((day) => localISO(day) === selectedDate);
               return (
                 <div key={week.id} style={{ ...baseGlass, background: MONTH_GRADIENTS[week.monthIndex], borderRadius: "24px", padding: "16px" }}>
                   <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "12px" }}>
@@ -359,12 +330,12 @@ export default function RoutinePlanner({ routines, setRoutines }) {
 
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(7, minmax(0, 1fr))", gap: "6px", marginBottom: "12px" }}>
                     {week.days.map((day, index) => {
-                      const key = toISO(day);
+                      const key = localISO(day);
                       const dayTasks = byDate[key] || [];
                       const isToday = key === todayISO();
                       const isSelected = key === selectedDate;
                       return (
-                        <button type="button" key={key} onClick={() => selectDay(key)} style={{ minHeight: "52px", borderRadius: "14px", padding: "6px", background: isSelected ? "rgba(255,255,255,.28)" : isToday ? "rgba(255,255,255,.18)" : "rgba(2,6,23,.38)", border: isSelected ? "2px solid rgba(255,255,255,.88)" : isToday ? "1px solid rgba(255,255,255,.70)" : "1px solid rgba(255,255,255,.12)", color: "#f8fafc", fontSize: "11px", boxShadow: isSelected ? "0 18px 34px rgba(255,255,255,.18)" : "none", cursor: "pointer", textAlign: "left" }}>
+                        <button type="button" key={key} onClick={() => selectDay(key)} style={dayButtonStyle(isSelected, isToday)}>
                           <strong>{DAYS[index]}</strong>
                           <div>{day.getDate()}</div>
                           <div style={{ display: "flex", gap: "3px", flexWrap: "wrap", marginTop: "5px" }}>
@@ -374,6 +345,18 @@ export default function RoutinePlanner({ routines, setRoutines }) {
                       );
                     })}
                   </div>
+
+                  {selectedInThisWeek ? (
+                    <div style={{ ...baseGlass, background: "rgba(2,6,23,.42)", borderRadius: "18px", padding: "12px", marginBottom: "12px" }}>
+                      <strong style={{ color: "#f8fafc", display: "block", marginBottom: "10px" }}>⚡ {formatDate(selectedDate)} için hızlı giriş</strong>
+                      <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) 130px 120px 90px", gap: "8px" }}>
+                        <input style={inputStyle} value={quickTitle} placeholder="Bu güne iş / not yaz" onChange={(event) => setQuickTitle(event.target.value)} />
+                        <Select value={quickCategory} onChange={setQuickCategory} options={CATEGORIES.map((item) => ({ value: item.value, label: `${item.icon} ${item.label}` }))} />
+                        <Select value={quickPriority} onChange={setQuickPriority} options={PRIORITIES.map((item) => ({ value: item.value, label: `${item.icon} ${item.label}` }))} />
+                        <button type="button" onClick={addQuickTask} style={primaryButtonStyle("linear-gradient(135deg, #bfdbfe, #67e8f9)")}>Ekle</button>
+                      </div>
+                    </div>
+                  ) : null}
 
                   <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
                     {weekTasks.length === 0 ? <SmallEmpty text="Bu haftaya kayıt yok." /> : weekTasks.slice(0, 6).map((task) => <TaskCard key={task.id} task={task} onToggle={toggleRoutine} onDelete={deleteRoutine} />)}
@@ -386,12 +369,9 @@ export default function RoutinePlanner({ routines, setRoutines }) {
 
         <Panel title={`📝 Seçili Gün Notu - ${formatDate(selectedDate)}`} gradient="linear-gradient(145deg, rgba(131,24,67,.88), rgba(15,23,42,.88))" open={openPanels.dayNote} onToggle={() => togglePanel("dayNote")}>
           <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) 160px", gap: "12px" }}>
-            <Field label="Güne Not Ekle">
-              <textarea value={dayNote} placeholder="Bu güne ait notunu yaz..." onChange={(event) => setDayNote(event.target.value)} style={{ ...inputStyle, minHeight: "94px", resize: "vertical" }} />
-            </Field>
-            <button type="button" onClick={addDayNote} style={{ border: 0, borderRadius: "16px", padding: "14px 18px", color: "#08111f", fontWeight: 900, cursor: "pointer", background: "linear-gradient(135deg, #f9a8d4, #fef08a)", boxShadow: "0 16px 34px rgba(244,114,182,.24)", alignSelf: "end" }}>Not Ekle</button>
+            <Field label="Güne Not Ekle"><textarea value={dayNote} placeholder="Bu güne ait notunu yaz..." onChange={(event) => setDayNote(event.target.value)} style={{ ...inputStyle, minHeight: "94px", resize: "vertical" }} /></Field>
+            <button type="button" onClick={addDayNote} style={primaryButtonStyle("linear-gradient(135deg, #f9a8d4, #fef08a)")}>Not Ekle</button>
           </div>
-
           <div style={{ marginTop: "14px", display: "flex", flexDirection: "column", gap: "8px" }}>
             {selectedDateTasks.length === 0 ? <SmallEmpty text="Bu güne ait kayıt yok. Takvimden gün seçip not ekleyebilirsin." /> : selectedDateTasks.map((task) => <TaskCard key={task.id} task={task} onToggle={toggleRoutine} onDelete={deleteRoutine} />)}
           </div>
@@ -404,7 +384,6 @@ export default function RoutinePlanner({ routines, setRoutines }) {
             {upcoming.length === 0 ? <SmallEmpty text="Yaklaşan iş yok." /> : upcoming.map((task) => <UpcomingCard key={task.id} task={task} />)}
           </div>
         </Panel>
-
         <Panel title="🎯 Kategori Görselleri" gradient="linear-gradient(145deg, rgba(8,47,73,.88), rgba(15,23,42,.88))" open={openPanels.categories} onToggle={() => togglePanel("categories")}>
           <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
             {CATEGORIES.map((category) => {
@@ -456,5 +435,24 @@ function SmallEmpty({ text }) {
 
 function MiniButton({ children, onClick, danger = false }) {
   return <button type="button" onClick={onClick} style={{ border: danger ? "1px solid rgba(248,113,113,.32)" : "1px solid rgba(255,255,255,.22)", background: danger ? "rgba(127,29,29,.42)" : "rgba(15,23,42,.66)", color: danger ? "#fecaca" : "#f8fafc", borderRadius: "10px", padding: "7px 9px", cursor: "pointer" }}>{children}</button>;
+}
+
+function primaryButtonStyle(background) {
+  return { border: 0, borderRadius: "16px", padding: "12px 14px", color: "#08111f", fontWeight: 900, cursor: "pointer", background, boxShadow: "0 16px 34px rgba(34,211,238,.22)", alignSelf: "end" };
+}
+
+function dayButtonStyle(isSelected, isToday) {
+  return {
+    minHeight: "52px",
+    borderRadius: "14px",
+    padding: "6px",
+    background: isSelected ? "rgba(255,255,255,.28)" : isToday ? "rgba(255,255,255,.18)" : "rgba(2,6,23,.38)",
+    border: isSelected ? "2px solid rgba(255,255,255,.88)" : isToday ? "1px solid rgba(255,255,255,.70)" : "1px solid rgba(255,255,255,.12)",
+    color: "#f8fafc",
+    fontSize: "11px",
+    boxShadow: isSelected ? "0 18px 34px rgba(255,255,255,.18)" : "none",
+    cursor: "pointer",
+    textAlign: "left",
+  };
 }
 
