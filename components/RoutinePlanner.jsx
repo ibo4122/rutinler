@@ -6,13 +6,19 @@ const MONTHS = ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", "Temmuz"
 const DAYS = ["Pzt", "Sal", "Çar", "Per", "Cum", "Cmt", "Paz"];
 
 const CATEGORIES = [
-  { value: "egitim", label: "Eğitim", icon: "🎓", color: "#60a5fa", bg: "linear-gradient(145deg, rgba(37,99,235,.38), rgba(14,165,233,.16))" },
-  { value: "is", label: "İş", icon: "💼", color: "#a78bfa", bg: "linear-gradient(145deg, rgba(124,58,237,.38), rgba(168,85,247,.14))" },
-  { value: "gunluk", label: "Günlük", icon: "✅", color: "#34d399", bg: "linear-gradient(145deg, rgba(5,150,105,.34), rgba(16,185,129,.14))" },
-  { value: "saglik", label: "Sağlık", icon: "💪", color: "#fb7185", bg: "linear-gradient(145deg, rgba(225,29,72,.34), rgba(251,113,133,.14))" },
-  { value: "finans", label: "Finans", icon: "💰", color: "#fbbf24", bg: "linear-gradient(145deg, rgba(217,119,6,.34), rgba(251,191,36,.14))" },
-  { value: "kisisel", label: "Kişisel", icon: "✨", color: "#22d3ee", bg: "linear-gradient(145deg, rgba(8,145,178,.34), rgba(34,211,238,.14))" },
-  { value: "not", label: "Gün Notu", icon: "📝", color: "#f472b6", bg: "linear-gradient(145deg, rgba(190,24,93,.34), rgba(244,114,182,.14))" },
+  { value: "egitim", label: "Eğitim", icon: "🎓", color: "#60a5fa", bg: "linear-gradient(145deg, rgba(37,99,235,.42), rgba(14,165,233,.16))" },
+  { value: "is", label: "İş", icon: "💼", color: "#a78bfa", bg: "linear-gradient(145deg, rgba(124,58,237,.42), rgba(168,85,247,.16))" },
+  { value: "gunluk", label: "Günlük", icon: "✅", color: "#34d399", bg: "linear-gradient(145deg, rgba(5,150,105,.38), rgba(16,185,129,.16))" },
+  { value: "saglik", label: "Sağlık", icon: "💪", color: "#fb7185", bg: "linear-gradient(145deg, rgba(225,29,72,.38), rgba(251,113,133,.16))" },
+  { value: "finans", label: "Finans", icon: "💰", color: "#fbbf24", bg: "linear-gradient(145deg, rgba(217,119,6,.38), rgba(251,191,36,.16))" },
+  { value: "kisisel", label: "Kişisel", icon: "✨", color: "#22d3ee", bg: "linear-gradient(145deg, rgba(8,145,178,.38), rgba(34,211,238,.16))" },
+  { value: "not", label: "Gün Notu", icon: "📝", color: "#f472b6", bg: "linear-gradient(145deg, rgba(190,24,93,.38), rgba(244,114,182,.16))" },
+];
+
+const PRIORITIES = [
+  { value: "dusuk", label: "Düşük", icon: "🟢" },
+  { value: "orta", label: "Orta", icon: "🟡" },
+  { value: "yuksek", label: "Yüksek", icon: "🔴" },
 ];
 
 const GOAL_COLORS = [
@@ -24,28 +30,22 @@ const GOAL_COLORS = [
   { value: "cyan", label: "Camgöbeği", color: "#22d3ee", bg: "linear-gradient(145deg, rgba(8,145,178,.42), rgba(34,211,238,.16))" },
 ];
 
-const PRIORITIES = [
-  { value: "dusuk", label: "Düşük", icon: "🟢" },
-  { value: "orta", label: "Orta", icon: "🟡" },
-  { value: "yuksek", label: "Yüksek", icon: "🔴" },
-];
-
 const MONTH_GRADIENTS = [
-  "linear-gradient(145deg, rgba(59,130,246,.36), rgba(14,165,233,.13))",
-  "linear-gradient(145deg, rgba(168,85,247,.36), rgba(99,102,241,.13))",
-  "linear-gradient(145deg, rgba(16,185,129,.36), rgba(20,184,166,.13))",
-  "linear-gradient(145deg, rgba(251,191,36,.36), rgba(245,158,11,.13))",
-  "linear-gradient(145deg, rgba(244,63,94,.36), rgba(251,113,133,.13))",
-  "linear-gradient(145deg, rgba(34,211,238,.36), rgba(59,130,246,.13))",
-  "linear-gradient(145deg, rgba(132,204,22,.36), rgba(16,185,129,.13))",
-  "linear-gradient(145deg, rgba(249,115,22,.36), rgba(251,191,36,.13))",
-  "linear-gradient(145deg, rgba(99,102,241,.36), rgba(168,85,247,.13))",
-  "linear-gradient(145deg, rgba(236,72,153,.36), rgba(244,63,94,.13))",
-  "linear-gradient(145deg, rgba(20,184,166,.36), rgba(34,211,238,.13))",
-  "linear-gradient(145deg, rgba(148,163,184,.36), rgba(96,165,250,.13))",
+  "linear-gradient(145deg, rgba(59,130,246,.38), rgba(14,165,233,.14))",
+  "linear-gradient(145deg, rgba(168,85,247,.38), rgba(99,102,241,.14))",
+  "linear-gradient(145deg, rgba(16,185,129,.38), rgba(20,184,166,.14))",
+  "linear-gradient(145deg, rgba(251,191,36,.38), rgba(245,158,11,.14))",
+  "linear-gradient(145deg, rgba(244,63,94,.38), rgba(251,113,133,.14))",
+  "linear-gradient(145deg, rgba(34,211,238,.38), rgba(59,130,246,.14))",
+  "linear-gradient(145deg, rgba(132,204,22,.38), rgba(16,185,129,.14))",
+  "linear-gradient(145deg, rgba(249,115,22,.38), rgba(251,191,36,.14))",
+  "linear-gradient(145deg, rgba(99,102,241,.38), rgba(168,85,247,.14))",
+  "linear-gradient(145deg, rgba(236,72,153,.38), rgba(244,63,94,.14))",
+  "linear-gradient(145deg, rgba(20,184,166,.38), rgba(34,211,238,.14))",
+  "linear-gradient(145deg, rgba(148,163,184,.38), rgba(96,165,250,.14))",
 ];
 
-const baseGlass = {
+const glass = {
   border: "1px solid rgba(255,255,255,.14)",
   boxShadow: "0 22px 55px rgba(0,0,0,.36), inset 0 1px 0 rgba(255,255,255,.10)",
   backdropFilter: "blur(14px)",
@@ -53,11 +53,11 @@ const baseGlass = {
 
 const inputStyle = {
   width: "100%",
-  border: "1px solid rgba(255,255,255,.20)",
+  border: "1px solid rgba(255,255,255,.22)",
   background: "rgba(2,6,23,.58)",
   color: "#f8fafc",
-  borderRadius: "15px",
-  padding: "12px 13px",
+  borderRadius: "14px",
+  padding: "11px 12px",
   outline: "none",
 };
 
@@ -124,6 +124,7 @@ function buildWeeks(year) {
 }
 
 function normalizeRoutine(item) {
+  const status = item?.status || (item?.failed ? "failed" : item?.done || item?.completed ? "done" : "pending");
   return {
     id: String(item?.id || Date.now() + Math.random()),
     title: item?.title || item?.name || "İsimsiz iş",
@@ -131,7 +132,9 @@ function normalizeRoutine(item) {
     priority: item?.priority || "orta",
     date: item?.date || item?.dueDate || todayISO(),
     note: item?.note || "",
-    done: Boolean(item?.done || item?.completed),
+    status,
+    done: status === "done",
+    failed: status === "failed",
   };
 }
 
@@ -199,6 +202,7 @@ export default function RoutinePlanner({ routines, setRoutines }) {
   const [form, setForm] = useState({ title: "", category: "egitim", priority: "orta", date: todayISO(), note: "" });
   const [editingRoutineId, setEditingRoutineId] = useState(null);
   const [editingRoutineForm, setEditingRoutineForm] = useState({ title: "", category: "gunluk", priority: "orta", date: todayISO(), note: "" });
+  const [collapsedMonths, setCollapsedMonths] = useState({});
   const [openPanels, setOpenPanels] = useState({ hero: true, goals: true, add: true, filters: true, months: true, calendar: true, dayNote: true, upcoming: true, categories: true });
 
   const normalized = useMemo(() => routineItems.map(normalizeRoutine), [routineItems]);
@@ -208,7 +212,7 @@ export default function RoutinePlanner({ routines, setRoutines }) {
   const filtered = useMemo(() => normalized.filter((item) => {
     const date = dateFromISO(item.date);
     const monthOk = selectedMonth === "all" || date.getMonth() === Number(selectedMonth);
-    const statusOk = statusFilter === "all" || (statusFilter === "done" ? item.done : !item.done);
+    const statusOk = statusFilter === "all" || item.status === statusFilter;
     const categoryOk = categoryFilter === "all" || item.category === categoryFilter;
     const priorityOk = priorityFilter === "all" || item.priority === priorityFilter;
     const searchOk = !search.trim() || `${item.title} ${item.note}`.toLowerCase().includes(search.toLowerCase());
@@ -231,8 +235,9 @@ export default function RoutinePlanner({ routines, setRoutines }) {
 
   const stats = useMemo(() => {
     const total = filtered.length;
-    const done = filtered.filter((item) => item.done).length;
-    return { total, done, pending: total - done, ratio: total ? Math.round((done / total) * 100) : 0 };
+    const done = filtered.filter((item) => item.status === "done").length;
+    const failed = filtered.filter((item) => item.status === "failed").length;
+    return { total, done, failed, pending: total - done - failed, ratio: total ? Math.round((done / total) * 100) : 0 };
   }, [filtered]);
 
   const goalStats = useMemo(() => {
@@ -245,15 +250,16 @@ export default function RoutinePlanner({ routines, setRoutines }) {
   const upcoming = useMemo(() => {
     const today = dateFromISO(todayISO());
     return normalized
-      .filter((item) => !item.done && dateFromISO(item.date) >= today)
+      .filter((item) => item.status === "pending" && dateFromISO(item.date) >= today)
       .sort((a, b) => String(a.date).localeCompare(String(b.date)))
       .slice(0, 10);
   }, [normalized]);
 
   const togglePanel = (key) => setOpenPanels((current) => ({ ...current, [key]: !current[key] }));
+  const toggleMonthCollapse = (monthIndex) => setCollapsedMonths((current) => ({ ...current, [monthIndex]: !current[monthIndex] }));
 
   const addItem = (payload) => {
-    setRoutines?.((current) => [{ id: String(Date.now()), done: false, completed: false, ...payload }, ...(Array.isArray(current) ? current : [])]);
+    setRoutines?.((current) => [{ id: String(Date.now()), status: "pending", done: false, completed: false, failed: false, ...payload }, ...(Array.isArray(current) ? current : [])]);
   };
 
   const addRoutine = () => {
@@ -266,13 +272,7 @@ export default function RoutinePlanner({ routines, setRoutines }) {
   const addGoal = () => {
     const title = goalForm.title.trim();
     if (!title) return alert("Hedef adı gir. Örn: SQL, Saz, İngilizce");
-    addItem({
-      recordType: "goal",
-      title,
-      progress: Math.max(0, Math.min(100, Number(goalForm.progress || 0))),
-      color: goalForm.color,
-      note: goalForm.note.trim(),
-    });
+    addItem({ recordType: "goal", title, progress: Math.max(0, Math.min(100, Number(goalForm.progress || 0))), color: goalForm.color, note: goalForm.note.trim() });
     setGoalForm({ title: "", progress: "0", color: goalForm.color, note: "" });
   };
 
@@ -284,9 +284,7 @@ export default function RoutinePlanner({ routines, setRoutines }) {
     }));
   };
 
-  const deleteGoal = (id) => {
-    setRoutines?.((current) => (Array.isArray(current) ? current : []).filter((item) => String(item.id) !== String(id)));
-  };
+  const deleteAny = (id) => setRoutines?.((current) => (Array.isArray(current) ? current : []).filter((item) => String(item.id) !== String(id)));
 
   const addQuickTask = () => {
     if (!selectedDate) return alert("Önce takvimden bir gün seç.");
@@ -312,29 +310,21 @@ export default function RoutinePlanner({ routines, setRoutines }) {
       setOpenPanels((current) => ({ ...current, dayNote: false }));
       return;
     }
-
     setSelectedDate(dateKey);
     setForm((current) => ({ ...current, date: dateKey }));
     setOpenPanels((current) => ({ ...current, dayNote: true }));
   };
 
-  const toggleRoutine = (id) => {
+  const setRoutineStatus = (id, status) => {
     setRoutines?.((current) => (Array.isArray(current) ? current : []).map((item) => {
       if (String(item.id) !== String(id)) return item;
-      const nextDone = !Boolean(item.done || item.completed);
-      return { ...item, done: nextDone, completed: nextDone };
+      return { ...item, status, done: status === "done", completed: status === "done", failed: status === "failed" };
     }));
   };
 
   const startEditRoutine = (task) => {
     setEditingRoutineId(task.id);
-    setEditingRoutineForm({
-      title: task.title || "",
-      category: task.category || "gunluk",
-      priority: task.priority || "orta",
-      date: task.date || todayISO(),
-      note: task.note || "",
-    });
+    setEditingRoutineForm({ title: task.title || "", category: task.category || "gunluk", priority: task.priority || "orta", date: task.date || todayISO(), note: task.note || "" });
   };
 
   const cancelEditRoutine = () => {
@@ -345,23 +335,12 @@ export default function RoutinePlanner({ routines, setRoutines }) {
   const saveEditRoutine = (id) => {
     const title = editingRoutineForm.title.trim();
     if (!title) return alert("Başlık boş olamaz.");
-
     setRoutines?.((current) => (Array.isArray(current) ? current : []).map((item) => {
       if (String(item.id) !== String(id)) return item;
-      return {
-        ...item,
-        title,
-        category: editingRoutineForm.category,
-        priority: editingRoutineForm.priority,
-        date: editingRoutineForm.date || todayISO(),
-        note: editingRoutineForm.note.trim(),
-      };
+      return { ...item, title, category: editingRoutineForm.category, priority: editingRoutineForm.priority, date: editingRoutineForm.date || todayISO(), note: editingRoutineForm.note.trim() };
     }));
-
     cancelEditRoutine();
   };
-
-  const deleteRoutine = (id) => setRoutines?.((current) => (Array.isArray(current) ? current : []).filter((item) => String(item.id) !== String(id)));
 
   const pageGrid = { display: "grid", gridTemplateColumns: "minmax(0, 1fr) 360px", gap: "22px", alignItems: "start" };
   const gridTwo = { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "12px" };
@@ -375,14 +354,14 @@ export default function RoutinePlanner({ routines, setRoutines }) {
           <div style={{ display: "flex", justifyContent: "space-between", gap: "18px", flexWrap: "wrap" }}>
             <div>
               <h2 style={{ margin: 0, fontSize: "clamp(28px, 4vw, 44px)", color: "#f8fafc", letterSpacing: "-0.04em", textShadow: "0 14px 35px rgba(0,0,0,.35)" }}>{selectedYear} Rutin Planı</h2>
-              <p style={{ color: "#e0f2fe", maxWidth: "760px", lineHeight: 1.6 }}>Hedeflerini, haftalık rutinlerini ve gün notlarını tek ekranda yönet. Seçili güne tekrar tıklarsan seçim ve not alanı kapanır.</p>
+              <p style={{ color: "#e0f2fe", maxWidth: "760px", lineHeight: 1.6 }}>Tarihe tıklayınca sadece o tarihin rutinleri görünür. Bitti ✓, tamamlanamadı ✕ olarak işaretlenir.</p>
             </div>
             <Field label="Yıl"><Select value={selectedYear} onChange={setSelectedYear} options={[currentYear - 1, currentYear, currentYear + 1].map((year) => ({ value: year, label: String(year) }))} /></Field>
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: "12px", marginTop: "22px" }}>
             <Stat label="Rutin" value={stats.total} gradient="linear-gradient(145deg, rgba(59,130,246,.42), rgba(14,165,233,.18))" />
-            <Stat label="Tamamlanan" value={stats.done} gradient="linear-gradient(145deg, rgba(16,185,129,.42), rgba(52,211,153,.18))" />
-            <Stat label="Bekleyen" value={stats.pending} gradient="linear-gradient(145deg, rgba(251,191,36,.42), rgba(245,158,11,.18))" />
+            <Stat label="Bitti" value={stats.done} gradient="linear-gradient(145deg, rgba(16,185,129,.42), rgba(52,211,153,.18))" />
+            <Stat label="Yapılmadı" value={stats.failed} gradient="linear-gradient(145deg, rgba(248,113,113,.42), rgba(244,63,94,.18))" />
             <Stat label="Hedef Ort." value={`%${goalStats.average}`} gradient="linear-gradient(145deg, rgba(168,85,247,.42), rgba(236,72,153,.16))" />
           </div>
         </Panel>
@@ -395,17 +374,14 @@ export default function RoutinePlanner({ routines, setRoutines }) {
             <Field label="Not"><input style={inputStyle} value={goalForm.note} placeholder="Opsiyonel" onChange={(event) => setGoalForm((current) => ({ ...current, note: event.target.value }))} /></Field>
             <button type="button" onClick={addGoal} style={primaryButtonStyle("linear-gradient(135deg, #c4b5fd, #67e8f9, #fef08a)")}>Hedef Ekle</button>
           </div>
-
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: "12px" }}>
-            {goals.length === 0 ? <SmallEmpty text="Henüz hedef eklenmedi. Örn: SQL %10, Saz %5, İngilizce %20." /> : goals.map((goal) => (
-              <GoalCard key={goal.id} goal={goal} onUpdate={updateGoal} onDelete={deleteGoal} />
-            ))}
+            {goals.length === 0 ? <SmallEmpty text="Henüz hedef eklenmedi. Örn: SQL %10, Saz %5, İngilizce %20." /> : goals.map((goal) => <GoalCard key={goal.id} goal={goal} onUpdate={updateGoal} onDelete={deleteAny} />)}
           </div>
         </Panel>
 
         <Panel title="➕ Yeni Rutin / İş Ekle" gradient="linear-gradient(145deg, rgba(6,78,59,.88), rgba(15,23,42,.86))" open={openPanels.add} onToggle={() => togglePanel("add")}>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "12px" }}>
-            <Field label="Başlık"><input style={inputStyle} value={form.title} placeholder="Örn: SQL çalış, spor yap" onChange={(event) => setForm((current) => ({ ...current, title: event.target.value }))} /></Field>
+            <Field label="Başlık"><input style={inputStyle} value={form.title} placeholder="Örn: SQL çalış" onChange={(event) => setForm((current) => ({ ...current, title: event.target.value }))} /></Field>
             <Field label="Kategori"><Select value={form.category} onChange={(value) => setForm((current) => ({ ...current, category: value }))} options={CATEGORIES.map((item) => ({ value: item.value, label: `${item.icon} ${item.label}` }))} /></Field>
             <Field label="Öncelik"><Select value={form.priority} onChange={(value) => setForm((current) => ({ ...current, priority: value }))} options={PRIORITIES.map((item) => ({ value: item.value, label: `${item.icon} ${item.label}` }))} /></Field>
             <Field label="Tarih"><input style={inputStyle} type="date" value={form.date} onChange={(event) => setForm((current) => ({ ...current, date: event.target.value }))} /></Field>
@@ -417,7 +393,7 @@ export default function RoutinePlanner({ routines, setRoutines }) {
         <Panel title="🔎 Filtreler" gradient="linear-gradient(145deg, rgba(120,53,15,.88), rgba(88,28,135,.70), rgba(15,23,42,.86))" open={openPanels.filters} onToggle={() => togglePanel("filters")}>
           <div style={gridTwo}>
             <Field label="Ay"><Select value={selectedMonth} onChange={setSelectedMonth} options={[{ value: "all", label: "Tüm Aylar" }, ...MONTHS.map((month, index) => ({ value: String(index), label: month }))]} /></Field>
-            <Field label="Durum"><Select value={statusFilter} onChange={setStatusFilter} options={[{ value: "all", label: "Tümü" }, { value: "pending", label: "Bekleyen" }, { value: "done", label: "Tamamlanan" }]} /></Field>
+            <Field label="Durum"><Select value={statusFilter} onChange={setStatusFilter} options={[{ value: "all", label: "Tümü" }, { value: "pending", label: "Bekleyen" }, { value: "done", label: "Bitti" }, { value: "failed", label: "Tamamlanamadı" }]} /></Field>
             <Field label="Kategori"><Select value={categoryFilter} onChange={setCategoryFilter} options={[{ value: "all", label: "Tüm Kategoriler" }, ...CATEGORIES.map((item) => ({ value: item.value, label: `${item.icon} ${item.label}` }))]} /></Field>
             <Field label="Öncelik"><Select value={priorityFilter} onChange={setPriorityFilter} options={[{ value: "all", label: "Tüm Öncelikler" }, ...PRIORITIES.map((item) => ({ value: item.value, label: `${item.icon} ${item.label}` }))]} /></Field>
             <Field label="Arama"><input style={inputStyle} value={search} placeholder="Rutin ara" onChange={(event) => setSearch(event.target.value)} /></Field>
@@ -432,23 +408,23 @@ export default function RoutinePlanner({ routines, setRoutines }) {
                 const date = dateFromISO(item.date);
                 return date.getFullYear() === Number(selectedYear) && date.getMonth() === index;
               }).length;
-              return <MonthCard key={month} active={selectedMonth === String(index)} title={month} count={count} onClick={() => setSelectedMonth(String(index))} gradient={MONTH_GRADIENTS[index]} />;
+              return <MonthCard key={month} active={selectedMonth === String(index)} title={month} count={count} collapsed={Boolean(collapsedMonths[index])} onToggleCollapse={() => toggleMonthCollapse(index)} onClick={() => setSelectedMonth(String(index))} gradient={MONTH_GRADIENTS[index]} />;
             })}
           </div>
         </Panel>
 
         <Panel title="📌 Haftalık Takvim" gradient="linear-gradient(145deg, rgba(8,47,73,.88), rgba(15,23,42,.88))" open={openPanels.calendar} onToggle={() => togglePanel("calendar")}>
           <div style={gridWeek}>
-            {weeks.filter((week) => selectedMonth === "all" || week.monthIndex === Number(selectedMonth)).map((week) => {
+            {weeks.filter((week) => (selectedMonth === "all" || week.monthIndex === Number(selectedMonth)) && !collapsedMonths[week.monthIndex]).map((week) => {
               const weekTasks = week.days.reduce((arr, day) => [...arr, ...(byDate[localISO(day)] || [])], []);
+              const visibleTasks = selectedDate && week.days.some((day) => localISO(day) === selectedDate) ? byDate[selectedDate] || [] : weekTasks;
               const selectedInThisWeek = week.days.some((day) => localISO(day) === selectedDate);
               return (
-                <div key={week.id} style={{ ...baseGlass, background: MONTH_GRADIENTS[week.monthIndex], borderRadius: "24px", padding: "16px" }}>
+                <div key={week.id} style={{ ...glass, background: MONTH_GRADIENTS[week.monthIndex], borderRadius: "24px", padding: "16px" }}>
                   <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "12px" }}>
                     <strong style={{ color: "#f8fafc" }}>{week.monthName}</strong>
                     <span style={{ color: "#dbeafe", fontWeight: 900 }}>{week.number}. Hafta</span>
                   </div>
-
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(7, minmax(0, 1fr))", gap: "6px", marginBottom: "12px" }}>
                     {week.days.map((day, index) => {
                       const key = localISO(day);
@@ -460,27 +436,15 @@ export default function RoutinePlanner({ routines, setRoutines }) {
                           <strong>{DAYS[index]}</strong>
                           <div>{day.getDate()}</div>
                           <div style={{ display: "flex", gap: "3px", flexWrap: "wrap", marginTop: "5px" }}>
-                            {dayTasks.slice(0, 4).map((task) => <span key={task.id} style={{ width: "7px", height: "7px", borderRadius: "999px", background: categoryInfo(task.category).color }} />)}
+                            {dayTasks.slice(0, 4).map((task) => <span key={task.id} style={{ width: "7px", height: "7px", borderRadius: "999px", background: task.status === "done" ? "#22c55e" : task.status === "failed" ? "#ef4444" : categoryInfo(task.category).color }} />)}
                           </div>
                         </button>
                       );
                     })}
                   </div>
-
-                  {selectedInThisWeek ? (
-                    <div style={{ ...baseGlass, background: "rgba(2,6,23,.42)", borderRadius: "18px", padding: "12px", marginBottom: "12px" }}>
-                      <strong style={{ color: "#f8fafc", display: "block", marginBottom: "10px" }}>⚡ {formatDate(selectedDate)} için hızlı giriş</strong>
-                      <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) 130px 120px 90px", gap: "8px" }}>
-                        <input style={inputStyle} value={quickTitle} placeholder="Bu güne iş / not yaz" onChange={(event) => setQuickTitle(event.target.value)} />
-                        <Select value={quickCategory} onChange={setQuickCategory} options={CATEGORIES.map((item) => ({ value: item.value, label: `${item.icon} ${item.label}` }))} />
-                        <Select value={quickPriority} onChange={setQuickPriority} options={PRIORITIES.map((item) => ({ value: item.value, label: `${item.icon} ${item.label}` }))} />
-                        <button type="button" onClick={addQuickTask} style={primaryButtonStyle("linear-gradient(135deg, #bfdbfe, #67e8f9)")}>Ekle</button>
-                      </div>
-                    </div>
-                  ) : null}
-
+                  {selectedInThisWeek ? <QuickEntry selectedDate={selectedDate} quickTitle={quickTitle} setQuickTitle={setQuickTitle} quickCategory={quickCategory} setQuickCategory={setQuickCategory} quickPriority={quickPriority} setQuickPriority={setQuickPriority} addQuickTask={addQuickTask} /> : null}
                   <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                    {weekTasks.length === 0 ? <SmallEmpty text="Bu haftaya kayıt yok." /> : weekTasks.slice(0, 6).map((task) => <TaskCard key={task.id} task={task} editingId={editingRoutineId} editForm={editingRoutineForm} setEditForm={setEditingRoutineForm} onEdit={startEditRoutine} onSave={saveEditRoutine} onCancel={cancelEditRoutine} onToggle={toggleRoutine} onDelete={deleteRoutine} />)}
+                    {visibleTasks.length === 0 ? <SmallEmpty text={selectedInThisWeek ? "Seçili tarihe ait rutin yok." : "Bu haftaya kayıt yok."} /> : visibleTasks.map((task) => <TaskCard key={task.id} task={task} editingId={editingRoutineId} editForm={editingRoutineForm} setEditForm={setEditingRoutineForm} onEdit={startEditRoutine} onSave={saveEditRoutine} onCancel={cancelEditRoutine} onStatus={setRoutineStatus} onDelete={deleteAny} />)}
                   </div>
                 </div>
               );
@@ -495,7 +459,7 @@ export default function RoutinePlanner({ routines, setRoutines }) {
               <button type="button" onClick={addDayNote} style={primaryButtonStyle("linear-gradient(135deg, #f9a8d4, #fef08a)")}>Kaydet</button>
             </div>
             <div style={{ marginTop: "14px", display: "flex", flexDirection: "column", gap: "8px" }}>
-              {selectedDateTasks.length === 0 ? <SmallEmpty text="Bu güne ait kayıt yok. Kaydet dediğinde kayıt oluşur." /> : selectedDateTasks.map((task) => <TaskCard key={task.id} task={task} editingId={editingRoutineId} editForm={editingRoutineForm} setEditForm={setEditingRoutineForm} onEdit={startEditRoutine} onSave={saveEditRoutine} onCancel={cancelEditRoutine} onToggle={toggleRoutine} onDelete={deleteRoutine} />)}
+              {selectedDateTasks.length === 0 ? <SmallEmpty text="Bu güne ait kayıt yok. Kaydet dediğinde kayıt oluşur." /> : selectedDateTasks.map((task) => <TaskCard key={task.id} task={task} editingId={editingRoutineId} editForm={editingRoutineForm} setEditForm={setEditingRoutineForm} onEdit={startEditRoutine} onSave={saveEditRoutine} onCancel={cancelEditRoutine} onStatus={setRoutineStatus} onDelete={deleteAny} />)}
             </div>
           </Panel>
         ) : null}
@@ -518,9 +482,23 @@ export default function RoutinePlanner({ routines, setRoutines }) {
   );
 }
 
+function QuickEntry({ selectedDate, quickTitle, setQuickTitle, quickCategory, setQuickCategory, quickPriority, setQuickPriority, addQuickTask }) {
+  return (
+    <div style={{ ...glass, background: "rgba(2,6,23,.42)", borderRadius: "18px", padding: "12px", marginBottom: "12px" }}>
+      <strong style={{ color: "#f8fafc", display: "block", marginBottom: "10px" }}>⚡ {formatDate(selectedDate)} için hızlı giriş</strong>
+      <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) 130px 120px 90px", gap: "8px" }}>
+        <input style={inputStyle} value={quickTitle} placeholder="Bu güne iş / not yaz" onChange={(event) => setQuickTitle(event.target.value)} />
+        <Select value={quickCategory} onChange={setQuickCategory} options={CATEGORIES.map((item) => ({ value: item.value, label: `${item.icon} ${item.label}` }))} />
+        <Select value={quickPriority} onChange={setQuickPriority} options={PRIORITIES.map((item) => ({ value: item.value, label: `${item.icon} ${item.label}` }))} />
+        <button type="button" onClick={addQuickTask} style={primaryButtonStyle("linear-gradient(135deg, #bfdbfe, #67e8f9)")}>Ekle</button>
+      </div>
+    </div>
+  );
+}
+
 function Panel({ title, children, gradient, open = true, onToggle }) {
   return (
-    <div style={{ ...baseGlass, background: gradient || "linear-gradient(145deg, rgba(15,23,42,.94), rgba(30,41,59,.76))", borderRadius: "26px", padding: "20px", marginBottom: "18px" }}>
+    <div style={{ ...glass, background: gradient || "linear-gradient(145deg, rgba(15,23,42,.94), rgba(30,41,59,.76))", borderRadius: "26px", padding: "20px", marginBottom: "18px" }}>
       <button type="button" onClick={onToggle} style={{ width: "100%", border: 0, background: "transparent", color: "#f8fafc", padding: 0, marginBottom: open ? "16px" : 0, display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer", textAlign: "left" }}>
         <h3 style={{ margin: 0, color: "#f8fafc", fontSize: "20px", textShadow: "0 10px 24px rgba(0,0,0,.28)" }}>{title}</h3>
         <span style={{ width: "34px", height: "34px", borderRadius: "12px", display: "grid", placeItems: "center", background: "rgba(255,255,255,.14)", fontWeight: 900 }}>{open ? "−" : "+"}</span>
@@ -531,36 +509,24 @@ function Panel({ title, children, gradient, open = true, onToggle }) {
 }
 
 function Stat({ label, value, gradient }) {
-  return <div style={{ ...baseGlass, padding: "16px", borderRadius: "20px", background: gradient }}><span style={{ display: "block", color: "#dbeafe", fontSize: "12px", fontWeight: 800 }}>{label}</span><strong style={{ display: "block", marginTop: "6px", fontSize: "24px", color: "#f8fafc" }}>{value}</strong></div>;
+  return <div style={{ ...glass, padding: "16px", borderRadius: "20px", background: gradient }}><span style={{ display: "block", color: "#dbeafe", fontSize: "12px", fontWeight: 800 }}>{label}</span><strong style={{ display: "block", marginTop: "6px", fontSize: "24px", color: "#f8fafc" }}>{value}</strong></div>;
 }
 
-function MonthCard({ active, title, count, onClick, gradient }) {
-  return <button type="button" onClick={onClick} style={{ ...baseGlass, background: gradient, borderRadius: "20px", padding: "15px", cursor: "pointer", textAlign: "left", borderColor: active ? "rgba(255,255,255,.75)" : "rgba(255,255,255,.15)", transform: active ? "translateY(-5px) scale(1.02)" : "none" }}><strong style={{ display: "block", color: "#f8fafc", fontSize: "15px" }}>{title}</strong><span style={{ display: "block", color: "#dbeafe", marginTop: "5px", fontSize: "12px" }}>{count} kayıt</span></button>;
+function MonthCard({ active, title, count, onClick, gradient, collapsed, onToggleCollapse }) {
+  return (
+    <div style={{ ...glass, background: gradient, borderRadius: "20px", padding: "12px", borderColor: active ? "rgba(255,255,255,.75)" : "rgba(255,255,255,.15)", transform: active ? "translateY(-5px) scale(1.02)" : "none" }}>
+      <button type="button" onClick={onClick} style={{ width: "100%", border: 0, background: "transparent", cursor: "pointer", textAlign: "left", padding: 0 }}>
+        <strong style={{ display: "block", color: "#f8fafc", fontSize: "15px" }}>{title}</strong>
+        <span style={{ display: "block", color: "#dbeafe", marginTop: "5px", fontSize: "12px" }}>{count} kayıt</span>
+      </button>
+      {onToggleCollapse ? <button type="button" onClick={onToggleCollapse} style={{ marginTop: "10px", width: "100%", border: "1px solid rgba(255,255,255,.18)", background: collapsed ? "rgba(248,113,113,.22)" : "rgba(255,255,255,.12)", color: "#f8fafc", borderRadius: "12px", padding: "8px", cursor: "pointer", fontWeight: 900 }}>{collapsed ? "Ayı Aç" : "Ayı Kapat"}</button> : null}
+    </div>
+  );
 }
 
 function GoalCard({ goal, onUpdate, onDelete }) {
   const color = goalColorInfo(goal.color);
-  return (
-    <div style={{ ...baseGlass, background: color.bg, borderColor: `${color.color}66`, borderRadius: "22px", padding: "16px" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", alignItems: "flex-start" }}>
-        <div>
-          <strong style={{ color: "#f8fafc", fontSize: "18px", display: "block" }}>{goal.title}</strong>
-          {goal.note ? <span style={{ color: "#cbd5e1", fontSize: "12px", display: "block", marginTop: "4px" }}>{goal.note}</span> : null}
-        </div>
-        <strong style={{ color: color.color, fontSize: "22px" }}>%{goal.progress}</strong>
-      </div>
-
-      <div style={{ height: "14px", borderRadius: "999px", background: "rgba(2,6,23,.45)", marginTop: "14px", overflow: "hidden", border: "1px solid rgba(255,255,255,.12)" }}>
-        <div style={{ width: `${goal.progress}%`, height: "100%", borderRadius: "999px", background: `linear-gradient(90deg, ${color.color}, #f8fafc)`, boxShadow: `0 0 18px ${color.color}66` }} />
-      </div>
-
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 82px 80px", gap: "8px", marginTop: "14px", alignItems: "center" }}>
-        <input type="range" min="0" max="100" value={goal.progress} onChange={(event) => onUpdate(goal.id, "progress", event.target.value)} />
-        <input style={{ ...inputStyle, padding: "9px 10px" }} type="number" min="0" max="100" value={goal.progress} onChange={(event) => onUpdate(goal.id, "progress", event.target.value)} />
-        <MiniButton danger onClick={() => onDelete(goal.id)}>Sil</MiniButton>
-      </div>
-    </div>
-  );
+  return <div style={{ ...glass, background: color.bg, borderColor: `${color.color}66`, borderRadius: "22px", padding: "16px" }}><div style={{ display: "flex", justifyContent: "space-between", gap: "10px", alignItems: "flex-start" }}><div><strong style={{ color: "#f8fafc", fontSize: "18px", display: "block" }}>{goal.title}</strong>{goal.note ? <span style={{ color: "#cbd5e1", fontSize: "12px", display: "block", marginTop: "4px" }}>{goal.note}</span> : null}</div><strong style={{ color: color.color, fontSize: "22px" }}>%{goal.progress}</strong></div><div style={{ height: "14px", borderRadius: "999px", background: "rgba(2,6,23,.45)", marginTop: "14px", overflow: "hidden", border: "1px solid rgba(255,255,255,.12)" }}><div style={{ width: `${goal.progress}%`, height: "100%", borderRadius: "999px", background: `linear-gradient(90deg, ${color.color}, #f8fafc)`, boxShadow: `0 0 18px ${color.color}66` }} /></div><div style={{ display: "grid", gridTemplateColumns: "1fr 82px 80px", gap: "8px", marginTop: "14px", alignItems: "center" }}><input type="range" min="0" max="100" value={goal.progress} onChange={(event) => onUpdate(goal.id, "progress", event.target.value)} /><input style={{ ...inputStyle, padding: "9px 10px" }} type="number" min="0" max="100" value={goal.progress} onChange={(event) => onUpdate(goal.id, "progress", event.target.value)} /><MiniButton danger onClick={() => onDelete(goal.id)}>Sil</MiniButton></div></div>;
 }
 
 function GoalMini({ goal }) {
@@ -568,41 +534,18 @@ function GoalMini({ goal }) {
   return <div style={{ padding: "13px", borderRadius: "18px", background: color.bg, border: `1px solid ${color.color}66` }}><strong style={{ color: "#f8fafc", display: "block" }}>{goal.title} • %{goal.progress}</strong><div style={{ height: "8px", borderRadius: "999px", background: "rgba(2,6,23,.45)", marginTop: "8px", overflow: "hidden" }}><div style={{ width: `${goal.progress}%`, height: "100%", background: color.color }} /></div></div>;
 }
 
-function TaskCard({ task, editingId, editForm, setEditForm, onEdit, onSave, onCancel, onToggle, onDelete }) {
+function TaskCard({ task, editingId, editForm, setEditForm, onEdit, onSave, onCancel, onStatus, onDelete }) {
+  const [open, setOpen] = useState(false);
   const category = categoryInfo(task.category);
   const priority = priorityInfo(task.priority);
   const isEditing = String(editingId || "") === String(task.id || "");
+  const statusIcon = task.status === "done" ? "✅" : task.status === "failed" ? "❌" : "⬜";
 
   if (isEditing) {
-    return (
-      <div style={{ ...baseGlass, background: category.bg, borderColor: `${category.color}66`, borderRadius: "16px", padding: "12px", display: "flex", flexDirection: "column", gap: "10px" }}>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: "8px" }}>
-          <Field label="Başlık">
-            <input style={inputStyle} value={editForm.title} onChange={(event) => setEditForm((current) => ({ ...current, title: event.target.value }))} />
-          </Field>
-          <Field label="Kategori / Renk">
-            <Select value={editForm.category} onChange={(value) => setEditForm((current) => ({ ...current, category: value }))} options={CATEGORIES.map((item) => ({ value: item.value, label: `${item.icon} ${item.label}` }))} />
-          </Field>
-          <Field label="Öncelik">
-            <Select value={editForm.priority} onChange={(value) => setEditForm((current) => ({ ...current, priority: value }))} options={PRIORITIES.map((item) => ({ value: item.value, label: `${item.icon} ${item.label}` }))} />
-          </Field>
-          <Field label="Tarih">
-            <input style={inputStyle} type="date" value={editForm.date} onChange={(event) => setEditForm((current) => ({ ...current, date: event.target.value }))} />
-          </Field>
-          <Field label="Not">
-            <input style={inputStyle} value={editForm.note} onChange={(event) => setEditForm((current) => ({ ...current, note: event.target.value }))} />
-          </Field>
-        </div>
-        <div style={{ display: "flex", justifyContent: "flex-end", gap: "8px", flexWrap: "wrap" }}>
-          <MiniButton onClick={() => onSave(task.id)}>Kaydet</MiniButton>
-          <MiniButton onClick={onCancel}>Vazgeç</MiniButton>
-          <MiniButton danger onClick={() => onDelete(task.id)}>Sil</MiniButton>
-        </div>
-      </div>
-    );
+    return <div style={{ ...glass, background: category.bg, borderColor: `${category.color}66`, borderRadius: "16px", padding: "12px", display: "flex", flexDirection: "column", gap: "10px" }}><div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: "8px" }}><Field label="Başlık"><input style={inputStyle} value={editForm.title} onChange={(event) => setEditForm((current) => ({ ...current, title: event.target.value }))} /></Field><Field label="Kategori / Renk"><Select value={editForm.category} onChange={(value) => setEditForm((current) => ({ ...current, category: value }))} options={CATEGORIES.map((item) => ({ value: item.value, label: `${item.icon} ${item.label}` }))} /></Field><Field label="Öncelik"><Select value={editForm.priority} onChange={(value) => setEditForm((current) => ({ ...current, priority: value }))} options={PRIORITIES.map((item) => ({ value: item.value, label: `${item.icon} ${item.label}` }))} /></Field><Field label="Tarih"><input style={inputStyle} type="date" value={editForm.date} onChange={(event) => setEditForm((current) => ({ ...current, date: event.target.value }))} /></Field><Field label="Not"><input style={inputStyle} value={editForm.note} onChange={(event) => setEditForm((current) => ({ ...current, note: event.target.value }))} /></Field></div><div style={{ display: "flex", justifyContent: "flex-end", gap: "8px", flexWrap: "wrap" }}><MiniButton onClick={() => onSave(task.id)}>Kaydet</MiniButton><MiniButton onClick={onCancel}>Vazgeç</MiniButton><MiniButton danger onClick={() => onDelete(task.id)}>Sil</MiniButton></div></div>;
   }
 
-  return <div style={{ ...baseGlass, background: category.bg, borderColor: `${category.color}66`, borderRadius: "16px", padding: "10px 11px", display: "flex", justifyContent: "space-between", gap: "10px", opacity: task.done ? .58 : 1 }}><div style={{ display: "flex", gap: "9px" }}><span style={{ fontSize: "20px" }}>{category.icon}</span><div><strong style={{ color: "#f8fafc", display: "block", fontSize: "13px" }}>{task.title}</strong><span style={{ color: "#dbeafe", display: "block", fontSize: "11px", marginTop: "3px" }}>{formatDate(task.date)} • {category.label} • {priority.icon} {priority.label}</span>{task.note ? <span style={{ color: "#cbd5e1", display: "block", fontSize: "11px", marginTop: "3px" }}>{task.note}</span> : null}</div></div><div style={{ display: "flex", gap: "6px", alignItems: "center", flexWrap: "wrap", justifyContent: "flex-end" }}><MiniButton onClick={() => onEdit(task)}>Düzenle</MiniButton><MiniButton onClick={() => onToggle(task.id)}>{task.done ? "Geri Al" : "Bitti"}</MiniButton><MiniButton danger onClick={() => onDelete(task.id)}>Sil</MiniButton></div></div>;
+  return <div style={{ ...glass, background: category.bg, borderColor: `${category.color}66`, borderRadius: "16px", padding: "10px 11px", opacity: task.status === "done" ? .74 : task.status === "failed" ? .62 : 1 }}><div style={{ display: "flex", justifyContent: "space-between", gap: "10px", alignItems: "center" }}><button type="button" onClick={() => setOpen((value) => !value)} style={{ border: 0, background: "transparent", color: "#f8fafc", padding: 0, cursor: "pointer", textAlign: "left", display: "flex", gap: "10px", alignItems: "center", minWidth: 0 }}><span style={{ fontSize: "22px" }}>{statusIcon}</span><span style={{ fontSize: "20px" }}>{category.icon}</span><div style={{ minWidth: 0 }}><strong style={{ color: "#f8fafc", display: "block", fontSize: "14px", whiteSpace: "normal", lineHeight: 1.35 }}>{task.title}</strong><span style={{ display: "inline-flex", marginTop: "6px", padding: "5px 9px", borderRadius: "999px", background: "rgba(255,255,255,.16)", color: "#fff", fontSize: "12px", fontWeight: 900 }}>📅 {formatDate(task.date)} • {category.label} • {priority.icon} {priority.label}</span></div></button><div style={{ display: "flex", gap: "6px", alignItems: "center", flexWrap: "wrap", justifyContent: "flex-end" }}><MiniButton onClick={() => setOpen((value) => !value)}>{open ? "Kapat" : "Aç"}</MiniButton><MiniButton onClick={() => onEdit(task)}>Düzenle</MiniButton><MiniButton onClick={() => onStatus(task.id, "done")}>Bitti ✓</MiniButton><MiniButton onClick={() => onStatus(task.id, "failed")}>Tamamlanamadı ✕</MiniButton><MiniButton danger onClick={() => onDelete(task.id)}>Sil</MiniButton></div></div>{open ? <div style={{ marginTop: "10px", padding: "10px", borderRadius: "14px", background: "rgba(2,6,23,.28)", border: "1px solid rgba(255,255,255,.12)" }}><div style={{ color: "#dbeafe", fontSize: "12px", fontWeight: 900 }}>Tarih: {formatDate(task.date)}</div><div style={{ color: "#cbd5e1", fontSize: "12px", marginTop: "4px" }}>Kategori: {category.label} • Öncelik: {priority.label}</div>{task.note ? <div style={{ color: "#f8fafc", fontSize: "12px", marginTop: "8px", lineHeight: 1.5 }}>{task.note}</div> : <div style={{ color: "#94a3b8", fontSize: "12px", marginTop: "8px" }}>Not yok.</div>}</div> : null}</div>;
 }
 
 function UpcomingCard({ task }) {
@@ -616,7 +559,7 @@ function SmallEmpty({ text }) {
 }
 
 function MiniButton({ children, onClick, danger = false }) {
-  return <button type="button" onClick={onClick} style={{ border: danger ? "1px solid rgba(248,113,113,.32)" : "1px solid rgba(255,255,255,.22)", background: danger ? "rgba(127,29,29,.42)" : "rgba(15,23,42,.66)", color: danger ? "#fecaca" : "#f8fafc", borderRadius: "10px", padding: "7px 9px", cursor: "pointer" }}>{children}</button>;
+  return <button type="button" onClick={onClick} style={{ border: danger ? "1px solid rgba(248,113,113,.32)" : "1px solid rgba(255,255,255,.22)", background: danger ? "rgba(127,29,29,.42)" : "rgba(15,23,42,.66)", color: danger ? "#fecaca" : "#f8fafc", borderRadius: "10px", padding: "7px 9px", cursor: "pointer", fontWeight: 800 }}>{children}</button>;
 }
 
 function primaryButtonStyle(background) {
@@ -624,17 +567,6 @@ function primaryButtonStyle(background) {
 }
 
 function dayButtonStyle(isSelected, isToday) {
-  return {
-    minHeight: "52px",
-    borderRadius: "14px",
-    padding: "6px",
-    background: isSelected ? "rgba(255,255,255,.28)" : isToday ? "rgba(255,255,255,.18)" : "rgba(2,6,23,.38)",
-    border: isSelected ? "2px solid rgba(255,255,255,.88)" : isToday ? "1px solid rgba(255,255,255,.70)" : "1px solid rgba(255,255,255,.12)",
-    color: "#f8fafc",
-    fontSize: "11px",
-    boxShadow: isSelected ? "0 18px 34px rgba(255,255,255,.18)" : "none",
-    cursor: "pointer",
-    textAlign: "left",
-  };
+  return { minHeight: "52px", borderRadius: "14px", padding: "6px", background: isSelected ? "rgba(255,255,255,.28)" : isToday ? "rgba(255,255,255,.18)" : "rgba(2,6,23,.38)", border: isSelected ? "2px solid rgba(255,255,255,.88)" : isToday ? "1px solid rgba(255,255,255,.70)" : "1px solid rgba(255,255,255,.12)", color: "#f8fafc", fontSize: "11px", boxShadow: isSelected ? "0 18px 34px rgba(255,255,255,.18)" : "none", cursor: "pointer", textAlign: "left" };
 }
 
