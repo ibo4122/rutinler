@@ -15,6 +15,15 @@ const CATEGORIES = [
   { value: "not", label: "Gün Notu", icon: "📝", color: "#f472b6", bg: "linear-gradient(145deg, rgba(190,24,93,.34), rgba(244,114,182,.14))" },
 ];
 
+const GOAL_COLORS = [
+  { value: "blue", label: "Mavi", color: "#60a5fa", bg: "linear-gradient(145deg, rgba(37,99,235,.45), rgba(14,165,233,.16))" },
+  { value: "purple", label: "Mor", color: "#a78bfa", bg: "linear-gradient(145deg, rgba(124,58,237,.45), rgba(168,85,247,.16))" },
+  { value: "green", label: "Yeşil", color: "#34d399", bg: "linear-gradient(145deg, rgba(5,150,105,.42), rgba(16,185,129,.16))" },
+  { value: "yellow", label: "Sarı", color: "#fbbf24", bg: "linear-gradient(145deg, rgba(217,119,6,.42), rgba(251,191,36,.16))" },
+  { value: "pink", label: "Pembe", color: "#f472b6", bg: "linear-gradient(145deg, rgba(190,24,93,.42), rgba(244,114,182,.16))" },
+  { value: "cyan", label: "Camgöbeği", color: "#22d3ee", bg: "linear-gradient(145deg, rgba(8,145,178,.42), rgba(34,211,238,.16))" },
+];
+
 const PRIORITIES = [
   { value: "dusuk", label: "Düşük", icon: "🟢" },
   { value: "orta", label: "Orta", icon: "🟡" },
@@ -126,12 +135,26 @@ function normalizeRoutine(item) {
   };
 }
 
+function normalizeGoal(item) {
+  return {
+    id: String(item?.id || Date.now() + Math.random()),
+    title: item?.title || "Yeni Hedef",
+    progress: Math.max(0, Math.min(100, Number(item?.progress || 0))),
+    color: item?.color || "blue",
+    note: item?.note || "",
+  };
+}
+
 function categoryInfo(value) {
   return CATEGORIES.find((item) => item.value === value) || CATEGORIES[2];
 }
 
 function priorityInfo(value) {
   return PRIORITIES.find((item) => item.value === value) || PRIORITIES[1];
+}
+
+function goalColorInfo(value) {
+  return GOAL_COLORS.find((item) => item.value === value) || GOAL_COLORS[0];
 }
 
 function formatDate(value) {
@@ -157,7 +180,8 @@ function Select({ value, onChange, options }) {
 }
 
 export default function RoutinePlanner({ routines, setRoutines }) {
-  const list = Array.isArray(routines) ? routines : [];
+  const baseData = Array.isArray(routines) ? routines : [];
+  const routineItems = baseData.filter((item) => item?.recordType !== "goal");
   const currentYear = new Date().getFullYear();
 
   const [selectedYear, setSelectedYear] = useState(currentYear);
@@ -171,10 +195,12 @@ export default function RoutinePlanner({ routines, setRoutines }) {
   const [quickTitle, setQuickTitle] = useState("");
   const [quickCategory, setQuickCategory] = useState("gunluk");
   const [quickPriority, setQuickPriority] = useState("orta");
+  const [goalForm, setGoalForm] = useState({ title: "", progress: "0", color: "blue", note: "" });
   const [form, setForm] = useState({ title: "", category: "egitim", priority: "orta", date: todayISO(), note: "" });
-  const [openPanels, setOpenPanels] = useState({ hero: true, add: true, filters: true, months: true, calendar: true, dayNote: true, upcoming: true, categories: true });
+  const [openPanels, setOpenPanels] = useState({ hero: true, goals: true, add: true, filters: true, months: true, calendar: true, dayNote: true, upcoming: true, categories: true });
 
-  const normalized = useMemo(() => list.map(normalizeRoutine), [list]);
+  const normalized = useMemo(() => routineItems.map(normalizeRoutine), [routineItems]);
+  const goals = useMemo(() => baseData.filter((item) => item?.recordType === "goal").map(normalizeGoal), [baseData]);
   const weeks = useMemo(() => buildWeeks(selectedYear), [selectedYear]);
 
   const filtered = useMemo(() => normalized.filter((item) => {
@@ -207,6 +233,13 @@ export default function RoutinePlanner({ routines, setRoutines }) {
     return { total, done, pending: total - done, ratio: total ? Math.round((done / total) * 100) : 0 };
   }, [filtered]);
 
+  const goalStats = useMemo(() => {
+    const total = goals.length;
+    const average = total ? Math.round(goals.reduce((sum, item) => sum + item.progress, 0) / total) : 0;
+    const completed = goals.filter((item) => item.progress >= 100).length;
+    return { total, average, completed };
+  }, [goals]);
+
   const upcoming = useMemo(() => {
     const today = dateFromISO(todayISO());
     return normalized
@@ -226,6 +259,31 @@ export default function RoutinePlanner({ routines, setRoutines }) {
     if (!title) return alert("Rutin / iş adı gir.");
     addItem({ title, category: form.category, priority: form.priority, date: form.date || selectedDate || todayISO(), note: form.note.trim() });
     setForm({ title: "", category: form.category, priority: "orta", date: selectedDate || todayISO(), note: "" });
+  };
+
+  const addGoal = () => {
+    const title = goalForm.title.trim();
+    if (!title) return alert("Hedef adı gir. Örn: SQL, Saz, İngilizce");
+    addItem({
+      recordType: "goal",
+      title,
+      progress: Math.max(0, Math.min(100, Number(goalForm.progress || 0))),
+      color: goalForm.color,
+      note: goalForm.note.trim(),
+    });
+    setGoalForm({ title: "", progress: "0", color: goalForm.color, note: "" });
+  };
+
+  const updateGoal = (id, field, value) => {
+    setRoutines?.((current) => (Array.isArray(current) ? current : []).map((item) => {
+      if (String(item.id) !== String(id)) return item;
+      if (field === "progress") return { ...item, progress: Math.max(0, Math.min(100, Number(value || 0))) };
+      return { ...item, [field]: value };
+    }));
+  };
+
+  const deleteGoal = (id) => {
+    setRoutines?.((current) => (Array.isArray(current) ? current : []).filter((item) => String(item.id) !== String(id)));
   };
 
   const addQuickTask = () => {
@@ -270,15 +328,31 @@ export default function RoutinePlanner({ routines, setRoutines }) {
           <div style={{ display: "flex", justifyContent: "space-between", gap: "18px", flexWrap: "wrap" }}>
             <div>
               <h2 style={{ margin: 0, fontSize: "clamp(28px, 4vw, 44px)", color: "#f8fafc", letterSpacing: "-0.04em", textShadow: "0 14px 35px rgba(0,0,0,.35)" }}>{selectedYear} Rutin Planı</h2>
-              <p style={{ color: "#e0f2fe", maxWidth: "760px", lineHeight: 1.6 }}>Gün seçince doğru gün seçilir. Güne direkt hızlı veri girişi yapılır.</p>
+              <p style={{ color: "#e0f2fe", maxWidth: "760px", lineHeight: 1.6 }}>Hedeflerini, haftalık rutinlerini ve gün notlarını tek ekranda yönet.</p>
             </div>
             <Field label="Yıl"><Select value={selectedYear} onChange={setSelectedYear} options={[currentYear - 1, currentYear, currentYear + 1].map((year) => ({ value: year, label: String(year) }))} /></Field>
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: "12px", marginTop: "22px" }}>
-            <Stat label="Toplam" value={stats.total} gradient="linear-gradient(145deg, rgba(59,130,246,.42), rgba(14,165,233,.18))" />
+            <Stat label="Rutin" value={stats.total} gradient="linear-gradient(145deg, rgba(59,130,246,.42), rgba(14,165,233,.18))" />
             <Stat label="Tamamlanan" value={stats.done} gradient="linear-gradient(145deg, rgba(16,185,129,.42), rgba(52,211,153,.18))" />
             <Stat label="Bekleyen" value={stats.pending} gradient="linear-gradient(145deg, rgba(251,191,36,.42), rgba(245,158,11,.18))" />
-            <Stat label="Başarı" value={`%${stats.ratio}`} gradient="linear-gradient(145deg, rgba(168,85,247,.42), rgba(236,72,153,.16))" />
+            <Stat label="Hedef Ort." value={`%${goalStats.average}`} gradient="linear-gradient(145deg, rgba(168,85,247,.42), rgba(236,72,153,.16))" />
+          </div>
+        </Panel>
+
+        <Panel title="🎯 Hedeflerim" gradient="linear-gradient(145deg, rgba(49,46,129,.88), rgba(8,47,73,.82), rgba(15,23,42,.88))" open={openPanels.goals} onToggle={() => togglePanel("goals")}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "12px", marginBottom: "14px" }}>
+            <Field label="Hedef"><input style={inputStyle} value={goalForm.title} placeholder="Örn: SQL, Saz, İngilizce" onChange={(event) => setGoalForm((current) => ({ ...current, title: event.target.value }))} /></Field>
+            <Field label="İlerleme %"><input style={inputStyle} type="number" min="0" max="100" value={goalForm.progress} onChange={(event) => setGoalForm((current) => ({ ...current, progress: event.target.value }))} /></Field>
+            <Field label="Renk"><Select value={goalForm.color} onChange={(value) => setGoalForm((current) => ({ ...current, color: value }))} options={GOAL_COLORS.map((item) => ({ value: item.value, label: item.label }))} /></Field>
+            <Field label="Not"><input style={inputStyle} value={goalForm.note} placeholder="Opsiyonel" onChange={(event) => setGoalForm((current) => ({ ...current, note: event.target.value }))} /></Field>
+            <button type="button" onClick={addGoal} style={primaryButtonStyle("linear-gradient(135deg, #c4b5fd, #67e8f9, #fef08a)")}>Hedef Ekle</button>
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: "12px" }}>
+            {goals.length === 0 ? <SmallEmpty text="Henüz hedef eklenmedi. Örn: SQL %10, Saz %5, İngilizce %20." /> : goals.map((goal) => (
+              <GoalCard key={goal.id} goal={goal} onUpdate={updateGoal} onDelete={deleteGoal} />
+            ))}
           </div>
         </Panel>
 
@@ -384,12 +458,10 @@ export default function RoutinePlanner({ routines, setRoutines }) {
             {upcoming.length === 0 ? <SmallEmpty text="Yaklaşan iş yok." /> : upcoming.map((task) => <UpcomingCard key={task.id} task={task} />)}
           </div>
         </Panel>
-        <Panel title="🎯 Kategori Görselleri" gradient="linear-gradient(145deg, rgba(8,47,73,.88), rgba(15,23,42,.88))" open={openPanels.categories} onToggle={() => togglePanel("categories")}>
+        <Panel title="🎯 Hedef Özeti" gradient="linear-gradient(145deg, rgba(88,28,135,.88), rgba(15,23,42,.88))" open={openPanels.categories} onToggle={() => togglePanel("categories")}>
           <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-            {CATEGORIES.map((category) => {
-              const count = filtered.filter((item) => item.category === category.value).length;
-              return <div key={category.value} style={{ padding: "13px", borderRadius: "18px", background: category.bg, border: `1px solid ${category.color}66`, boxShadow: `0 12px 28px ${category.color}22` }}><strong style={{ color: "#f8fafc" }}>{category.icon} {category.label}</strong><span style={{ display: "block", color: "#cbd5e1", fontSize: "12px", marginTop: "5px" }}>{count} kayıt</span></div>;
-            })}
+            <SmallEmpty text={`Toplam hedef: ${goalStats.total} • Ortalama ilerleme: %${goalStats.average} • Tamamlanan: ${goalStats.completed}`} />
+            {goals.slice(0, 5).map((goal) => <GoalMini key={goal.id} goal={goal} />)}
           </div>
         </Panel>
       </aside>
@@ -415,6 +487,36 @@ function Stat({ label, value, gradient }) {
 
 function MonthCard({ active, title, count, onClick, gradient }) {
   return <button type="button" onClick={onClick} style={{ ...baseGlass, background: gradient, borderRadius: "20px", padding: "15px", cursor: "pointer", textAlign: "left", borderColor: active ? "rgba(255,255,255,.75)" : "rgba(255,255,255,.15)", transform: active ? "translateY(-5px) scale(1.02)" : "none" }}><strong style={{ display: "block", color: "#f8fafc", fontSize: "15px" }}>{title}</strong><span style={{ display: "block", color: "#dbeafe", marginTop: "5px", fontSize: "12px" }}>{count} kayıt</span></button>;
+}
+
+function GoalCard({ goal, onUpdate, onDelete }) {
+  const color = goalColorInfo(goal.color);
+  return (
+    <div style={{ ...baseGlass, background: color.bg, borderColor: `${color.color}66`, borderRadius: "22px", padding: "16px" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", alignItems: "flex-start" }}>
+        <div>
+          <strong style={{ color: "#f8fafc", fontSize: "18px", display: "block" }}>{goal.title}</strong>
+          {goal.note ? <span style={{ color: "#cbd5e1", fontSize: "12px", display: "block", marginTop: "4px" }}>{goal.note}</span> : null}
+        </div>
+        <strong style={{ color: color.color, fontSize: "22px" }}>%{goal.progress}</strong>
+      </div>
+
+      <div style={{ height: "14px", borderRadius: "999px", background: "rgba(2,6,23,.45)", marginTop: "14px", overflow: "hidden", border: "1px solid rgba(255,255,255,.12)" }}>
+        <div style={{ width: `${goal.progress}%`, height: "100%", borderRadius: "999px", background: `linear-gradient(90deg, ${color.color}, #f8fafc)`, boxShadow: `0 0 18px ${color.color}66` }} />
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 82px 80px", gap: "8px", marginTop: "14px", alignItems: "center" }}>
+        <input type="range" min="0" max="100" value={goal.progress} onChange={(event) => onUpdate(goal.id, "progress", event.target.value)} />
+        <input style={{ ...inputStyle, padding: "9px 10px" }} type="number" min="0" max="100" value={goal.progress} onChange={(event) => onUpdate(goal.id, "progress", event.target.value)} />
+        <MiniButton danger onClick={() => onDelete(goal.id)}>Sil</MiniButton>
+      </div>
+    </div>
+  );
+}
+
+function GoalMini({ goal }) {
+  const color = goalColorInfo(goal.color);
+  return <div style={{ padding: "13px", borderRadius: "18px", background: color.bg, border: `1px solid ${color.color}66` }}><strong style={{ color: "#f8fafc", display: "block" }}>{goal.title} • %{goal.progress}</strong><div style={{ height: "8px", borderRadius: "999px", background: "rgba(2,6,23,.45)", marginTop: "8px", overflow: "hidden" }}><div style={{ width: `${goal.progress}%`, height: "100%", background: color.color }} /></div></div>;
 }
 
 function TaskCard({ task, onToggle, onDelete }) {
