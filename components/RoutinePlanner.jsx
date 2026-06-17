@@ -75,7 +75,10 @@ function dateFromISO(value) {
   const [year, month, day] = String(value || todayISO()).split("-").map(Number);
   return new Date(year || new Date().getFullYear(), (month || 1) - 1, day || 1, 12, 0, 0, 0);
 }
-function formatDate(value) { const d = dateFromISO(value); return `${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`; }
+function formatDate(value) {
+  const date = dateFromISO(value);
+  return `${date.getDate()} ${MONTHS[date.getMonth()]} ${date.getFullYear()}`;
+}
 function categoryInfo(value) { return CATEGORIES.find((item) => item.value === value) || CATEGORIES[2]; }
 function priorityInfo(value) { return PRIORITIES.find((item) => item.value === value) || PRIORITIES[1]; }
 function statusInfo(value) { return STATUSES.find((item) => item.value === value) || STATUSES[0]; }
@@ -130,11 +133,7 @@ function Field({ label, children }) {
 }
 
 function Select({ value, onChange, options, style }) {
-  return (
-    <select value={value} onChange={(event) => onChange(event.target.value)} style={{ ...inputStyle, ...style }}>
-      {options.map((option) => <option key={option.value} value={option.value} style={{ color: "#0f172a", background: "#ffffff" }}>{option.label}</option>)}
-    </select>
-  );
+  return <select value={value} onChange={(event) => onChange(event.target.value)} style={{ ...inputStyle, ...style }}>{options.map((option) => <option key={option.value} value={option.value} style={{ color: "#0f172a", background: "#ffffff" }}>{option.label}</option>)}</select>;
 }
 
 export default function RoutinePlanner({ routines, setRoutines }) {
@@ -147,23 +146,18 @@ export default function RoutinePlanner({ routines, setRoutines }) {
 
   const [year, setYear] = useState(currentYear);
   const [month, setMonth] = useState(String(currentMonth));
-  const [statusFilter, setStatusFilter] = useState("all");
-  const [categoryFilter, setCategoryFilter] = useState("all");
-  const [priorityFilter, setPriorityFilter] = useState("all");
-  const [search, setSearch] = useState("");
   const [selectedDate, setSelectedDate] = useState(todayISO());
   const [modalDate, setModalDate] = useState(null);
   const [quickTitle, setQuickTitle] = useState("");
   const [quickCategory, setQuickCategory] = useState("gunluk");
   const [quickPriority, setQuickPriority] = useState("orta");
   const [dayNote, setDayNote] = useState("");
-  const [taskForm, setTaskForm] = useState({ title: "", category: "egitim", priority: "orta", date: todayISO(), note: "" });
   const [goalForm, setGoalForm] = useState({ title: "", progress: "0", color: "blue", note: "" });
   const [editTaskId, setEditTaskId] = useState(null);
   const [editTask, setEditTask] = useState({ title: "", category: "gunluk", priority: "orta", date: todayISO(), note: "" });
   const [editGoalId, setEditGoalId] = useState(null);
   const [editGoal, setEditGoal] = useState({ title: "", progress: "0", color: "blue", note: "" });
-  const [openPanels, setOpenPanels] = useState({ hero: true, goals: true, filters: true, add: true, calendar: true, upcoming: true });
+  const [openPanels, setOpenPanels] = useState({ hero: true, goals: true, calendar: true, upcoming: true });
 
   const monthIndex = Number(month);
   const calendarCells = useMemo(() => buildMonthGrid(year, monthIndex), [year, monthIndex]);
@@ -172,13 +166,8 @@ export default function RoutinePlanner({ routines, setRoutines }) {
 
   const monthTasks = useMemo(() => tasks.filter((task) => {
     const date = dateFromISO(task.date);
-    return date.getFullYear() === Number(year)
-      && date.getMonth() === monthIndex
-      && (statusFilter === "all" || task.status === statusFilter)
-      && (categoryFilter === "all" || task.category === categoryFilter)
-      && (priorityFilter === "all" || task.priority === priorityFilter)
-      && (!search.trim() || `${task.title} ${task.note}`.toLowerCase().includes(search.toLowerCase()));
-  }), [tasks, year, monthIndex, statusFilter, categoryFilter, priorityFilter, search]);
+    return date.getFullYear() === Number(year) && date.getMonth() === monthIndex;
+  }), [tasks, year, monthIndex]);
 
   const byDate = useMemo(() => monthTasks.reduce((map, task) => {
     if (!map[task.date]) map[task.date] = [];
@@ -190,7 +179,6 @@ export default function RoutinePlanner({ routines, setRoutines }) {
   const doneCount = monthTasks.filter((task) => task.status === "done").length;
   const pendingCount = monthTasks.filter((task) => task.status === "pending").length;
   const failedCount = monthTasks.filter((task) => task.status === "failed").length;
-  const goalAverage = goals.length ? Math.round(goals.reduce((sum, goal) => sum + goal.progress, 0) / goals.length) : 0;
   const upcoming = tasks.filter((task) => task.status === "pending" && dateFromISO(task.date) >= dateFromISO(todayISO())).sort((a, b) => a.date.localeCompare(b.date));
 
   const togglePanel = (key) => setOpenPanels((current) => ({ ...current, [key]: !current[key] }));
@@ -203,7 +191,6 @@ export default function RoutinePlanner({ routines, setRoutines }) {
     setModalDate(dateKey);
     setQuickTitle("");
     setDayNote("");
-    setTaskForm((current) => ({ ...current, date: dateKey }));
   };
 
   const closeModal = () => {
@@ -214,14 +201,17 @@ export default function RoutinePlanner({ routines, setRoutines }) {
   };
 
   const changeStatus = (id, status) => updateItem(id, { status, done: status === "done", completed: status === "done", failed: status === "failed" });
-  const startTaskEdit = (task) => { setSelectedDate(task.date); setModalDate(task.date); setEditTaskId(task.id); setEditTask({ title: task.title, category: task.category, priority: task.priority, date: task.date, note: task.note || "" }); };
-  const saveTaskEdit = (id) => { const title = editTask.title.trim(); if (!title) return alert("Başlık boş olamaz."); updateItem(id, { ...editTask, title, note: editTask.note.trim() }); setEditTaskId(null); };
-
-  const addTask = () => {
-    const title = taskForm.title.trim();
-    if (!title) return alert("Rutin / iş adı gir.");
-    addItem({ ...taskForm, title, note: taskForm.note.trim(), date: taskForm.date || modalDate || selectedDate || todayISO() });
-    setTaskForm({ title: "", category: taskForm.category, priority: taskForm.priority, date: modalDate || selectedDate || todayISO(), note: "" });
+  const startTaskEdit = (task) => {
+    setSelectedDate(task.date);
+    setModalDate(task.date);
+    setEditTaskId(task.id);
+    setEditTask({ title: task.title, category: task.category, priority: task.priority, date: task.date, note: task.note || "" });
+  };
+  const saveTaskEdit = (id) => {
+    const title = editTask.title.trim();
+    if (!title) return alert("Başlık boş olamaz.");
+    updateItem(id, { ...editTask, title, note: editTask.note.trim() });
+    setEditTaskId(null);
   };
 
   const addQuick = () => {
@@ -249,8 +239,16 @@ export default function RoutinePlanner({ routines, setRoutines }) {
     setGoalForm({ title: "", progress: "0", color: goalForm.color, note: "" });
   };
 
-  const startGoalEdit = (goal) => { setEditGoalId(goal.id); setEditGoal({ title: goal.title, progress: String(goal.progress), color: goal.color, note: goal.note || "" }); };
-  const saveGoalEdit = (id) => { const title = editGoal.title.trim(); if (!title) return alert("Hedef adı boş olamaz."); updateItem(id, { title, progress: Math.max(0, Math.min(100, Number(editGoal.progress || 0))), color: editGoal.color, note: editGoal.note.trim() }); setEditGoalId(null); };
+  const startGoalEdit = (goal) => {
+    setEditGoalId(goal.id);
+    setEditGoal({ title: goal.title, progress: String(goal.progress), color: goal.color, note: goal.note || "" });
+  };
+  const saveGoalEdit = (id) => {
+    const title = editGoal.title.trim();
+    if (!title) return alert("Hedef adı boş olamaz.");
+    updateItem(id, { title, progress: Math.max(0, Math.min(100, Number(editGoal.progress || 0))), color: editGoal.color, note: editGoal.note.trim() });
+    setEditGoalId(null);
+  };
 
   const goToday = () => {
     const today = todayISO();
@@ -258,7 +256,6 @@ export default function RoutinePlanner({ routines, setRoutines }) {
     setMonth(String(currentMonth));
     setSelectedDate(today);
     setModalDate(today);
-    setTaskForm((current) => ({ ...current, date: today }));
   };
 
   const calendarOpacity = selectedYearIsPast ? .66 : selectedMonthIsPast ? .82 : 1;
@@ -269,7 +266,10 @@ export default function RoutinePlanner({ routines, setRoutines }) {
         <div>
           <Panel title="Aylık Rutin Takvimi" open={openPanels.hero} onToggle={() => togglePanel("hero")} gradient="linear-gradient(135deg, rgba(30,64,175,.88), rgba(88,28,135,.82), rgba(15,23,42,.92))">
             <div style={{ display: "flex", justifyContent: "space-between", gap: 16, flexWrap: "wrap", alignItems: "flex-start" }}>
-              <div><h2 style={{ margin: 0, color: "#fff", fontSize: 34 }}>{MONTHS[monthIndex]} {year}</h2><p style={{ color: "#dbeafe", marginBottom: 0 }}>Takvim sadeleştirildi. Notları görmek, eklemek ve düzenlemek için gün kutusundaki butonu kullan.</p></div>
+              <div>
+                <h2 style={{ margin: 0, color: "#fff", fontSize: 34 }}>{MONTHS[monthIndex]} {year}</h2>
+                <p style={{ color: "#dbeafe", marginBottom: 0 }}>Filtre ve ayrı ekleme alanları kaldırıldı. Tüm işlemleri takvimdeki Notları Gör / Not Ekle penceresinden yapabilirsin.</p>
+              </div>
               <button type="button" style={primaryButton("linear-gradient(135deg,#bfdbfe,#67e8f9,#fef08a)")} onClick={goToday}>Bugüne Dön</button>
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: 12, marginTop: 18 }}>
@@ -293,35 +293,12 @@ export default function RoutinePlanner({ routines, setRoutines }) {
             </div>
           </Panel>
 
-          <Panel title="Filtreler" open={openPanels.filters} onToggle={() => togglePanel("filters")} gradient="linear-gradient(145deg, rgba(120,53,15,.88), rgba(88,28,135,.70), rgba(15,23,42,.86))">
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 12 }}>
-              <Field label="Yıl"><Select value={year} onChange={(value) => setYear(Number(value))} options={yearOptions(currentYear).map((item) => ({ value: item, label: String(item) }))} /></Field>
-              <Field label="Ay"><Select value={month} onChange={setMonth} options={MONTHS.map((item, index) => ({ value: String(index), label: item }))} /></Field>
-              <Field label="Durum"><Select value={statusFilter} onChange={setStatusFilter} options={[{ value: "all", label: "Tüm Durumlar" }, ...STATUSES.map((item) => ({ value: item.value, label: `${item.icon} ${item.label}` }))]} /></Field>
-              <Field label="Kategori"><Select value={categoryFilter} onChange={setCategoryFilter} options={[{ value: "all", label: "Tüm Kategoriler" }, ...CATEGORIES.map((item) => ({ value: item.value, label: `${item.icon} ${item.label}` }))]} /></Field>
-              <Field label="Öncelik"><Select value={priorityFilter} onChange={setPriorityFilter} options={[{ value: "all", label: "Tüm Öncelikler" }, ...PRIORITIES.map((item) => ({ value: item.value, label: `${item.icon} ${item.label}` }))]} /></Field>
-              <Field label="Arama"><input style={inputStyle} value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Başlık veya not ara" /></Field>
-            </div>
-          </Panel>
-
-          <Panel title="Yeni Rutin / İş Ekle" open={openPanels.add} onToggle={() => togglePanel("add")} gradient="linear-gradient(145deg, rgba(6,78,59,.88), rgba(15,23,42,.86))">
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 12 }}>
-              <Field label="Başlık"><input style={inputStyle} value={taskForm.title} onChange={(event) => setTaskForm((current) => ({ ...current, title: event.target.value }))} /></Field>
-              <Field label="Kategori"><Select value={taskForm.category} onChange={(value) => setTaskForm((current) => ({ ...current, category: value }))} options={CATEGORIES.map((item) => ({ value: item.value, label: `${item.icon} ${item.label}` }))} /></Field>
-              <Field label="Öncelik"><Select value={taskForm.priority} onChange={(value) => setTaskForm((current) => ({ ...current, priority: value }))} options={PRIORITIES.map((item) => ({ value: item.value, label: `${item.icon} ${item.label}` }))} /></Field>
-              <Field label="Tarih"><input style={inputStyle} type="date" value={taskForm.date} onChange={(event) => setTaskForm((current) => ({ ...current, date: event.target.value }))} /></Field>
-              <Field label="Not"><input style={inputStyle} value={taskForm.note} onChange={(event) => setTaskForm((current) => ({ ...current, note: event.target.value }))} /></Field>
-              <button type="button" style={primaryButton("linear-gradient(135deg,#fef08a,#34d399,#22d3ee)")} onClick={addTask}>Ekle</button>
-            </div>
-          </Panel>
-
           <Panel title={`${MONTHS[monthIndex]} ${year} Takvimi`} open={openPanels.calendar} onToggle={() => togglePanel("calendar")} gradient="linear-gradient(145deg, rgba(8,47,73,.90), rgba(15,23,42,.90))">
             <div style={{ display: "grid", gridTemplateColumns: "180px 180px 130px", gap: 10, marginBottom: 14, alignItems: "end" }}>
               <Field label="Takvim Yılı"><Select value={year} onChange={(value) => setYear(Number(value))} options={yearOptions(currentYear).map((item) => ({ value: item, label: String(item) }))} /></Field>
               <Field label="Takvim Ayı"><Select value={month} onChange={setMonth} options={MONTHS.map((item, index) => ({ value: String(index), label: item }))} /></Field>
               <button type="button" style={primaryButton("linear-gradient(135deg,#bfdbfe,#67e8f9,#fef08a)")} onClick={goToday}>Bugüne Dön</button>
             </div>
-
             <div style={{ opacity: calendarOpacity, transition: "opacity .2s ease" }}>
               {selectedYearIsPast ? <Notice text="Geçmiş yıl görüntüleniyor. Takvim bilinçli olarak hafif soluk gösterilir." /> : selectedMonthIsPast ? <Notice text="Geçmiş ay görüntüleniyor. Takvim hafif soluk gösterilir." /> : null}
               <div style={{ ...glass, borderRadius: 24, overflow: "hidden", background: `linear-gradient(145deg, ${MONTH_COLORS[monthIndex]}30, rgba(2,6,23,.62))` }}>
@@ -347,31 +324,7 @@ export default function RoutinePlanner({ routines, setRoutines }) {
         </aside>
       </section>
 
-      {modalDate ? (
-        <DayModal
-          dateKey={modalDate}
-          tasks={modalTasks}
-          quickTitle={quickTitle}
-          setQuickTitle={setQuickTitle}
-          quickCategory={quickCategory}
-          setQuickCategory={setQuickCategory}
-          quickPriority={quickPriority}
-          setQuickPriority={setQuickPriority}
-          dayNote={dayNote}
-          setDayNote={setDayNote}
-          addQuick={addQuick}
-          addNote={addNote}
-          onClose={closeModal}
-          editTaskId={editTaskId}
-          editTask={editTask}
-          setEditTask={setEditTask}
-          onEdit={startTaskEdit}
-          onSave={saveTaskEdit}
-          onCancel={() => setEditTaskId(null)}
-          onStatus={changeStatus}
-          onDelete={deleteItem}
-        />
-      ) : null}
+      {modalDate ? <DayModal dateKey={modalDate} tasks={modalTasks} quickTitle={quickTitle} setQuickTitle={setQuickTitle} quickCategory={quickCategory} setQuickCategory={setQuickCategory} quickPriority={quickPriority} setQuickPriority={setQuickPriority} dayNote={dayNote} setDayNote={setDayNote} addQuick={addQuick} addNote={addNote} onClose={closeModal} editTaskId={editTaskId} editTask={editTask} setEditTask={setEditTask} onEdit={startTaskEdit} onSave={saveTaskEdit} onCancel={() => setEditTaskId(null)} onStatus={changeStatus} onDelete={deleteItem} /> : null}
     </>
   );
 }
@@ -381,85 +334,18 @@ function DayCell({ cell, tasks, isToday, isSelected, onOpen, borderRight }) {
   const pending = tasks.filter((task) => task.status === "pending").length;
   const failed = tasks.filter((task) => task.status === "failed").length;
   const bg = isToday ? "linear-gradient(145deg, rgba(250,204,21,.34), rgba(34,211,238,.18), rgba(15,23,42,.80))" : isSelected ? "linear-gradient(145deg, rgba(255,255,255,.18), rgba(96,165,250,.12), rgba(15,23,42,.78))" : "rgba(2,6,23,.34)";
-
-  return (
-    <div style={{ minHeight: 126, padding: 10, background: bg, borderRight, borderBottom: "1px solid rgba(255,255,255,.08)", outline: isToday ? "2px solid rgba(250,204,21,.86)" : "none", outlineOffset: -2 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
-        <strong style={{ color: isToday ? "#fef9c3" : "#fff", fontSize: 18, lineHeight: 1 }}>{cell.day}</strong>
-        {isToday ? <span style={{ color: "#111827", background: "#facc15", borderRadius: 999, padding: "3px 7px", fontSize: 10, fontWeight: 950 }}>BUGÜN</span> : null}
-      </div>
-
-      <div style={{ marginTop: 10, color: tasks.length ? "#dbeafe" : "#64748b", fontSize: 12, fontWeight: 800 }}>
-        {tasks.length ? `${tasks.length} kayıt` : "Kayıt yok"}
-      </div>
-
-      {tasks.length ? (
-        <div style={{ display: "flex", gap: 5, flexWrap: "wrap", marginTop: 8 }}>
-          {pending ? <Badge color="#60a5fa" text={`${pending} devam`} /> : null}
-          {done ? <Badge color="#22c55e" text={`${done} tamam`} /> : null}
-          {failed ? <Badge color="#ef4444" text={`${failed} eksik`} /> : null}
-        </div>
-      ) : null}
-
-      <button type="button" onClick={() => onOpen(cell.dateKey)} style={{ ...smallButton, marginTop: 10, width: "100%", background: tasks.length ? "linear-gradient(135deg, rgba(96,165,250,.34), rgba(34,211,238,.18))" : "rgba(15,23,42,.62)", borderColor: tasks.length ? "rgba(96,165,250,.55)" : "rgba(255,255,255,.14)" }}>
-        {tasks.length ? "Notları Gör" : "Not Ekle"}
-      </button>
-    </div>
-  );
+  return <div style={{ minHeight: 126, padding: 10, background: bg, borderRight, borderBottom: "1px solid rgba(255,255,255,.08)", outline: isToday ? "2px solid rgba(250,204,21,.86)" : "none", outlineOffset: -2 }}><div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}><strong style={{ color: isToday ? "#fef9c3" : "#fff", fontSize: 18, lineHeight: 1 }}>{cell.day}</strong>{isToday ? <span style={{ color: "#111827", background: "#facc15", borderRadius: 999, padding: "3px 7px", fontSize: 10, fontWeight: 950 }}>BUGÜN</span> : null}</div><div style={{ marginTop: 10, color: tasks.length ? "#dbeafe" : "#64748b", fontSize: 12, fontWeight: 800 }}>{tasks.length ? `${tasks.length} kayıt` : "Kayıt yok"}</div>{tasks.length ? <div style={{ display: "flex", gap: 5, flexWrap: "wrap", marginTop: 8 }}>{pending ? <Badge color="#60a5fa" text={`${pending} devam`} /> : null}{done ? <Badge color="#22c55e" text={`${done} tamam`} /> : null}{failed ? <Badge color="#ef4444" text={`${failed} eksik`} /> : null}</div> : null}<button type="button" onClick={() => onOpen(cell.dateKey)} style={{ ...smallButton, marginTop: 10, width: "100%", background: tasks.length ? "linear-gradient(135deg, rgba(96,165,250,.34), rgba(34,211,238,.18))" : "rgba(15,23,42,.62)", borderColor: tasks.length ? "rgba(96,165,250,.55)" : "rgba(255,255,255,.14)" }}>{tasks.length ? "Notları Gör" : "Not Ekle"}</button></div>;
 }
 
 function DayModal({ dateKey, tasks, quickTitle, setQuickTitle, quickCategory, setQuickCategory, quickPriority, setQuickPriority, dayNote, setDayNote, addQuick, addNote, onClose, editTaskId, editTask, setEditTask, onEdit, onSave, onCancel, onStatus, onDelete }) {
   const done = tasks.filter((task) => task.status === "done").length;
   const pending = tasks.filter((task) => task.status === "pending").length;
   const failed = tasks.filter((task) => task.status === "failed").length;
-
-  return (
-    <div style={{ position: "fixed", inset: 0, zIndex: 9999, background: "rgba(2,6,23,.72)", backdropFilter: "blur(8px)", display: "grid", placeItems: "center", padding: 18 }} onClick={onClose}>
-      <div style={{ ...glass, width: "min(1120px, 96vw)", maxHeight: "90vh", overflowY: "auto", borderRadius: 28, padding: 22, background: "linear-gradient(145deg, rgba(30,41,59,.96), rgba(15,23,42,.96), rgba(49,46,129,.86))" }} onClick={(event) => event.stopPropagation()}>
-        <div style={{ display: "flex", justifyContent: "space-between", gap: 14, alignItems: "flex-start", marginBottom: 16 }}>
-          <div>
-            <h2 style={{ margin: 0, color: "#fff", fontSize: 28 }}>{formatDate(dateKey)} Notları</h2>
-            <p style={{ color: "#cbd5e1", margin: "7px 0 0" }}>Bu pencere üzerinden not ekleyebilir, durum değiştirebilir ve kayıtları düzenleyebilirsin.</p>
-          </div>
-          <button type="button" style={{ ...smallButton, width: 42, height: 42, borderRadius: 14, fontSize: 18 }} onClick={onClose}>×</button>
-        </div>
-
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 10, marginBottom: 16 }}>
-          <Stat label="Toplam" value={tasks.length} color="#60a5fa" />
-          <Stat label="Devam Ediyor" value={pending} color="#60a5fa" />
-          <Stat label="Tamamlandı" value={done} color="#22c55e" />
-          <Stat label="Tamamlanamadı" value={failed} color="#ef4444" />
-        </div>
-
-        <div style={{ ...glass, borderRadius: 22, padding: 16, marginBottom: 16, background: "linear-gradient(145deg, rgba(8,145,178,.22), rgba(2,6,23,.34))" }}>
-          <h3 style={{ margin: "0 0 12px", color: "#fff" }}>Hızlı Kayıt Ekle</h3>
-          <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) 160px 140px 100px", gap: 10 }}>
-            <input style={inputStyle} value={quickTitle} onChange={(event) => setQuickTitle(event.target.value)} placeholder="Başlık yaz" />
-            <Select value={quickCategory} onChange={setQuickCategory} options={CATEGORIES.map((item) => ({ value: item.value, label: `${item.icon} ${item.label}` }))} />
-            <Select value={quickPriority} onChange={setQuickPriority} options={PRIORITIES.map((item) => ({ value: item.value, label: `${item.icon} ${item.label}` }))} />
-            <button type="button" style={primaryButton("linear-gradient(135deg,#bfdbfe,#67e8f9)")} onClick={addQuick}>Ekle</button>
-          </div>
-          <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) 130px", gap: 10, marginTop: 12 }}>
-            <textarea style={{ ...inputStyle, minHeight: 82, resize: "vertical" }} value={dayNote} onChange={(event) => setDayNote(event.target.value)} placeholder="İstersen güne özel uzun not yaz" />
-            <button type="button" style={primaryButton("linear-gradient(135deg,#f9a8d4,#fef08a)")} onClick={addNote}>Not Kaydet</button>
-          </div>
-        </div>
-
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(310px, 1fr))", gap: 12 }}>
-          {tasks.length === 0 ? <Empty text="Bu güne ait kayıt yok. Yukarıdan yeni kayıt ekleyebilirsin." /> : tasks.map((task) => <TaskCard key={task.id} task={task} editId={editTaskId} edit={editTask} setEdit={setEditTask} onEdit={onEdit} onSave={onSave} onCancel={onCancel} onStatus={onStatus} onDelete={onDelete} />)}
-        </div>
-      </div>
-    </div>
-  );
+  return <div style={{ position: "fixed", inset: 0, zIndex: 9999, background: "rgba(2,6,23,.72)", backdropFilter: "blur(8px)", display: "grid", placeItems: "center", padding: 18 }} onClick={onClose}><div style={{ ...glass, width: "min(1120px, 96vw)", maxHeight: "90vh", overflowY: "auto", borderRadius: 28, padding: 22, background: "linear-gradient(145deg, rgba(30,41,59,.96), rgba(15,23,42,.96), rgba(49,46,129,.86))" }} onClick={(event) => event.stopPropagation()}><div style={{ display: "flex", justifyContent: "space-between", gap: 14, alignItems: "flex-start", marginBottom: 16 }}><div><h2 style={{ margin: 0, color: "#fff", fontSize: 28 }}>{formatDate(dateKey)} Notları</h2><p style={{ color: "#cbd5e1", margin: "7px 0 0" }}>Bu pencere üzerinden not ekleyebilir, durum değiştirebilir ve kayıtları düzenleyebilirsin.</p></div><button type="button" style={{ ...smallButton, width: 42, height: 42, borderRadius: 14, fontSize: 18 }} onClick={onClose}>×</button></div><div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 10, marginBottom: 16 }}><Stat label="Toplam" value={tasks.length} color="#60a5fa" /><Stat label="Devam Ediyor" value={pending} color="#60a5fa" /><Stat label="Tamamlandı" value={done} color="#22c55e" /><Stat label="Tamamlanamadı" value={failed} color="#ef4444" /></div><div style={{ ...glass, borderRadius: 22, padding: 16, marginBottom: 16, background: "linear-gradient(145deg, rgba(8,145,178,.22), rgba(2,6,23,.34))" }}><h3 style={{ margin: "0 0 12px", color: "#fff" }}>Hızlı Kayıt Ekle</h3><div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) 160px 140px 100px", gap: 10 }}><input style={inputStyle} value={quickTitle} onChange={(event) => setQuickTitle(event.target.value)} placeholder="Başlık yaz" /><Select value={quickCategory} onChange={setQuickCategory} options={CATEGORIES.map((item) => ({ value: item.value, label: `${item.icon} ${item.label}` }))} /><Select value={quickPriority} onChange={setQuickPriority} options={PRIORITIES.map((item) => ({ value: item.value, label: `${item.icon} ${item.label}` }))} /><button type="button" style={primaryButton("linear-gradient(135deg,#bfdbfe,#67e8f9)")} onClick={addQuick}>Ekle</button></div><div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) 130px", gap: 10, marginTop: 12 }}><textarea style={{ ...inputStyle, minHeight: 82, resize: "vertical" }} value={dayNote} onChange={(event) => setDayNote(event.target.value)} placeholder="İstersen güne özel uzun not yaz" /><button type="button" style={primaryButton("linear-gradient(135deg,#f9a8d4,#fef08a)")} onClick={addNote}>Not Kaydet</button></div></div><div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(310px, 1fr))", gap: 12 }}>{tasks.length === 0 ? <Empty text="Bu güne ait kayıt yok. Yukarıdan yeni kayıt ekleyebilirsin." /> : tasks.map((task) => <TaskCard key={task.id} task={task} editId={editTaskId} edit={editTask} setEdit={setEditTask} onEdit={onEdit} onSave={onSave} onCancel={onCancel} onStatus={onStatus} onDelete={onDelete} />)}</div></div></div>;
 }
 
-function Badge({ color, text }) {
-  return <span style={{ color: "#fff", background: `${color}33`, border: `1px solid ${color}66`, borderRadius: 999, padding: "3px 7px", fontSize: 10, fontWeight: 900 }}>{text}</span>;
-}
-
-function Panel({ title, children, open, onToggle, gradient }) {
-  return <div style={{ ...glass, background: gradient, borderRadius: 26, padding: 20, marginBottom: 18 }}><button type="button" onClick={onToggle} style={{ width: "100%", border: 0, background: "transparent", color: "#fff", padding: 0, marginBottom: open ? 16 : 0, display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer", textAlign: "left" }}><h3 style={{ margin: 0, fontSize: 20 }}>{title}</h3><span style={{ width: 34, height: 34, borderRadius: 12, display: "grid", placeItems: "center", background: "rgba(255,255,255,.14)", fontWeight: 900 }}>{open ? "−" : "+"}</span></button>{open ? children : null}</div>;
-}
+function Badge({ color, text }) { return <span style={{ color: "#fff", background: `${color}33`, border: `1px solid ${color}66`, borderRadius: 999, padding: "3px 7px", fontSize: 10, fontWeight: 900 }}>{text}</span>; }
+function Panel({ title, children, open, onToggle, gradient }) { return <div style={{ ...glass, background: gradient, borderRadius: 26, padding: 20, marginBottom: 18 }}><button type="button" onClick={onToggle} style={{ width: "100%", border: 0, background: "transparent", color: "#fff", padding: 0, marginBottom: open ? 16 : 0, display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer", textAlign: "left" }}><h3 style={{ margin: 0, fontSize: 20 }}>{title}</h3><span style={{ width: 34, height: 34, borderRadius: 12, display: "grid", placeItems: "center", background: "rgba(255,255,255,.14)", fontWeight: 900 }}>{open ? "−" : "+"}</span></button>{open ? children : null}</div>; }
 function Stat({ label, value, color }) { return <div style={{ ...glass, background: `${color}33`, borderRadius: 20, padding: 16 }}><span style={{ color: "#dbeafe", fontSize: 12, fontWeight: 800 }}>{label}</span><strong style={{ display: "block", color: "#fff", fontSize: 24, marginTop: 6 }}>{value}</strong></div>; }
 function Notice({ text }) { return <div style={{ marginBottom: 12, padding: 12, borderRadius: 16, background: "rgba(251,191,36,.13)", border: "1px solid rgba(251,191,36,.35)", color: "#fef3c7", fontSize: 12, fontWeight: 800 }}>{text}</div>; }
 function Empty({ text }) { return <div style={{ padding: 13, borderRadius: 18, background: "rgba(2,6,23,.38)", border: "1px solid rgba(255,255,255,.12)", color: "#cbd5e1", fontSize: 12 }}>{text}</div>; }
@@ -473,13 +359,18 @@ function GoalCard({ goal, editId, edit, setEdit, onEdit, onSave, onCancel, onDel
 }
 
 function TaskCard({ task, editId, edit, setEdit, onEdit, onSave, onCancel, onStatus, onDelete }) {
-  const category = categoryInfo(task.category); const priority = priorityInfo(task.priority); const status = statusInfo(task.status); const isEdit = String(editId || "") === String(task.id);
+  const category = categoryInfo(task.category);
+  const priority = priorityInfo(task.priority);
+  const status = statusInfo(task.status);
+  const isEdit = String(editId || "") === String(task.id);
   if (isEdit) return <div style={{ ...glass, background: category.bg, borderColor: `${category.color}66`, borderRadius: 18, padding: 12 }}><div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(150px,1fr))", gap: 8 }}><Field label="Başlık"><input style={inputStyle} value={edit.title} onChange={(event) => setEdit((current) => ({ ...current, title: event.target.value }))} /></Field><Field label="Kategori"><Select value={edit.category} onChange={(value) => setEdit((current) => ({ ...current, category: value }))} options={CATEGORIES.map((item) => ({ value: item.value, label: `${item.icon} ${item.label}` }))} /></Field><Field label="Öncelik"><Select value={edit.priority} onChange={(value) => setEdit((current) => ({ ...current, priority: value }))} options={PRIORITIES.map((item) => ({ value: item.value, label: `${item.icon} ${item.label}` }))} /></Field><Field label="Tarih"><input style={inputStyle} type="date" value={edit.date} onChange={(event) => setEdit((current) => ({ ...current, date: event.target.value }))} /></Field><Field label="Not"><textarea style={{ ...inputStyle, minHeight: 74, resize: "vertical" }} value={edit.note} onChange={(event) => setEdit((current) => ({ ...current, note: event.target.value }))} /></Field></div><div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 12 }}><button type="button" style={smallButton} onClick={() => onSave(task.id)}>Kaydet</button><button type="button" style={smallButton} onClick={onCancel}>Vazgeç</button><button type="button" style={{ ...smallButton, color: "#fecaca" }} onClick={() => onDelete(task.id)}>Sil</button></div></div>;
   return <div style={{ ...glass, background: category.bg, borderColor: `${category.color}66`, borderRadius: 18, padding: 12, opacity: task.status === "done" ? .82 : task.status === "failed" ? .70 : 1 }}><div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}><div style={{ width: 30, height: 30, borderRadius: 10, display: "grid", placeItems: "center", background: status.bg, color: status.color, flex: "0 0 auto" }}>{status.icon}</div><div style={{ flex: 1, minWidth: 0 }}><strong style={{ color: "#fff", fontSize: 14, lineHeight: 1.35, wordBreak: "break-word" }}>{task.title}</strong><span style={{ display: "inline-flex", marginTop: 7, padding: "5px 9px", borderRadius: 99, background: "rgba(255,255,255,.14)", color: "#fff", fontSize: 11, fontWeight: 800, flexWrap: "wrap" }}>📅 {formatDate(task.date)} • {category.icon} {category.label} • {priority.icon} {priority.label}</span>{task.note ? <div style={{ color: "#fff", marginTop: 8, fontSize: 12, wordBreak: "break-word" }}>{task.note}</div> : null}</div></div><div style={{ display: "grid", gridTemplateColumns: "1fr 80px 60px", gap: 7, marginTop: 11 }}><select value={task.status || "pending"} onChange={(event) => onStatus(task.id, event.target.value)} style={{ ...smallButton, width: "100%", borderColor: `${status.color}66`, background: status.bg }}>{STATUSES.map((item) => <option key={item.value} value={item.value} style={{ color: "#0f172a", background: "#ffffff" }}>{item.icon} {item.label}</option>)}</select><button type="button" style={smallButton} onClick={() => onEdit(task)}>Düzenle</button><button type="button" style={{ ...smallButton, color: "#fecaca" }} onClick={() => onDelete(task.id)}>Sil</button></div></div>;
 }
 
 function SmallTask({ task, onStatus, onEdit }) {
-  const category = categoryInfo(task.category); const priority = priorityInfo(task.priority); const status = statusInfo(task.status);
+  const category = categoryInfo(task.category);
+  const priority = priorityInfo(task.priority);
+  const status = statusInfo(task.status);
   return <div style={{ padding: 13, borderRadius: 18, background: category.bg, border: `1px solid ${category.color}66` }}><strong style={{ color: "#fff", wordBreak: "break-word" }}>{category.icon} {task.title}</strong><span style={{ display: "block", color: "#dbeafe", fontSize: 12, marginTop: 5 }}>{formatDate(task.date)} • {category.label} • {priority.icon} {priority.label}</span>{task.note ? <div style={{ marginTop: 7, color: "#fff", fontSize: 12, lineHeight: 1.35, background: "rgba(2,6,23,.25)", borderRadius: 10, padding: "7px 8px", wordBreak: "break-word" }}>{task.note}</div> : null}<div style={{ display: "grid", gridTemplateColumns: "1fr 70px", gap: 7, marginTop: 9 }}><select value={task.status || "pending"} onChange={(event) => onStatus(task.id, event.target.value)} style={{ ...smallButton, width: "100%", borderColor: `${status.color}66`, background: status.bg }}>{STATUSES.map((item) => <option key={item.value} value={item.value} style={{ color: "#0f172a", background: "#ffffff" }}>{item.icon} {item.label}</option>)}</select><button type="button" style={smallButton} onClick={() => onEdit(task)}>Düzenle</button></div></div>;
 }
 
