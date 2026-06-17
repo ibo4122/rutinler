@@ -83,7 +83,6 @@ function extractPortfolioSymbols(investments = {}) {
   const crypto = new Set();
   const trStocks = new Set();
   const usStocks = new Set();
-  const metals = new Set();
 
   (investments.crypto || []).forEach((item) => {
     const symbol = normalizeSymbol(item.title).replace(/USDT$/, "");
@@ -97,12 +96,7 @@ function extractPortfolioSymbols(investments = {}) {
     else usStocks.add(raw);
   });
 
-  (investments.gold || []).forEach((item) => {
-    const symbol = normalizeSymbol(item.goldType || item.title || "GRAM");
-    if (symbol) metals.add(symbol);
-  });
-
-  return { crypto: [...crypto], trStocks: [...trStocks], usStocks: [...usStocks], metals: [...metals] };
+  return { crypto: [...crypto], trStocks: [...trStocks], usStocks: [...usStocks] };
 }
 
 async function getBinanceCryptoMarkets(extraSymbols = []) {
@@ -128,6 +122,7 @@ async function getBinanceCryptoMarkets(extraSymbols = []) {
         marketCap: 0,
         volume: Number(item.quoteVolume || item.volume || 0),
         source: "Binance",
+        portfolio: extraSymbols.includes(symbol),
       });
     });
   }
@@ -142,17 +137,15 @@ async function getBinanceCryptoMarkets(extraSymbols = []) {
       markets.unshift({
         id: symbol.toLowerCase(), symbol, name: symbol, price,
         change24h: Number(data?.priceChangePercent || 0), marketCap: 0,
-        volume: Number(data?.quoteVolume || data?.volume || 0), source: "Binance / Portföy",
+        volume: Number(data?.quoteVolume || data?.volume || 0), source: "Binance / Portföy", portfolio: true,
       });
-    } else {
-      markets.unshift({ id: symbol.toLowerCase(), symbol, name: symbol, price: 0, change24h: 0, marketCap: 0, volume: 0, source: "Portföy / Fiyat bekleniyor" });
     }
   }));
 
   return { markets, prices };
 }
 
-async function getCoinGeckoCryptoMarkets(existingPrices = {}) {
+async function getCoinGeckoTopMarkets(existingPrices = {}, portfolioSymbols = []) {
   const markets = [];
   for (const page of [1, 2, 3, 4]) {
     const data = await safeJson(`https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=250&page=${page}&sparkline=false&price_change_percentage=24h`);
@@ -171,26 +164,74 @@ async function getCoinGeckoCryptoMarkets(existingPrices = {}) {
         volume: Number(coin.total_volume || 0),
         image: coin.image || "",
         source: "CoinGecko",
+        portfolio: portfolioSymbols.includes(symbol),
       };
     }));
   }
   return { markets, prices: existingPrices };
 }
 
-async function getCryptoPayload(extraSymbols = []) {
-  const binance = await getBinanceCryptoMarkets(extraSymbols);
-  const gecko = await getCoinGeckoCryptoMarkets({ ...binance.prices });
+async function getCoinGeckoPortfolioPrices(portfolioSymbols = [], existingPrices = {}) {
+  const rows = [];
+  const missing = portfolioSymbols.filter((symbol) => symbol && !existingPrices[symbol]);
+  if (!missing.length) return { rows, prices: existingPrices };
+
+  const foundBySymbol = new Map();
+  for (const symbol of missing.slice(0, 40)) {
+    const search = await safeJson(`https://api.coingecko.com/api/v3/search?query=${encodeURIComponent(symbol)}`);
+    const coins = Array.isArray(search?.coins) ? search.coins : [];
+    const exact = coins.find((coin) => normalizeSymbol(coin.symbol) === symbol) || coins[0];
+    if (exact?.id) foundBySymbol.set(symbol, exact);
+  }
+
+  const ids = [...new Set([...foundBySymbol.values()].map((coin) => coin.id))];
+  if (ids.length) {
+    const data = await safeJson(`https://api.coingecko.com/api/v3/simple/price?ids=${encodeURIComponent(ids.join(","))}&vs_currencies=usd&include_24hr_change=true&include_market_cap=true&include_24hr_vol=true`);
+    for (const [symbol, coin] of foundBySymbol.entries()) {
+      const price = numberOrZero(data?.[coin.id]?.usd);
+      const change24h = Number(data?.[coin.id]?.usd_24h_change || 0);
+      const marketCap = Number(data?.[coin.id]?.usd_market_cap || 0);
+      const volume = Number(data?.[coin.id]?.usd_24h_vol || 0);
+      if (price > 0) existingPrices[symbol] = price;
+      rows.push({
+        id: coin.id,
+        symbol,
+        name: coin.name || symbol,
+        price,
+        change24h,
+        marketCap,
+        volume,
+        image: coin.large || coin.thumb || "",
+        source: price > 0 ? "CoinGecko / Portföy" : "Portföy / Fiyat bekleniyor",
+        portfolio: true,
+      });
+    }
+  }
+
+  missing.forEach((symbol) => {
+    if (!rows.some((row) => row.symbol === symbol)) {
+      rows.push({ id: symbol.toLowerCase(), symbol, name: symbol, price: 0, change24h: 0, marketCap: 0, volume: 0, source: "Portföy / Fiyat bekleniyor", portfolio: true });
+    }
+  });
+
+  return { rows, prices: existingPrices };
+}
+
+async function getCryptoPayload(portfolioSymbols = []) {
+  const binance = await getBinanceCryptoMarkets(portfolioSymbols);
+  const geckoTop = await getCoinGeckoTopMarkets({ ...binance.prices }, portfolioSymbols);
+  const geckoPortfolio = await getCoinGeckoPortfolioPrices(portfolioSymbols, geckoTop.prices);
 
   const bySymbol = new Map();
-  [...gecko.markets, ...binance.markets].forEach((item) => {
+  [...geckoTop.markets, ...binance.markets, ...geckoPortfolio.rows].forEach((item) => {
     if (!item.symbol) return;
     const existing = bySymbol.get(item.symbol);
-    if (!existing || (!existing.price && item.price) || item.source?.includes("Binance") || item.source?.includes("Portföy")) bySymbol.set(item.symbol, item);
+    if (!existing || item.portfolio || (!existing.price && item.price) || item.source?.includes("Binance")) bySymbol.set(item.symbol, item);
   });
 
   return {
-    prices: gecko.prices,
-    markets: [...bySymbol.values()].sort((a, b) => (b.marketCap || b.volume || b.price || 0) - (a.marketCap || a.volume || a.price || 0)),
+    prices: geckoPortfolio.prices,
+    markets: [...bySymbol.values()].sort((a, b) => Number(b.portfolio || false) - Number(a.portfolio || false) || (b.marketCap || b.volume || b.price || 0) - (a.marketCap || a.volume || a.price || 0)),
   };
 }
 
@@ -216,6 +257,33 @@ async function getYahooQuotes(symbols, type) {
     })));
   }
   return rows.filter((row) => row.symbol);
+}
+
+async function getTwelveQuotes(symbols, type, apiKey) {
+  if (!apiKey) return [];
+  const clean = [...new Set(symbols.filter(Boolean))].slice(0, 80);
+  const rows = [];
+  for (const symbol of clean) {
+    const params = new URLSearchParams({ symbol, apikey: apiKey });
+    if (type === "TR") params.set("exchange", "BIST");
+    const data = await safeJson(`https://api.twelvedata.com/quote?${params.toString()}`);
+    const price = numberOrZero(data?.close || data?.price);
+    if (data?.symbol || price > 0) {
+      rows.push({
+        symbol: normalizeSymbol(data?.symbol || symbol),
+        rawSymbol: data?.symbol || symbol,
+        name: data?.name || symbol,
+        price,
+        change: Number(data?.change || 0),
+        changePercent: Number(data?.percent_change || 0),
+        volume: Number(data?.volume || 0),
+        currency: data?.currency || (type === "TR" ? "TRY" : "USD"),
+        market: type === "TR" ? "BIST" : "ABD",
+        source: "Twelve Data Quote",
+      });
+    }
+  }
+  return rows;
 }
 
 function parseStooqCsv(csv, type) {
@@ -254,40 +322,14 @@ async function getStooqQuotes(symbols, type) {
   return rows;
 }
 
-const bistUniverse = [
-  "A1CAP","ACSEL","ADEL","AEFES","AGESA","AGHOL","AGROT","AHGAZ","AKBNK","AKCNS","AKENR","AKFGY","AKFYE","AKGRT","AKSA","AKSEN","ALARK","ALBRK","ALCAR","ALCTL","ALFAS","ALKIM","ANHYT","ANSGR","ARCLK","ARDYZ","ASELS","ASTOR","ASUZU","ATAKP","AYDEM","AYEN","AYGAZ","BAGFS","BANVT","BERA","BEYAZ","BIMAS","BIOEN","BIZIM","BRSAN","BRYAT","BSOKE","BTCIM","BUCIM","CANTE","CCOLA","CIMSA","CLEBI","CWENE","DOAS","DOHOL","ECILC","ECZYT","EFOR","EGEEN","EKGYO","ENERY","ENJSA","ENKAI","EREGL","EUPWR","FROTO","GARAN","GENIL","GESAN","GOLTS","GOZDE","GUBRF","HALKB","HEKTS","ISCTR","ISDMR","ISMEN","KARSN","KCAER","KCHOL","KONTR","KORDS","KOZAA","KOZAL","KRDMD","MAVI","MGROS","MIATK","ODAS","OYAKC","PETKM","PGSUS","SAHOL","SASA","SISE","SMRTG","SOKM","TAVHL","TCELL","THYAO","TKFEN","TOASO","TSKB","TTKOM","TTRAK","TUPRS","ULKER","VAKBN","VESBE","VESTL","YKBNK","ZOREN"
-];
-
-const usUniverse = [
-  "AAPL","MSFT","NVDA","GOOGL","GOOG","AMZN","META","TSLA","AVGO","AMD","NFLX","ORCL","CRM","ADBE","INTC","QCOM","CSCO","IBM","JPM","BAC","WFC","GS","MS","C","V","MA","PYPL","AXP","KO","PEP","MCD","NKE","DIS","WMT","COST","HD","LOW","TGT","SBUX","PFE","MRK","JNJ","UNH","ABBV","LLY","TMO","ABT","XOM","CVX","COP","BA","CAT","GE","MMM","DE","LMT","RTX","SPY","QQQ","VOO","VTI","DIA","IWM","ARKK","PLTR","SNOW","UBER","SHOP","SQ","COIN","MSTR","RIVN","LCID","NIO","BABA","TSM","ASML","SONY","TM"
-];
-
-async function getTwelveDataStocks(exchange, country, apiKey) {
-  if (!apiKey) return [];
-  const params = new URLSearchParams({ apikey: apiKey });
-  if (exchange) params.set("exchange", exchange);
-  if (country) params.set("country", country);
-  const list = await safeJson(`https://api.twelvedata.com/stocks?${params.toString()}`);
-  const data = Array.isArray(list?.data) ? list.data : Array.isArray(list) ? list : [];
-  return data.map((item) => ({
-    symbol: item.symbol,
-    rawSymbol: item.symbol,
-    name: item.name || item.symbol,
-    exchange: item.exchange,
-    currency: item.currency || (country === "Turkey" ? "TRY" : "USD"),
-    market: country === "Turkey" ? "BIST" : "ABD",
-    price: 0,
-    changePercent: 0,
-    volume: 0,
-    source: "Twelve Data",
-  })).filter((item) => item.symbol);
-}
+const bistUniverse = ["A1CAP","ACSEL","ADEL","AEFES","AGESA","AGHOL","AGROT","AHGAZ","AKBNK","AKCNS","AKENR","AKFGY","AKFYE","AKGRT","AKSA","AKSEN","ALARK","ALBRK","ALCAR","ALCTL","ALFAS","ALKIM","ANHYT","ANSGR","ARCLK","ARDYZ","ASELS","ASTOR","ASUZU","ATAKP","AYDEM","AYEN","AYGAZ","BAGFS","BANVT","BERA","BEYAZ","BIMAS","BIOEN","BIZIM","BRSAN","BRYAT","BSOKE","BTCIM","BUCIM","CANTE","CCOLA","CIMSA","CLEBI","CWENE","DOAS","DOHOL","ECILC","ECZYT","EFOR","EGEEN","EKGYO","ENERY","ENJSA","ENKAI","EREGL","EUPWR","FROTO","GARAN","GENIL","GESAN","GOLTS","GOZDE","GUBRF","HALKB","HEKTS","ISCTR","ISDMR","ISMEN","KARSN","KCAER","KCHOL","KONTR","KORDS","KOZAA","KOZAL","KRDMD","MAVI","MGROS","MIATK","ODAS","OYAKC","PETKM","PGSUS","SAHOL","SASA","SISE","SMRTG","SOKM","TAVHL","TCELL","THYAO","TKFEN","TOASO","TSKB","TTKOM","TTRAK","TUPRS","ULKER","VAKBN","VESBE","VESTL","YKBNK","ZOREN"];
+const usUniverse = ["AAPL","MSFT","NVDA","GOOGL","GOOG","AMZN","META","TSLA","AVGO","AMD","NFLX","ORCL","CRM","ADBE","INTC","QCOM","CSCO","IBM","JPM","BAC","WFC","GS","MS","C","V","MA","PYPL","AXP","KO","PEP","MCD","NKE","DIS","WMT","COST","HD","LOW","TGT","SBUX","PFE","MRK","JNJ","UNH","ABBV","LLY","TMO","ABT","XOM","CVX","COP","BA","CAT","GE","MMM","DE","LMT","RTX","SPY","QQQ","VOO","VTI","DIA","IWM","ARKK","PLTR","SNOW","UBER","SHOP","SQ","COIN","MSTR","RIVN","LCID","NIO","BABA","TSM","ASML","SONY","TM"];
 
 function mergeStocks(base, priced) {
   const map = new Map(priced.map((item) => [normalizeSymbol(item.symbol), item]));
   const merged = base.map((item) => {
     const found = map.get(normalizeSymbol(item.symbol));
-    return found ? { ...item, ...found, source: `${item.source || "Liste"} + fiyat` } : item;
+    return found ? { ...item, ...found, source: `${item.source || "Liste"} + fiyat`, portfolio: item.portfolio || found.portfolio } : item;
   });
   priced.forEach((item) => {
     if (!merged.some((row) => normalizeSymbol(row.symbol) === normalizeSymbol(item.symbol))) merged.push(item);
@@ -302,22 +344,23 @@ async function getStockPayload(extra = {}) {
   const trSymbols = [...new Set([...bistUniverse, ...portfolioTr])];
   const usSymbols = [...new Set([...usUniverse, ...portfolioUs])];
 
-  const [tdTr, tdNasdaq, tdNyse, yahooTr, yahooUs, stooqTr, stooqUs] = await Promise.all([
-    getTwelveDataStocks("BIST", "Turkey", apiKey),
-    getTwelveDataStocks("NASDAQ", "United States", apiKey),
-    getTwelveDataStocks("NYSE", "United States", apiKey),
+  const [yahooTr, yahooUs, stooqTr, stooqUs, twelveTr, twelveUs] = await Promise.all([
     getYahooQuotes(trSymbols.map((s) => `${s}.IS`), "TR"),
     getYahooQuotes(usSymbols, "US"),
     getStooqQuotes(trSymbols, "TR"),
     getStooqQuotes(usSymbols, "US"),
+    getTwelveQuotes(portfolioTr, "TR", apiKey),
+    getTwelveQuotes(portfolioUs, "US", apiKey),
   ]);
 
-  const trPrices = mergeStocks(yahooTr, stooqTr);
-  const usPrices = mergeStocks(yahooUs, stooqUs);
-  const trBase = tdTr.length ? tdTr.slice(0, 900) : trSymbols.map((s) => ({ symbol: s, name: s, currency: "TRY", market: "BIST", price: 0, changePercent: 0, volume: 0, source: "BIST sembol listesi" }));
-  const usBase = (tdNasdaq.length || tdNyse.length) ? [...tdNasdaq, ...tdNyse].slice(0, 1400) : usSymbols.map((s) => ({ symbol: s, name: s, currency: "USD", market: "ABD", price: 0, changePercent: 0, volume: 0, source: "ABD sembol listesi" }));
-  const turkishStocks = mergeStocks(trBase, trPrices);
-  const usStocks = mergeStocks(usBase, usPrices);
+  const trPrices = mergeStocks(mergeStocks(yahooTr, stooqTr), twelveTr);
+  const usPrices = mergeStocks(mergeStocks(yahooUs, stooqUs), twelveUs);
+
+  const trBase = trSymbols.map((s) => ({ symbol: s, name: s, currency: "TRY", market: "BIST", price: 0, changePercent: 0, volume: 0, source: portfolioTr.includes(s) ? "Portföy / Fiyat bekleniyor" : "BIST sembol listesi", portfolio: portfolioTr.includes(s) }));
+  const usBase = usSymbols.map((s) => ({ symbol: s, name: s, currency: "USD", market: "ABD", price: 0, changePercent: 0, volume: 0, source: portfolioUs.includes(s) ? "Portföy / Fiyat bekleniyor" : "ABD sembol listesi", portfolio: portfolioUs.includes(s) }));
+
+  const turkishStocks = mergeStocks(trBase, trPrices).sort((a, b) => Number(b.portfolio || false) - Number(a.portfolio || false) || Number(b.price || 0) - Number(a.price || 0));
+  const usStocks = mergeStocks(usBase, usPrices).sort((a, b) => Number(b.portfolio || false) - Number(a.portfolio || false) || Number(b.price || 0) - Number(a.price || 0));
 
   const prices = {};
   [...trPrices, ...usPrices].forEach((row) => {
@@ -326,21 +369,6 @@ async function getStockPayload(extra = {}) {
   });
 
   return { turkishStocks, usStocks, prices };
-}
-
-async function getCommodityQuotes(usdTryRate) {
-  const [yahooRows, stooqRows] = await Promise.all([
-    getYahooQuotes(["GC=F", "SI=F", "PL=F", "PA=F"], "US"),
-    getStooqQuotes(["gc.f", "si.f", "pl.f", "pa.f"], "US"),
-  ]);
-  const rows = [...yahooRows, ...stooqRows];
-  const find = (symbol) => rows.find((row) => String(row.rawSymbol || row.symbol).toUpperCase().includes(symbol) || String(row.symbol).toUpperCase().includes(symbol));
-  return {
-    goldOz: numberOrZero(find("GC")?.price),
-    silverOz: numberOrZero(find("SI")?.price),
-    platinumOz: numberOrZero(find("PL")?.price),
-    palladiumOz: numberOrZero(find("PA")?.price),
-  };
 }
 
 async function getGoldPrices(usdTryRate) {
@@ -353,8 +381,8 @@ async function getGoldPrices(usdTryRate) {
     metals.push({ symbol, name, priceTry: price, price, currency: "TRY", category, source });
   };
 
-  const [genelPara, commodities] = await Promise.all([safeJson("https://api.genelpara.com/embed/altin.json"), getCommodityQuotes(usdTryRate)]);
-  const gram = normalizeNumber(genelPara?.GA?.satis || genelPara?.GA?.alis || genelPara?.gram_altin?.satis || genelPara?.gram_altin?.alis) || (commodities.goldOz && usdTryRate ? (commodities.goldOz * usdTryRate) / 31.1034768 : 0);
+  const genelPara = await safeJson("https://api.genelpara.com/embed/altin.json");
+  const gram = normalizeNumber(genelPara?.GA?.satis || genelPara?.GA?.alis || genelPara?.gram_altin?.satis || genelPara?.gram_altin?.alis);
   const ceyrek = normalizeNumber(genelPara?.C?.satis || genelPara?.C?.alis || genelPara?.ceyrek_altin?.satis || genelPara?.ceyrek_altin?.alis) || gram * 1.75;
   const yarim = normalizeNumber(genelPara?.Y?.satis || genelPara?.Y?.alis || genelPara?.yarim_altin?.satis || genelPara?.yarim_altin?.alis) || gram * 3.5;
   const tam = normalizeNumber(genelPara?.T?.satis || genelPara?.T?.alis || genelPara?.tam_altin?.satis || genelPara?.tam_altin?.alis) || gram * 7;
@@ -367,20 +395,13 @@ async function getGoldPrices(usdTryRate) {
     result.AYAR_18 = gram * 0.75; result.AYAR18 = gram * 0.75;
     result.AYAR_14 = gram * 0.585; result.AYAR14 = gram * 0.585;
     result.GREMSE = gram * 17.5; result.GREMSEALTIN = gram * 17.5;
-    addMetal("GRAM", "Gram Altın", gram); addMetal("HAS", "Has Altın", gram); addMetal("AYAR_24", "24 Ayar Gram", gram);
-    addMetal("AYAR_22", "22 Ayar Altın", gram * 0.916); addMetal("AYAR_18", "18 Ayar Altın", gram * 0.75); addMetal("AYAR_14", "14 Ayar Altın", gram * 0.585);
-    addMetal("CEYREK", "Çeyrek Altın", ceyrek); addMetal("YARIM", "Yarım Altın", yarim); addMetal("TAM", "Tam Altın", tam);
-    addMetal("CUMHURIYET", "Cumhuriyet Altını", cumhuriyet); addMetal("ATA", "Ata Altın", cumhuriyet); addMetal("RESAT", "Reşat Altın", cumhuriyet); addMetal("GREMSE", "Gremse Altın", gram * 17.5);
+    addMetal("GRAM", "Gram Altın", gram); addMetal("HAS", "Has Altın", gram); addMetal("AYAR_24", "24 Ayar Gram", gram); addMetal("AYAR_22", "22 Ayar Altın", gram * 0.916); addMetal("AYAR_18", "18 Ayar Altın", gram * 0.75); addMetal("AYAR_14", "14 Ayar Altın", gram * 0.585); addMetal("CEYREK", "Çeyrek Altın", ceyrek); addMetal("YARIM", "Yarım Altın", yarim); addMetal("TAM", "Tam Altın", tam); addMetal("CUMHURIYET", "Cumhuriyet Altını", cumhuriyet); addMetal("ATA", "Ata Altın", cumhuriyet); addMetal("RESAT", "Reşat Altın", cumhuriyet); addMetal("GREMSE", "Gremse Altın", gram * 17.5);
   }
-  if (commodities.goldOz > 0 && usdTryRate > 0) { result.ONS = commodities.goldOz * usdTryRate; result.ONSALTIN = result.ONS; addMetal("ONS", "Ons Altın", result.ONS, "Altın", "Emtia fallback"); }
-  if (commodities.silverOz > 0 && usdTryRate > 0) { const oz = commodities.silverOz * usdTryRate; const gr = oz / 31.1034768; result.GUMUS = gr; result.GUMUSTRY = gr; result.XAG = oz; addMetal("GUMUS", "Gram Gümüş", gr, "Gümüş", "Emtia fallback"); addMetal("XAG", "Ons Gümüş", oz, "Gümüş", "Emtia fallback"); }
-  if (commodities.platinumOz > 0 && usdTryRate > 0) { result.XPT = commodities.platinumOz * usdTryRate; addMetal("XPT", "Ons Platin", result.XPT, "Platin", "Emtia fallback"); }
-  if (commodities.palladiumOz > 0 && usdTryRate > 0) { result.XPD = commodities.palladiumOz * usdTryRate; addMetal("XPD", "Ons Paladyum", result.XPD, "Paladyum", "Emtia fallback"); }
 
   [
     ["GRAM", "Gram Altın", "Altın"], ["CEYREK", "Çeyrek Altın", "Altın"], ["YARIM", "Yarım Altın", "Altın"], ["TAM", "Tam Altın", "Altın"], ["CUMHURIYET", "Cumhuriyet Altını", "Altın"], ["ATA", "Ata Altın", "Altın"], ["RESAT", "Reşat Altın", "Altın"], ["GREMSE", "Gremse Altın", "Altın"], ["ONS", "Ons Altın", "Altın"], ["GUMUS", "Gram Gümüş", "Gümüş"], ["XAG", "Ons Gümüş", "Gümüş"], ["XPT", "Ons Platin", "Platin"], ["XPD", "Ons Paladyum", "Paladyum"],
   ].forEach(([symbol, name, category]) => {
-    if (!metals.some((item) => item.symbol === symbol)) metals.push({ symbol, name, priceTry: 0, price: 0, currency: "TRY", category, source: "Fiyat bekleniyor" });
+    if (!metals.some((item) => item.symbol === symbol)) metals.push({ symbol, name, priceTry: result[symbol] || 0, price: result[symbol] || 0, currency: "TRY", category, source: result[symbol] ? "Canlı" : "Fiyat bekleniyor" });
   });
 
   return { gold: result, metals };
