@@ -174,4 +174,3 @@ export default function LiveMarketUpdater({ investments, setInvestments }) {
     </div>
   );
 }
-
