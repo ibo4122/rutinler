@@ -197,6 +197,8 @@ export default function RoutinePlanner({ routines, setRoutines }) {
   const [quickPriority, setQuickPriority] = useState("orta");
   const [goalForm, setGoalForm] = useState({ title: "", progress: "0", color: "blue", note: "" });
   const [form, setForm] = useState({ title: "", category: "egitim", priority: "orta", date: todayISO(), note: "" });
+  const [editingRoutineId, setEditingRoutineId] = useState(null);
+  const [editingRoutineForm, setEditingRoutineForm] = useState({ title: "", category: "gunluk", priority: "orta", date: todayISO(), note: "" });
   const [openPanels, setOpenPanels] = useState({ hero: true, goals: true, add: true, filters: true, months: true, calendar: true, dayNote: true, upcoming: true, categories: true });
 
   const normalized = useMemo(() => routineItems.map(normalizeRoutine), [routineItems]);
@@ -324,6 +326,41 @@ export default function RoutinePlanner({ routines, setRoutines }) {
     }));
   };
 
+  const startEditRoutine = (task) => {
+    setEditingRoutineId(task.id);
+    setEditingRoutineForm({
+      title: task.title || "",
+      category: task.category || "gunluk",
+      priority: task.priority || "orta",
+      date: task.date || todayISO(),
+      note: task.note || "",
+    });
+  };
+
+  const cancelEditRoutine = () => {
+    setEditingRoutineId(null);
+    setEditingRoutineForm({ title: "", category: "gunluk", priority: "orta", date: todayISO(), note: "" });
+  };
+
+  const saveEditRoutine = (id) => {
+    const title = editingRoutineForm.title.trim();
+    if (!title) return alert("Başlık boş olamaz.");
+
+    setRoutines?.((current) => (Array.isArray(current) ? current : []).map((item) => {
+      if (String(item.id) !== String(id)) return item;
+      return {
+        ...item,
+        title,
+        category: editingRoutineForm.category,
+        priority: editingRoutineForm.priority,
+        date: editingRoutineForm.date || todayISO(),
+        note: editingRoutineForm.note.trim(),
+      };
+    }));
+
+    cancelEditRoutine();
+  };
+
   const deleteRoutine = (id) => setRoutines?.((current) => (Array.isArray(current) ? current : []).filter((item) => String(item.id) !== String(id)));
 
   const pageGrid = { display: "grid", gridTemplateColumns: "minmax(0, 1fr) 360px", gap: "22px", alignItems: "start" };
@@ -443,7 +480,7 @@ export default function RoutinePlanner({ routines, setRoutines }) {
                   ) : null}
 
                   <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                    {weekTasks.length === 0 ? <SmallEmpty text="Bu haftaya kayıt yok." /> : weekTasks.slice(0, 6).map((task) => <TaskCard key={task.id} task={task} onToggle={toggleRoutine} onDelete={deleteRoutine} />)}
+                    {weekTasks.length === 0 ? <SmallEmpty text="Bu haftaya kayıt yok." /> : weekTasks.slice(0, 6).map((task) => <TaskCard key={task.id} task={task} editingId={editingRoutineId} editForm={editingRoutineForm} setEditForm={setEditingRoutineForm} onEdit={startEditRoutine} onSave={saveEditRoutine} onCancel={cancelEditRoutine} onToggle={toggleRoutine} onDelete={deleteRoutine} />)}
                   </div>
                 </div>
               );
@@ -458,7 +495,7 @@ export default function RoutinePlanner({ routines, setRoutines }) {
               <button type="button" onClick={addDayNote} style={primaryButtonStyle("linear-gradient(135deg, #f9a8d4, #fef08a)")}>Kaydet</button>
             </div>
             <div style={{ marginTop: "14px", display: "flex", flexDirection: "column", gap: "8px" }}>
-              {selectedDateTasks.length === 0 ? <SmallEmpty text="Bu güne ait kayıt yok. Kaydet dediğinde kayıt oluşur." /> : selectedDateTasks.map((task) => <TaskCard key={task.id} task={task} onToggle={toggleRoutine} onDelete={deleteRoutine} />)}
+              {selectedDateTasks.length === 0 ? <SmallEmpty text="Bu güne ait kayıt yok. Kaydet dediğinde kayıt oluşur." /> : selectedDateTasks.map((task) => <TaskCard key={task.id} task={task} editingId={editingRoutineId} editForm={editingRoutineForm} setEditForm={setEditingRoutineForm} onEdit={startEditRoutine} onSave={saveEditRoutine} onCancel={cancelEditRoutine} onToggle={toggleRoutine} onDelete={deleteRoutine} />)}
             </div>
           </Panel>
         ) : null}
@@ -531,10 +568,41 @@ function GoalMini({ goal }) {
   return <div style={{ padding: "13px", borderRadius: "18px", background: color.bg, border: `1px solid ${color.color}66` }}><strong style={{ color: "#f8fafc", display: "block" }}>{goal.title} • %{goal.progress}</strong><div style={{ height: "8px", borderRadius: "999px", background: "rgba(2,6,23,.45)", marginTop: "8px", overflow: "hidden" }}><div style={{ width: `${goal.progress}%`, height: "100%", background: color.color }} /></div></div>;
 }
 
-function TaskCard({ task, onToggle, onDelete }) {
+function TaskCard({ task, editingId, editForm, setEditForm, onEdit, onSave, onCancel, onToggle, onDelete }) {
   const category = categoryInfo(task.category);
   const priority = priorityInfo(task.priority);
-  return <div style={{ ...baseGlass, background: category.bg, borderColor: `${category.color}66`, borderRadius: "16px", padding: "10px 11px", display: "flex", justifyContent: "space-between", gap: "10px", opacity: task.done ? .58 : 1 }}><div style={{ display: "flex", gap: "9px" }}><span style={{ fontSize: "20px" }}>{category.icon}</span><div><strong style={{ color: "#f8fafc", display: "block", fontSize: "13px" }}>{task.title}</strong><span style={{ color: "#dbeafe", display: "block", fontSize: "11px", marginTop: "3px" }}>{formatDate(task.date)} • {category.label} • {priority.icon} {priority.label}</span>{task.note ? <span style={{ color: "#cbd5e1", display: "block", fontSize: "11px", marginTop: "3px" }}>{task.note}</span> : null}</div></div><div style={{ display: "flex", gap: "6px", alignItems: "center" }}><MiniButton onClick={() => onToggle(task.id)}>{task.done ? "Geri Al" : "Bitti"}</MiniButton><MiniButton danger onClick={() => onDelete(task.id)}>Sil</MiniButton></div></div>;
+  const isEditing = String(editingId || "") === String(task.id || "");
+
+  if (isEditing) {
+    return (
+      <div style={{ ...baseGlass, background: category.bg, borderColor: `${category.color}66`, borderRadius: "16px", padding: "12px", display: "flex", flexDirection: "column", gap: "10px" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: "8px" }}>
+          <Field label="Başlık">
+            <input style={inputStyle} value={editForm.title} onChange={(event) => setEditForm((current) => ({ ...current, title: event.target.value }))} />
+          </Field>
+          <Field label="Kategori / Renk">
+            <Select value={editForm.category} onChange={(value) => setEditForm((current) => ({ ...current, category: value }))} options={CATEGORIES.map((item) => ({ value: item.value, label: `${item.icon} ${item.label}` }))} />
+          </Field>
+          <Field label="Öncelik">
+            <Select value={editForm.priority} onChange={(value) => setEditForm((current) => ({ ...current, priority: value }))} options={PRIORITIES.map((item) => ({ value: item.value, label: `${item.icon} ${item.label}` }))} />
+          </Field>
+          <Field label="Tarih">
+            <input style={inputStyle} type="date" value={editForm.date} onChange={(event) => setEditForm((current) => ({ ...current, date: event.target.value }))} />
+          </Field>
+          <Field label="Not">
+            <input style={inputStyle} value={editForm.note} onChange={(event) => setEditForm((current) => ({ ...current, note: event.target.value }))} />
+          </Field>
+        </div>
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: "8px", flexWrap: "wrap" }}>
+          <MiniButton onClick={() => onSave(task.id)}>Kaydet</MiniButton>
+          <MiniButton onClick={onCancel}>Vazgeç</MiniButton>
+          <MiniButton danger onClick={() => onDelete(task.id)}>Sil</MiniButton>
+        </div>
+      </div>
+    );
+  }
+
+  return <div style={{ ...baseGlass, background: category.bg, borderColor: `${category.color}66`, borderRadius: "16px", padding: "10px 11px", display: "flex", justifyContent: "space-between", gap: "10px", opacity: task.done ? .58 : 1 }}><div style={{ display: "flex", gap: "9px" }}><span style={{ fontSize: "20px" }}>{category.icon}</span><div><strong style={{ color: "#f8fafc", display: "block", fontSize: "13px" }}>{task.title}</strong><span style={{ color: "#dbeafe", display: "block", fontSize: "11px", marginTop: "3px" }}>{formatDate(task.date)} • {category.label} • {priority.icon} {priority.label}</span>{task.note ? <span style={{ color: "#cbd5e1", display: "block", fontSize: "11px", marginTop: "3px" }}>{task.note}</span> : null}</div></div><div style={{ display: "flex", gap: "6px", alignItems: "center", flexWrap: "wrap", justifyContent: "flex-end" }}><MiniButton onClick={() => onEdit(task)}>Düzenle</MiniButton><MiniButton onClick={() => onToggle(task.id)}>{task.done ? "Geri Al" : "Bitti"}</MiniButton><MiniButton danger onClick={() => onDelete(task.id)}>Sil</MiniButton></div></div>;
 }
 
 function UpcomingCard({ task }) {
