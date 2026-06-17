@@ -3,55 +3,26 @@
 import { useState } from "react";
 
 const cryptoAliases = {
-  BTC: ["BTC", "BITCOIN"],
-  ETH: ["ETH", "ETHER", "ETHEREUM"],
-  SOL: ["SOL", "SOLANA"],
-  SUI: ["SUI"],
-  ENA: ["ENA", "ETHENA"],
-  AVAX: ["AVAX", "AVALANCHE"],
-  AIXBT: ["AIXBT"],
-  RENDER: ["RENDER", "RNDR"],
-  S: ["S", "SONIC"],
-  ATOM: ["ATOM", "COSMOS"],
-  ZK: ["ZK", "ZKSYNC"],
-  LRC: ["LRC", "LOOPRING"],
-  APT: ["APT", "APTOS"],
-  FET: ["FET", "ASI"],
-  GRT: ["GRT", "GRAPH"],
-  NEIRO: ["NEIRO"],
-  UNI: ["UNI", "UNISWAP"],
-  PIXEL: ["PIXEL", "PIXELS"],
-  DOGS: ["DOGS"],
-  THL: ["THL", "THALA"],
-  BNB: ["BNB", "BINANCE"],
-  XRP: ["XRP", "RIPPLE"],
-  ADA: ["ADA", "CARDANO"],
-  DOGE: ["DOGE", "DOGECOIN"],
-  LINK: ["LINK", "CHAINLINK"],
-  DOT: ["DOT", "POLKADOT"],
-  MATIC: ["MATIC", "POLYGON"],
-  TRX: ["TRX", "TRON"],
-  LTC: ["LTC", "LITECOIN"],
-  BCH: ["BCH", "BITCOINCASH"],
-  NEAR: ["NEAR"],
-  ARB: ["ARB", "ARBITRUM"],
-  OP: ["OP", "OPTIMISM"],
+  BTC: ["BTC", "BITCOIN"], ETH: ["ETH", "ETHER", "ETHEREUM"], SOL: ["SOL", "SOLANA"], SUI: ["SUI"],
+  ENA: ["ENA", "ETHENA"], AVAX: ["AVAX", "AVALANCHE"], AIXBT: ["AIXBT"], RENDER: ["RENDER", "RNDR"],
+  S: ["S", "SONIC"], ATOM: ["ATOM", "COSMOS"], ZK: ["ZK", "ZKSYNC"], LRC: ["LRC", "LOOPRING"],
+  APT: ["APT", "APTOS"], FET: ["FET", "ASI"], GRT: ["GRT", "GRAPH"], NEIRO: ["NEIRO"],
+  UNI: ["UNI", "UNISWAP"], PIXEL: ["PIXEL", "PIXELS"], DOGS: ["DOGS"], THL: ["THL", "THALA"],
+  BNB: ["BNB", "BINANCE"], XRP: ["XRP", "RIPPLE"], ADA: ["ADA", "CARDANO"], DOGE: ["DOGE", "DOGECOIN"],
+  LINK: ["LINK", "CHAINLINK"], DOT: ["DOT", "POLKADOT"], MATIC: ["MATIC", "POLYGON"], TRX: ["TRX", "TRON"],
+  LTC: ["LTC", "LITECOIN"], BCH: ["BCH", "BITCOINCASH"], NEAR: ["NEAR"], ARB: ["ARB", "ARBITRUM"], OP: ["OP", "OPTIMISM"],
 };
 
 const goldAliases = {
-  GRAM: ["GRAM", "GRAMALTIN", "GRAMALTINI"],
-  CEYREK: ["CEYREK", "CEYREKALTIN", "CEYREKALTINI"],
-  YARIM: ["YARIM", "YARIMALTIN", "YARIMALTINI"],
-  TAM: ["TAM", "TAMALTIN", "TAMALTINI"],
-  CUMHURIYET: ["CUMHURIYET", "CUMHURIYETALTIN", "CUMHURIYETALTINI"],
-  ATA: ["ATA", "ATAALTIN", "ATAALTINI"],
-  RESAT: ["RESAT", "RESATALTIN", "RESATALTINI", "REŞAT", "REŞATALTIN"],
-  GREMSE: ["GREMSE", "GREMSEALTIN", "GREMSEALTINI"],
-  ONS: ["ONS", "ONSALTIN", "ONSALTINI"],
+  GRAM: ["GRAM", "GRAMALTIN", "GRAMALTINI"], CEYREK: ["CEYREK", "CEYREKALTIN", "CEYREKALTINI"],
+  YARIM: ["YARIM", "YARIMALTIN", "YARIMALTINI"], TAM: ["TAM", "TAMALTIN", "TAMALTINI"],
+  CUMHURIYET: ["CUMHURIYET", "CUMHURIYETALTIN", "CUMHURIYETALTINI"], ATA: ["ATA", "ATAALTIN", "ATAALTINI"],
+  RESAT: ["RESAT", "RESATALTIN", "RESATALTINI", "REŞAT", "REŞATALTIN"], GREMSE: ["GREMSE", "GREMSEALTIN", "GREMSEALTINI"],
+  ONS: ["ONS", "ONSALTIN", "ONSALTINI"], GUMUS: ["GUMUS", "GUMUSTRY", "GUMUSGRAM", "GÜMÜŞ"],
 };
 
 function normalizeSymbol(value) {
-  return String(value || "").trim().toUpperCase().replace(/İ/g, "I").replace(/Ğ/g, "G").replace(/Ü/g, "U").replace(/Ş/g, "S").replace(/Ö/g, "O").replace(/Ç/g, "C").replace(/[^A-Z0-9]/g, "");
+  return String(value || "").trim().toUpperCase().replace(/İ/g, "I").replace(/Ğ/g, "G").replace(/Ü/g, "U").replace(/Ş/g, "S").replace(/Ö/g, "O").replace(/Ç/g, "C").replace(/[^A-Z0-9.]/g, "");
 }
 
 function pickNumber(...values) {
@@ -92,7 +63,7 @@ function findGoldSymbol(title, goldType) {
   return goldType || "GRAM";
 }
 
-export default function LiveMarketUpdater({ investments, setInvestments }) {
+export default function LiveMarketUpdater({ investments, setInvestments, onMarketData }) {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
 
@@ -109,6 +80,8 @@ export default function LiveMarketUpdater({ investments, setInvestments }) {
         return;
       }
 
+      onMarketData?.(payload);
+
       const prices = payload.prices;
       const gold = prices.gold || {};
       const crypto = prices.crypto || {};
@@ -123,7 +96,7 @@ export default function LiveMarketUpdater({ investments, setInvestments }) {
           const price = findDirectPrice(gold, [symbol, item.goldType, item.title, "GRAM"]);
           if (price <= 0) return item;
           updateCount += 1;
-          return { ...item, currentPrice: price, currentPriceTry: price, currency: "TRY", goldType: symbol, livePriceSource: "Canlı Altın" };
+          return { ...item, currentPrice: price, currentPriceTry: price, currency: "TRY", goldType: symbol, livePriceSource: "Canlı Metal" };
         });
 
         const nextCrypto = (current.crypto || []).map((item) => {
@@ -135,11 +108,11 @@ export default function LiveMarketUpdater({ investments, setInvestments }) {
         });
 
         const nextStocks = (current.stocks || []).map((item) => {
-          const symbol = normalizeSymbol(item.title);
-          const price = findDirectPrice(stocks, [symbol, item.title]);
+          const symbol = normalizeSymbol(item.title).replace(/\.IS$/, "");
+          const price = findDirectPrice(stocks, [symbol, `${symbol}.IS`, item.title]);
           if (price <= 0) return item;
           updateCount += 1;
-          return { ...item, currentPrice: price, livePriceSource: "Canlı Hisse" };
+          return { ...item, currentPrice: price, currency: item.currency || "TRY", livePriceSource: "Canlı Hisse" };
         });
 
         const nextForex = (current.forex || []).map((item) => {
@@ -155,7 +128,7 @@ export default function LiveMarketUpdater({ investments, setInvestments }) {
       });
 
       setTimeout(() => {
-        setMessage(updateCount > 0 ? `${updateCount} fiyat güncellendi` : "Eşleşen kayıt bulunamadı");
+        setMessage(updateCount > 0 ? `${updateCount} fiyat güncellendi` : "Piyasa verisi alındı, portföyde eşleşen kayıt yok");
       }, 0);
     } catch (error) {
       console.log(error);
@@ -174,3 +147,4 @@ export default function LiveMarketUpdater({ investments, setInvestments }) {
     </div>
   );
 }
+
