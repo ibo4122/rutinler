@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 const cryptoAliases = {
   BTC: ["BTC", "BITCOIN"], ETH: ["ETH", "ETHER", "ETHEREUM"], SOL: ["SOL", "SOLANA"], SUI: ["SUI"],
@@ -18,7 +18,8 @@ const goldAliases = {
   YARIM: ["YARIM", "YARIMALTIN", "YARIMALTINI"], TAM: ["TAM", "TAMALTIN", "TAMALTINI"],
   CUMHURIYET: ["CUMHURIYET", "CUMHURIYETALTIN", "CUMHURIYETALTINI"], ATA: ["ATA", "ATAALTIN", "ATAALTINI"],
   RESAT: ["RESAT", "RESATALTIN", "RESATALTINI", "REŞAT", "REŞATALTIN"], GREMSE: ["GREMSE", "GREMSEALTIN", "GREMSEALTINI"],
-  ONS: ["ONS", "ONSALTIN", "ONSALTINI"], GUMUS: ["GUMUS", "GUMUSTRY", "GUMUSGRAM", "GÜMÜŞ"],
+  ONS: ["ONS", "ONSALTIN", "ONSALTINI"], GUMUS: ["GUMUS", "GUMUSTRY", "GUMUSGRAM", "GÜMÜŞ", "SILVER"],
+  XAG: ["XAG", "ONS GUMUS", "ONSGUMUS"], XPT: ["XPT", "PLATIN", "PLATINUM"], XPD: ["XPD", "PALADYUM", "PALLADIUM"],
 };
 
 function normalizeSymbol(value) {
@@ -48,7 +49,7 @@ function findDirectPrice(source, keys) {
 }
 
 function findCryptoSymbol(title) {
-  const normalized = normalizeSymbol(title);
+  const normalized = normalizeSymbol(title).replace(/USDT$/, "");
   for (const [symbol, aliases] of Object.entries(cryptoAliases)) {
     if (aliases.some((alias) => normalized === alias || normalized.includes(alias))) return symbol;
   }
@@ -58,25 +59,44 @@ function findCryptoSymbol(title) {
 function findGoldSymbol(title, goldType) {
   const normalized = normalizeSymbol(`${goldType || ""} ${title || ""}`);
   for (const [symbol, aliases] of Object.entries(goldAliases)) {
-    if (aliases.some((alias) => normalized.includes(alias))) return symbol;
+    if (aliases.some((alias) => normalized.includes(normalizeSymbol(alias)))) return symbol;
   }
   return goldType || "GRAM";
 }
 
-export default function LiveMarketUpdater({ investments, setInvestments, onMarketData }) {
+function portfolioSignature(investments) {
+  const parts = [];
+  ["gold", "crypto", "stocks", "forex"].forEach((key) => {
+    (investments?.[key] || []).forEach((item) => {
+      parts.push(`${key}:${item.title || ""}:${item.goldType || ""}:${item.currency || ""}`);
+    });
+  });
+  return parts.sort().join("|");
+}
+
+export default function LiveMarketUpdater({ investments, setInvestments, onMarketData, autoUpdate = true }) {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
+  const lastSignatureRef = useRef("");
+  const mountedRef = useRef(false);
 
-  const updateLivePrices = async () => {
+  const signature = useMemo(() => portfolioSignature(investments), [investments]);
+
+  const updateLivePrices = async ({ silent = false } = {}) => {
     if (loading) return;
     setLoading(true);
-    setMessage("");
+    if (!silent) setMessage("");
 
     try {
-      const response = await fetch("/api/market-prices", { cache: "no-store" });
+      const response = await fetch("/api/market-prices", {
+        method: "POST",
+        cache: "no-store",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ investments }),
+      });
       const payload = await response.json().catch(() => null);
       if (!response.ok || !payload?.prices) {
-        setMessage("Fiyat verisi alınamadı");
+        if (!silent) setMessage("Fiyat verisi alınamadı");
         return;
       }
 
@@ -112,7 +132,7 @@ export default function LiveMarketUpdater({ investments, setInvestments, onMarke
           const price = findDirectPrice(stocks, [symbol, `${symbol}.IS`, item.title]);
           if (price <= 0) return item;
           updateCount += 1;
-          return { ...item, currentPrice: price, currency: item.currency || "TRY", livePriceSource: "Canlı Hisse" };
+          return { ...item, currentPrice: price, currency: item.currency || "TRY", usdTryRate, livePriceSource: "Canlı Hisse" };
         });
 
         const nextForex = (current.forex || []).map((item) => {
@@ -128,20 +148,33 @@ export default function LiveMarketUpdater({ investments, setInvestments, onMarke
       });
 
       setTimeout(() => {
-        setMessage(updateCount > 0 ? `${updateCount} fiyat güncellendi` : "Piyasa verisi alındı, portföyde eşleşen kayıt yok");
+        if (!silent) setMessage(updateCount > 0 ? `${updateCount} fiyat güncellendi` : "Piyasa verisi alındı, portföyde eşleşen kayıt yok");
       }, 0);
     } catch (error) {
       console.log(error);
-      setMessage("Fiyat verisi alınamadı");
+      if (!silent) setMessage("Fiyat verisi alınamadı");
     } finally {
       setLoading(false);
     }
   };
 
+  useEffect(() => {
+    if (!autoUpdate) return;
+    if (!mountedRef.current) {
+      mountedRef.current = true;
+      lastSignatureRef.current = signature;
+      return;
+    }
+    if (!signature || signature === lastSignatureRef.current) return;
+    lastSignatureRef.current = signature;
+    const timer = setTimeout(() => updateLivePrices({ silent: true }), 900);
+    return () => clearTimeout(timer);
+  }, [signature]);
+
   return (
     <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap", justifyContent: "flex-end" }}>
       {message ? <span className="sectionDescription">{message}</span> : null}
-      <button type="button" className="premiumButton" onClick={updateLivePrices} disabled={loading}>
+      <button type="button" className="premiumButton" onClick={() => updateLivePrices()} disabled={loading}>
         {loading ? "Güncelleniyor" : "Fiyat Güncelle"}
       </button>
     </div>
