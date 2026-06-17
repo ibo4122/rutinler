@@ -1,549 +1,374 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import BesProjectionPanel from "./BesProjectionPanel";
+import { useMemo, useState } from "react";
 
-const emptyTransaction = {
-  type: "BUY",
-  assetClass: "crypto",
-  title: "",
-  symbol: "",
-  goldType: "GRAM",
-  quantity: "",
-  price: "",
-  currency: "USD",
-  date: "",
-  note: "",
+const MONTHS = ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"];
+const DAYS = ["Pzt", "Sal", "Çar", "Per", "Cum", "Cmt", "Paz"];
+
+const CATEGORIES = [
+  { value: "egitim", label: "Eğitim", icon: "🎓", color: "#60a5fa" },
+  { value: "is", label: "İş", icon: "💼", color: "#a78bfa" },
+  { value: "gunluk", label: "Günlük", icon: "✅", color: "#34d399" },
+  { value: "saglik", label: "Sağlık", icon: "💪", color: "#fb7185" },
+  { value: "finans", label: "Finans", icon: "💰", color: "#fbbf24" },
+  { value: "kisisel", label: "Kişisel", icon: "✨", color: "#22d3ee" },
+];
+
+const PRIORITIES = [
+  { value: "dusuk", label: "Düşük", icon: "🟢" },
+  { value: "orta", label: "Orta", icon: "🟡" },
+  { value: "yuksek", label: "Yüksek", icon: "🔴" },
+];
+
+const glass = {
+  border: "1px solid rgba(148,163,184,.18)",
+  background: "linear-gradient(145deg, rgba(15,23,42,.96), rgba(30,41,59,.78))",
+  boxShadow: "0 22px 55px rgba(0,0,0,.36), inset 0 1px 0 rgba(255,255,255,.08)",
+  backdropFilter: "blur(14px)",
 };
 
-const assetClassOptions = [
-  { value: "gold", label: "Altın" },
-  { value: "crypto", label: "Kripto" },
-  { value: "stocks", label: "Hisse" },
-  { value: "forex", label: "Döviz" },
-];
+const inputStyle = {
+  width: "100%",
+  border: "1px solid rgba(148,163,184,.24)",
+  background: "rgba(2,6,23,.58)",
+  color: "#f8fafc",
+  borderRadius: "15px",
+  padding: "13px 14px",
+  outline: "none",
+};
 
-const typeOptions = [
-  { value: "BUY", label: "Alış" },
-  { value: "SELL", label: "Satış" },
-];
-
-const currencyOptions = ["TRY", "USD", "EUR", "GBP", "CHF", "JPY", "USDT"];
-
-const goldTypeOptions = [
-  { value: "GRAM", label: "Gram Altın" },
-  { value: "CEYREK", label: "Çeyrek Altın" },
-  { value: "YARIM", label: "Yarım Altın" },
-  { value: "TAM", label: "Tam Altın" },
-  { value: "CUMHURIYET", label: "Cumhuriyet Altını" },
-  { value: "ATA", label: "Ata Altın" },
-  { value: "RESAT", label: "Reşat Altın" },
-  { value: "GREMSE", label: "Gremse Altın" },
-  { value: "ONS", label: "Ons Altın" },
-];
-
-function normalizeText(value) {
-  return String(value || "")
-    .trim()
-    .toUpperCase()
-    .replace(/İ/g, "I")
-    .replace(/Ğ/g, "G")
-    .replace(/Ü/g, "U")
-    .replace(/Ş/g, "S")
-    .replace(/Ö/g, "O")
-    .replace(/Ç/g, "C")
-    .replace(/[^A-Z0-9]/g, "");
-}
-
-function parseDecimal(value) {
-  const normalized = String(value || "")
-    .replace(/\s/g, "")
-    .replace(/\./g, "")
-    .replace(",", ".")
-    .replace(/[^\d.]/g, "");
-  return Number(normalized) || 0;
-}
-
-function formatDecimal(value, digits = 6) {
-  return new Intl.NumberFormat("tr-TR", { maximumFractionDigits: digits }).format(Number(value || 0));
-}
-
-function money(value, currency = "TRY") {
-  const number = Number(value || 0);
-  if (currency === "USDT") return `${formatDecimal(number, 4)} USDT`;
-  try {
-    return new Intl.NumberFormat("tr-TR", { style: "currency", currency, maximumFractionDigits: currency === "JPY" ? 0 : 2 }).format(number);
-  } catch {
-    return `${formatDecimal(number, 2)} ${currency}`;
-  }
-}
-
-function moneyTry(value) {
-  return new Intl.NumberFormat("tr-TR", { style: "currency", currency: "TRY", maximumFractionDigits: 0 }).format(Number(value || 0));
-}
-
-function getToday() {
+function todayISO() {
   return new Date().toISOString().slice(0, 10);
 }
 
-function buildAssetKey(tx) {
-  if (tx.assetClass === "gold") return `gold:${tx.goldType || "GRAM"}`;
-  return `${tx.assetClass}:${normalizeText(tx.symbol || tx.title)}`;
+function dateFromISO(value) {
+  const safe = value || todayISO();
+  return new Date(`${safe}T12:00:00`);
 }
 
-function readableAssetName(position) {
-  if (position.assetClass === "gold") {
-    const found = goldTypeOptions.find((item) => item.value === position.goldType);
-    return found?.label || position.title || "Altın";
-  }
-  return position.title || position.symbol || "Yatırım";
+function toISO(date) {
+  return date.toISOString().slice(0, 10);
 }
 
-function getLivePrice(position, livePrices) {
-  const prices = livePrices || {};
-  if (position.assetClass === "gold") {
-    const price = Number(prices.gold?.[position.goldType] || 0);
-    return { price, currency: "TRY", source: price > 0 ? "Canlı Altın" : "" };
-  }
-
-  if (position.assetClass === "crypto") {
-    const symbol = normalizeText(position.symbol || position.title);
-    const price = Number(prices.crypto?.[symbol] || 0);
-    return { price, currency: "USD", usdTryRate: Number(prices.usdTryRate || prices.usdTry || 0), source: price > 0 ? "Canlı Kripto" : "" };
-  }
-
-  if (position.assetClass === "forex") {
-    const symbol = normalizeText(position.symbol || position.currency || position.title);
-    const price = Number(prices.forex?.[symbol] || prices.forex?.[`${symbol}TRY`] || 0);
-    return { price, currency: "TRY", source: price > 0 ? "Canlı Döviz" : "" };
-  }
-
-  if (position.assetClass === "stocks") {
-    const symbol = normalizeText(position.symbol || position.title);
-    const price = Number(prices.stocks?.[symbol] || 0);
-    return { price, currency: position.currency || "TRY", source: price > 0 ? "Canlı Hisse" : "" };
-  }
-
-  return { price: 0, currency: position.currency || "TRY", source: "" };
+function addDays(date, amount) {
+  const next = new Date(date);
+  next.setDate(next.getDate() + amount);
+  return next;
 }
 
-function toTryValue(value, currency, usdTryRate) {
-  if (currency === "TRY") return Number(value || 0);
-  if ((currency === "USD" || currency === "USDT") && Number(usdTryRate || 0) > 0) return Number(value || 0) * Number(usdTryRate || 0);
-  return Number(value || 0);
+function startOfWeek(date) {
+  const next = new Date(date);
+  const day = next.getDay() || 7;
+  next.setDate(next.getDate() - day + 1);
+  next.setHours(0, 0, 0, 0);
+  return next;
 }
 
-function sortTransactions(transactions) {
-  return [...transactions].sort((a, b) => {
-    const dateCompare = String(a.date || "").localeCompare(String(b.date || ""));
-    if (dateCompare !== 0) return dateCompare;
-    return String(a.id || "").localeCompare(String(b.id || ""));
-  });
+function weekNumber(date) {
+  const target = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  const dayNumber = target.getUTCDay() || 7;
+  target.setUTCDate(target.getUTCDate() + 4 - dayNumber);
+  const yearStart = new Date(Date.UTC(target.getUTCFullYear(), 0, 1));
+  return Math.ceil(((target - yearStart) / 86400000 + 1) / 7);
 }
 
-function calculatePortfolio(transactions, livePrices) {
-  const positions = {};
-  const sales = [];
+function buildWeeks(year) {
+  const first = new Date(Number(year), 0, 1);
+  const last = new Date(Number(year), 11, 31);
+  let cursor = startOfWeek(first);
+  const weeks = [];
 
-  sortTransactions(transactions).forEach((tx) => {
-    const key = buildAssetKey(tx);
-    if (!positions[key]) {
-      positions[key] = {
-        key,
-        assetClass: tx.assetClass,
-        title: tx.title,
-        symbol: normalizeText(tx.symbol || tx.title),
-        goldType: tx.goldType || "GRAM",
-        currency: tx.currency || "TRY",
-        quantity: 0,
-        totalCostOriginal: 0,
-        totalCostTry: 0,
-        realizedPnlTry: 0,
-        realizedPnlOriginal: 0,
-        buyCount: 0,
-        sellCount: 0,
-      };
-    }
+  while (cursor <= last) {
+    const days = Array.from({ length: 7 }, (_, index) => addDays(cursor, index));
+    const visibleDay = days.find((day) => day.getFullYear() === Number(year)) || days[0];
+    weeks.push({
+      id: `${year}-${toISO(cursor)}`,
+      number: weekNumber(cursor),
+      monthIndex: visibleDay.getMonth(),
+      monthName: MONTHS[visibleDay.getMonth()],
+      days,
+    });
+    cursor = addDays(cursor, 7);
+  }
 
-    const position = positions[key];
-    const quantity = Number(tx.quantity || 0);
-    const price = Number(tx.price || 0);
-    const currency = tx.currency || position.currency || "TRY";
-    const usdTryRate = Number(tx.usdTryRate || livePrices?.usdTryRate || livePrices?.usdTry || 0);
-    const totalOriginal = quantity * price;
-    const totalTry = toTryValue(totalOriginal, currency, usdTryRate);
+  return weeks;
+}
 
-    if (tx.type === "BUY") {
-      position.quantity += quantity;
-      position.totalCostOriginal += totalOriginal;
-      position.totalCostTry += totalTry;
-      position.currency = currency;
-      position.buyCount += 1;
-      return;
-    }
-
-    if (tx.type === "SELL") {
-      const availableQuantity = position.quantity;
-      const sellQuantity = Math.min(quantity, availableQuantity);
-      const averageCostOriginal = availableQuantity > 0 ? position.totalCostOriginal / availableQuantity : 0;
-      const averageCostTry = availableQuantity > 0 ? position.totalCostTry / availableQuantity : 0;
-      const realizedOriginal = sellQuantity * (price - averageCostOriginal);
-      const sellTry = toTryValue(sellQuantity * price, currency, usdTryRate);
-      const realizedTry = sellTry - sellQuantity * averageCostTry;
-
-      position.quantity -= sellQuantity;
-      position.totalCostOriginal -= averageCostOriginal * sellQuantity;
-      position.totalCostTry -= averageCostTry * sellQuantity;
-      position.realizedPnlOriginal += realizedOriginal;
-      position.realizedPnlTry += realizedTry;
-      position.sellCount += 1;
-
-      sales.unshift({
-        ...tx,
-        key,
-        sellQuantity,
-        averageCostOriginal,
-        averageCostTry,
-        realizedOriginal,
-        realizedTry,
-      });
-    }
-  });
-
-  const positionList = Object.values(positions).filter((position) => position.quantity > 0.00000001);
-
-  const enrichedPositions = positionList.map((position) => {
-    const live = getLivePrice(position, livePrices);
-    const currentPrice = live.price || 0;
-    const currentCurrency = live.currency || position.currency || "TRY";
-    const usdTryRate = Number(live.usdTryRate || livePrices?.usdTryRate || livePrices?.usdTry || 0);
-    const currentOriginalValue = position.quantity * currentPrice;
-    const currentTryValue = currentPrice > 0 ? toTryValue(currentOriginalValue, currentCurrency, usdTryRate) : 0;
-    const averageCostOriginal = position.quantity > 0 ? position.totalCostOriginal / position.quantity : 0;
-    const averageCostTry = position.quantity > 0 ? position.totalCostTry / position.quantity : 0;
-    const unrealizedPnlTry = currentTryValue > 0 ? currentTryValue - position.totalCostTry : 0;
-    const unrealizedRate = position.totalCostTry > 0 && currentTryValue > 0 ? (unrealizedPnlTry / position.totalCostTry) * 100 : 0;
-
-    return {
-      ...position,
-      currentPrice,
-      currentCurrency,
-      currentTryValue,
-      averageCostOriginal,
-      averageCostTry,
-      unrealizedPnlTry,
-      unrealizedRate,
-      liveSource: live.source,
-    };
-  });
-
-  const realizedPnlTry = Object.values(positions).reduce((sum, position) => sum + position.realizedPnlTry, 0);
-  const unrealizedPnlTry = enrichedPositions.reduce((sum, position) => sum + position.unrealizedPnlTry, 0);
-  const totalCurrentValueTry = enrichedPositions.reduce((sum, position) => sum + position.currentTryValue, 0);
-  const totalCostTry = enrichedPositions.reduce((sum, position) => sum + position.totalCostTry, 0);
-
+function normalizeRoutine(item) {
   return {
-    positions: enrichedPositions,
-    sales,
-    realizedPnlTry,
-    unrealizedPnlTry,
-    totalPnlTry: realizedPnlTry + unrealizedPnlTry,
-    totalCurrentValueTry,
-    totalCostTry,
+    id: String(item?.id || Date.now() + Math.random()),
+    title: item?.title || item?.name || "İsimsiz iş",
+    category: item?.category || "gunluk",
+    priority: item?.priority || "orta",
+    date: item?.date || item?.dueDate || todayISO(),
+    note: item?.note || "",
+    done: Boolean(item?.done || item?.completed),
   };
 }
 
-function sortPositions(positions, sortMode) {
-  return [...positions].sort((a, b) => {
-    if (sortMode === "bakiyeBuyuk") return b.currentTryValue - a.currentTryValue;
-    if (sortMode === "bakiyeKucuk") return a.currentTryValue - b.currentTryValue;
-    if (sortMode === "karBuyuk") return b.unrealizedPnlTry - a.unrealizedPnlTry;
-    if (sortMode === "karKucuk") return a.unrealizedPnlTry - b.unrealizedPnlTry;
-    if (sortMode === "isim") return readableAssetName(a).localeCompare(readableAssetName(b), "tr");
-    return b.currentTryValue - a.currentTryValue;
-  });
+function categoryInfo(value) {
+  return CATEGORIES.find((item) => item.value === value) || CATEGORIES[2];
 }
 
-function migrateLegacyAssets(investments) {
-  if (Array.isArray(investments?.transactions) && investments.transactions.length > 0) return investments.transactions;
-
-  const legacyTransactions = [];
-  ["gold", "crypto", "stocks", "forex"].forEach((assetClass) => {
-    (investments?.[assetClass] || []).forEach((item) => {
-      if (!item?.title || Number(item.quantity || 0) <= 0) return;
-      legacyTransactions.push({
-        id: `legacy-${assetClass}-${item.id || Date.now()}-${legacyTransactions.length}`,
-        type: "BUY",
-        assetClass,
-        title: item.title,
-        symbol: normalizeText(item.title),
-        goldType: item.goldType || "GRAM",
-        quantity: Number(item.quantity || 0),
-        price: Number(item.buyPrice || item.currentPrice || 0),
-        currency: item.currency || (assetClass === "crypto" ? "USD" : "TRY"),
-        date: item.date || getToday(),
-        note: item.note || "Eski kayıttan aktarıldı",
-      });
-    });
-  });
-
-  return legacyTransactions;
+function priorityInfo(value) {
+  return PRIORITIES.find((item) => item.value === value) || PRIORITIES[1];
 }
 
-export default function InvestmentLedger({ investments, setInvestments, onTotalsChange }) {
-  const [form, setForm] = useState({ ...emptyTransaction, date: getToday() });
-  const [sortMode, setSortMode] = useState("bakiyeBuyuk");
-  const [liveLoading, setLiveLoading] = useState(false);
-  const [liveMessage, setLiveMessage] = useState("");
-  const [besTotal, setBesTotal] = useState(0);
+function formatDate(value) {
+  const date = dateFromISO(value);
+  return `${date.getDate()} ${MONTHS[date.getMonth()]}`;
+}
 
-  const transactions = useMemo(() => migrateLegacyAssets(investments), [investments]);
-  const livePrices = investments?.livePrices || {};
-  const portfolio = useMemo(() => calculatePortfolio(transactions, livePrices), [transactions, livePrices]);
-  const sortedPositions = useMemo(() => sortPositions(portfolio.positions, sortMode), [portfolio.positions, sortMode]);
-
-  useEffect(() => {
-    if (!investments?.transactions && transactions.length > 0) {
-      setInvestments((current) => ({ ...current, transactions }));
-    }
-  }, []);
-
-  useEffect(() => {
-    onTotalsChange?.({
-      besTotal,
-      totalInvestment: portfolio.totalCurrentValueTry + besTotal,
-      availableInvestment: portfolio.totalCurrentValueTry,
-      realizedPnl: portfolio.realizedPnlTry,
-      unrealizedPnl: portfolio.unrealizedPnlTry,
-      totalPnl: portfolio.totalPnlTry,
-      totalCost: portfolio.totalCostTry,
-    });
-  }, [besTotal, portfolio.totalCurrentValueTry, portfolio.realizedPnlTry, portfolio.unrealizedPnlTry, portfolio.totalPnlTry, portfolio.totalCostTry, onTotalsChange]);
-
-  const updateForm = (field, value) => {
-    setForm((current) => {
-      const next = { ...current, [field]: value };
-      if (field === "assetClass") {
-        next.currency = value === "crypto" ? "USD" : "TRY";
-        next.goldType = value === "gold" ? "GRAM" : current.goldType;
-      }
-      if (field === "title") next.symbol = normalizeText(value);
-      return next;
-    });
-  };
-
-  const addTransaction = () => {
-    const quantity = parseDecimal(form.quantity);
-    const price = parseDecimal(form.price);
-    const title = form.title.trim();
-
-    if (!title) return alert("Varlık adı gir.");
-    if (quantity <= 0) return alert("Geçerli miktar gir.");
-    if (price <= 0) return alert("Geçerli işlem fiyatı gir.");
-
-    const nextTransaction = {
-      id: String(Date.now()),
-      type: form.type,
-      assetClass: form.assetClass,
-      title,
-      symbol: normalizeText(form.symbol || title),
-      goldType: form.goldType || "GRAM",
-      quantity,
-      price,
-      currency: form.currency || "TRY",
-      date: form.date || getToday(),
-      note: form.note.trim(),
-      usdTryRate: Number(livePrices.usdTryRate || livePrices.usdTry || 0),
-    };
-
-    if (nextTransaction.type === "SELL") {
-      const currentPortfolio = calculatePortfolio(transactions, livePrices);
-      const key = buildAssetKey(nextTransaction);
-      const currentPosition = currentPortfolio.positions.find((position) => position.key === key);
-      if (!currentPosition || currentPosition.quantity + 0.00000001 < quantity) {
-        return alert("Satış miktarı mevcut bakiyeden fazla olamaz.");
-      }
-    }
-
-    setInvestments((current) => ({
-      ...current,
-      transactions: [nextTransaction, ...(current.transactions || transactions)],
-    }));
-
-    setForm({ ...emptyTransaction, date: getToday(), assetClass: form.assetClass, currency: form.assetClass === "crypto" ? "USD" : "TRY" });
-  };
-
-  const deleteTransaction = (id) => {
-    setInvestments((current) => ({
-      ...current,
-      transactions: (current.transactions || transactions).filter((item) => item.id !== id),
-    }));
-  };
-
-  const updateLivePrices = async () => {
-    if (liveLoading) return;
-    setLiveLoading(true);
-    setLiveMessage("");
-
-    try {
-      const response = await fetch("/api/market-prices", { cache: "no-store" });
-      const payload = await response.json().catch(() => null);
-      if (!response.ok || !payload?.prices) {
-        setLiveMessage("Fiyat verisi alınamadı");
-        return;
-      }
-
-      setInvestments((current) => ({ ...current, livePrices: payload.prices }));
-      setLiveMessage("Fiyatlar güncellendi");
-    } catch (error) {
-      console.log(error);
-      setLiveMessage("Fiyat verisi alınamadı");
-    } finally {
-      setLiveLoading(false);
-    }
-  };
-
+function Field({ label, children }) {
   return (
-    <>
-      <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: "10px", marginBottom: "12px", flexWrap: "wrap" }}>
-        {liveMessage ? <span className="sectionDescription">{liveMessage}</span> : null}
-        <button type="button" className="premiumButton" onClick={updateLivePrices} disabled={liveLoading}>
-          {liveLoading ? "Güncelleniyor" : "Fiyat Güncelle"}
-        </button>
-      </div>
-
-      <section className="summaryGrid investmentSummaryGrid">
-        <SummaryCard tone="green" title="Toplam Yatırım" value={moneyTry(portfolio.totalCurrentValueTry + besTotal)} detail="BES dahil toplam yatırım" />
-        <SummaryCard tone="purple" title="Blokajlı Yatırım" value={moneyTry(besTotal)} detail="BES Projeksiyon toplamı" />
-        <SummaryCard tone="blue" title="Kullanılabilir" value={moneyTry(portfolio.totalCurrentValueTry)} detail="Satışlar düşülmüş güncel portföy" />
-        <SummaryCard tone={portfolio.totalPnlTry >= 0 ? "green" : "red"} title="Toplam Kar / Zarar" value={moneyTry(portfolio.totalPnlTry)} detail={`Gerçekleşen: ${moneyTry(portfolio.realizedPnlTry)} • Açık: ${moneyTry(portfolio.unrealizedPnlTry)}`} />
-      </section>
-
-      <BesProjectionPanel onTotalChange={setBesTotal} />
-
-      <Panel title="İşlem Ekle" subtitle="Alış ve satış işlemlerini gir. Parçalı alımlarda ortalama maliyet otomatik hesaplanır." totalLabel="İşlem Sayısı" total={transactions.length} open onToggle={() => {}}>
-        <div className="formGrid six">
-          <SelectBox label="İşlem Tipi" value={form.type} onChange={(value) => updateForm("type", value)} options={typeOptions} />
-          <SelectBox label="Varlık Türü" value={form.assetClass} onChange={(value) => updateForm("assetClass", value)} options={assetClassOptions} />
-          <InputBox label="Varlık Adı" value={form.title} placeholder="Örn: SOL / Gram Altın" onChange={(value) => updateForm("title", value)} />
-          <InputBox label="Canlı Sembol" value={form.symbol} placeholder="Örn: SOL / GRAM" onChange={(value) => updateForm("symbol", value)} />
-          {form.assetClass === "gold" ? <SelectBox label="Altın Türü" value={form.goldType} onChange={(value) => updateForm("goldType", value)} options={goldTypeOptions} /> : null}
-          <InputBox label="Miktar" value={form.quantity} placeholder="Örn: 4 veya 0,63" onChange={(value) => updateForm("quantity", value)} />
-          <InputBox label="İşlem Fiyatı" value={form.price} placeholder="Birim fiyat" onChange={(value) => updateForm("price", value)} />
-          <SelectBox label="Para Birimi" value={form.currency} onChange={(value) => updateForm("currency", value)} options={currencyOptions} />
-          <InputBox label="Tarih" type="date" value={form.date} onChange={(value) => updateForm("date", value)} />
-          <InputBox label="Not" value={form.note} placeholder="Opsiyonel" onChange={(value) => updateForm("note", value)} />
-          <button type="button" className="premiumButton wide" onClick={addTransaction}>{form.type === "BUY" ? "Alış Ekle" : "Satış Ekle"}</button>
-        </div>
-      </Panel>
-
-      <Panel title="Güncel Portföy" subtitle="Satışlar düşülmüş mevcut bakiye ve ortalama maliyet" totalLabel="Güncel Değer" total={moneyTry(portfolio.totalCurrentValueTry)} open onToggle={() => {}}>
-        <div className="formGrid two">
-          <SelectBox
-            label="Sıralama"
-            value={sortMode}
-            onChange={setSortMode}
-            options={[
-              { value: "bakiyeBuyuk", label: "Toplam bakiyeye göre büyükten küçüğe" },
-              { value: "bakiyeKucuk", label: "Toplam bakiyeye göre küçükten büyüğe" },
-              { value: "karBuyuk", label: "Kâra göre büyükten küçüğe" },
-              { value: "karKucuk", label: "Kâra göre küçükten büyüğe" },
-              { value: "isim", label: "İsme göre A-Z" },
-            ]}
-          />
-          <div className="emptyState" style={{ padding: "14px 16px", minHeight: "58px", textAlign: "left" }}>
-            <strong style={{ fontSize: "13px" }}>Ortalama Maliyet</strong>
-            <span style={{ fontSize: "12px", marginTop: "4px" }}>Parçalı alışlar ağırlıklı ortalama maliyetle birleşir.</span>
-          </div>
-        </div>
-
-        {sortedPositions.length === 0 ? <EmptyState text="Henüz açık yatırım bakiyesi bulunmuyor." /> : (
-          <div className="recordList">
-            {sortedPositions.map((position) => {
-              const isProfit = position.unrealizedPnlTry >= 0;
-              return (
-                <div key={position.key} className="simpleRecord investmentRecord" style={{ borderColor: isProfit ? "rgba(34,197,94,.55)" : "rgba(248,113,113,.55)", background: isProfit ? "rgba(34,197,94,.10)" : "rgba(248,113,113,.10)" }}>
-                  <div className="simpleRecordTop">
-                    <div>
-                      <h4>{readableAssetName(position)}</h4>
-                      <p>Miktar: {formatDecimal(position.quantity)} • Ortalama maliyet: {money(position.averageCostOriginal, position.currency)}</p>
-                      <p>Toplam maliyet: {moneyTry(position.totalCostTry)} • Güncel değer: {position.currentTryValue > 0 ? moneyTry(position.currentTryValue) : "Canlı fiyat bekleniyor"}</p>
-                      <p>Canlı fiyat: {position.currentPrice > 0 ? money(position.currentPrice, position.currentCurrency) : "Bulunamadı"}{position.liveSource ? ` • ${position.liveSource}` : ""}</p>
-                    </div>
-                    <div className="simpleRecordRight">
-                      <strong className={isProfit ? "profitText" : "lossText"}>{moneyTry(position.unrealizedPnlTry)} / %{position.unrealizedRate.toFixed(2)}</strong>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </Panel>
-
-      <Panel title="Geçmiş Satışlar" subtitle="Satılan varlıklar güncel bakiyeye dahil edilmez, gerçekleşen kâr/zarara eklenir." totalLabel="Gerçekleşen K/Z" total={moneyTry(portfolio.realizedPnlTry)} open={false} onToggle={() => {}}>
-        {portfolio.sales.length === 0 ? <EmptyState text="Henüz satış kaydı bulunmuyor." /> : (
-          <div className="recordList">
-            {portfolio.sales.map((sale) => (
-              <div key={sale.id} className="simpleRecord">
-                <div className="simpleRecordTop">
-                  <div>
-                    <h4>{sale.title}</h4>
-                    <p>Satış miktarı: {formatDecimal(sale.sellQuantity)} • Satış fiyatı: {money(sale.price, sale.currency)}</p>
-                    <p>Ortalama maliyet: {money(sale.averageCostOriginal, sale.currency)} • Tarih: {sale.date}</p>
-                    {sale.note ? <p>{sale.note}</p> : null}
-                  </div>
-                  <div className="simpleRecordRight">
-                    <strong className={sale.realizedTry >= 0 ? "profitText" : "lossText"}>{moneyTry(sale.realizedTry)}</strong>
-                    <button type="button" className="deleteButton" onClick={() => deleteTransaction(sale.id)}>Sil</button>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </Panel>
-
-      <Panel title="İşlem Geçmişi" subtitle="Tüm alış ve satış kayıtları" totalLabel="Toplam İşlem" total={transactions.length} open={false} onToggle={() => {}}>
-        <div className="recordList">
-          {transactions.map((tx) => (
-            <div key={tx.id} className="simpleRecord">
-              <div className="simpleRecordTop">
-                <div>
-                  <h4>{tx.type === "BUY" ? "Alış" : "Satış"} • {tx.title}</h4>
-                  <p>Miktar: {formatDecimal(tx.quantity)} • Fiyat: {money(tx.price, tx.currency)} • Tarih: {tx.date}</p>
-                  {tx.note ? <p>{tx.note}</p> : null}
-                </div>
-                <div className="simpleRecordRight">
-                  <strong>{money(Number(tx.quantity || 0) * Number(tx.price || 0), tx.currency)}</strong>
-                  <button type="button" className="deleteButton" onClick={() => deleteTransaction(tx.id)}>Sil</button>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      </Panel>
-    </>
+    <label style={{ display: "flex", flexDirection: "column", gap: "7px", minWidth: 0 }}>
+      <span style={{ color: "#cbd5e1", fontSize: "12px", fontWeight: 800 }}>{label}</span>
+      {children}
+    </label>
   );
 }
 
-function SummaryCard({ title, value, detail, tone }) {
-  return <article className={`summaryCard ${tone}`}><div className="summaryLabel">{title}</div><div className={`summaryValue summaryValue-${tone}`}>{value}</div><div className="summaryDetail">{detail}</div></article>;
+function Select({ value, onChange, options }) {
+  return (
+    <select value={value} onChange={(event) => onChange(event.target.value)} style={inputStyle}>
+      {options.map((option) => (
+        <option key={option.value} value={option.value}>{option.label}</option>
+      ))}
+    </select>
+  );
 }
 
-function Panel({ title, subtitle, totalLabel, total, open, onToggle, children }) {
-  return <section className="panelCard"><button type="button" className="panelHeader" onClick={onToggle}><div><h2 className="gradientTitle">{title}</h2><p>{subtitle}</p></div><div className="panelRight"><div className="panelTotal"><span>{totalLabel}</span><strong>{total}</strong></div><div className="toggleButton">{open ? "−" : "+"}</div></div></button>{open ? <div className="panelBody">{children}</div> : null}</section>;
+export default function RoutinePlanner({ routines, setRoutines }) {
+  const list = Array.isArray(routines) ? routines : [];
+  const currentYear = new Date().getFullYear();
+
+  const [selectedYear, setSelectedYear] = useState(currentYear);
+  const [selectedMonth, setSelectedMonth] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [categoryFilter, setCategoryFilter] = useState("all");
+  const [priorityFilter, setPriorityFilter] = useState("all");
+  const [search, setSearch] = useState("");
+  const [form, setForm] = useState({ title: "", category: "egitim", priority: "orta", date: todayISO(), note: "" });
+
+  const normalized = useMemo(() => list.map(normalizeRoutine), [list]);
+  const weeks = useMemo(() => buildWeeks(selectedYear), [selectedYear]);
+
+  const filtered = useMemo(() => {
+    return normalized.filter((item) => {
+      const date = dateFromISO(item.date);
+      const monthOk = selectedMonth === "all" || date.getMonth() === Number(selectedMonth);
+      const statusOk = statusFilter === "all" || (statusFilter === "done" ? item.done : !item.done);
+      const categoryOk = categoryFilter === "all" || item.category === categoryFilter;
+      const priorityOk = priorityFilter === "all" || item.priority === priorityFilter;
+      const searchOk = !search.trim() || `${item.title} ${item.note}`.toLowerCase().includes(search.toLowerCase());
+      return date.getFullYear() === Number(selectedYear) && monthOk && statusOk && categoryOk && priorityOk && searchOk;
+    });
+  }, [normalized, selectedYear, selectedMonth, statusFilter, categoryFilter, priorityFilter, search]);
+
+  const byDate = useMemo(() => {
+    return filtered.reduce((map, item) => {
+      if (!map[item.date]) map[item.date] = [];
+      map[item.date].push(item);
+      return map;
+    }, {});
+  }, [filtered]);
+
+  const stats = useMemo(() => {
+    const total = filtered.length;
+    const done = filtered.filter((item) => item.done).length;
+    return { total, done, pending: total - done, ratio: total ? Math.round((done / total) * 100) : 0 };
+  }, [filtered]);
+
+  const upcoming = useMemo(() => {
+    const today = new Date(`${todayISO()}T00:00:00`);
+    return normalized
+      .filter((item) => !item.done && new Date(`${item.date}T00:00:00`) >= today)
+      .sort((a, b) => String(a.date).localeCompare(String(b.date)))
+      .slice(0, 10);
+  }, [normalized]);
+
+  const addRoutine = () => {
+    const title = form.title.trim();
+    if (!title) return alert("Rutin / iş adı gir.");
+
+    const next = {
+      id: String(Date.now()),
+      title,
+      category: form.category,
+      priority: form.priority,
+      date: form.date || todayISO(),
+      note: form.note.trim(),
+      done: false,
+      completed: false,
+    };
+
+    setRoutines?.((current) => [next, ...(Array.isArray(current) ? current : [])]);
+    setForm({ title: "", category: form.category, priority: "orta", date: todayISO(), note: "" });
+  };
+
+  const toggleRoutine = (id) => {
+    setRoutines?.((current) =>
+      (Array.isArray(current) ? current : []).map((item) => {
+        if (String(item.id) !== String(id)) return item;
+        const nextDone = !Boolean(item.done || item.completed);
+        return { ...item, done: nextDone, completed: nextDone };
+      })
+    );
+  };
+
+  const deleteRoutine = (id) => {
+    setRoutines?.((current) => (Array.isArray(current) ? current : []).filter((item) => String(item.id) !== String(id)));
+  };
+
+  const gridTwo = { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "12px" };
+  const gridMonth = { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: "12px" };
+  const gridWeek = { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(420px, 1fr))", gap: "16px" };
+
+  return (
+    <section style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) 360px", gap: "22px", alignItems: "start" }}>
+      <div>
+        <div style={{ ...glass, borderRadius: "28px", padding: "26px", marginBottom: "20px", position: "relative", overflow: "hidden" }}>
+          <div style={{ position: "absolute", left: "-100px", top: "-100px", width: "240px", height: "240px", background: "radial-gradient(circle, rgba(96,165,250,.45), transparent 65%)" }} />
+          <div style={{ position: "absolute", right: "-100px", bottom: "-120px", width: "280px", height: "280px", background: "radial-gradient(circle, rgba(168,85,247,.38), transparent 65%)" }} />
+          <div style={{ position: "relative", zIndex: 1 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", gap: "18px", flexWrap: "wrap" }}>
+              <div>
+                <div style={{ display: "inline-flex", padding: "8px 12px", borderRadius: "999px", background: "rgba(96,165,250,.14)", color: "#bfdbfe", fontWeight: 900, marginBottom: "12px" }}>🗓️ 3D Yıllık Rutin Takvimi</div>
+                <h2 style={{ margin: 0, fontSize: "clamp(28px, 4vw, 44px)", color: "#f8fafc", letterSpacing: "-0.04em" }}>{selectedYear} Rutin Planı</h2>
+                <p style={{ color: "#cbd5e1", maxWidth: "760px", lineHeight: 1.6 }}>Haftalık düzen, aylık görünüm, yaklaşan işler, filtreler ve görsel kategori kartları tek ekranda.</p>
+              </div>
+              <Field label="Yıl">
+                <Select value={selectedYear} onChange={setSelectedYear} options={[currentYear - 1, currentYear, currentYear + 1].map((year) => ({ value: year, label: String(year) }))} />
+              </Field>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: "12px", marginTop: "22px" }}>
+              <Stat label="Toplam" value={stats.total} />
+              <Stat label="Tamamlanan" value={stats.done} />
+              <Stat label="Bekleyen" value={stats.pending} />
+              <Stat label="Başarı" value={`%${stats.ratio}`} />
+            </div>
+          </div>
+        </div>
+
+        <Panel title="➕ Yeni Rutin / İş Ekle">
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "12px" }}>
+            <Field label="Başlık"><input style={inputStyle} value={form.title} placeholder="Örn: SQL çalış, spor yap" onChange={(event) => setForm((current) => ({ ...current, title: event.target.value }))} /></Field>
+            <Field label="Kategori"><Select value={form.category} onChange={(value) => setForm((current) => ({ ...current, category: value }))} options={CATEGORIES.map((item) => ({ value: item.value, label: `${item.icon} ${item.label}` }))} /></Field>
+            <Field label="Öncelik"><Select value={form.priority} onChange={(value) => setForm((current) => ({ ...current, priority: value }))} options={PRIORITIES.map((item) => ({ value: item.value, label: `${item.icon} ${item.label}` }))} /></Field>
+            <Field label="Tarih"><input style={inputStyle} type="date" value={form.date} onChange={(event) => setForm((current) => ({ ...current, date: event.target.value }))} /></Field>
+            <Field label="Not"><input style={inputStyle} value={form.note} placeholder="Opsiyonel" onChange={(event) => setForm((current) => ({ ...current, note: event.target.value }))} /></Field>
+            <button type="button" onClick={addRoutine} style={{ border: 0, borderRadius: "16px", padding: "14px 18px", color: "#08111f", fontWeight: 900, cursor: "pointer", background: "linear-gradient(135deg, #67e8f9, #60a5fa, #a78bfa)", boxShadow: "0 15px 30px rgba(96,165,250,.35)", alignSelf: "end" }}>Ekle</button>
+          </div>
+        </Panel>
+
+        <Panel title="🔎 Filtreler">
+          <div style={gridTwo}>
+            <Field label="Ay"><Select value={selectedMonth} onChange={setSelectedMonth} options={[{ value: "all", label: "Tüm Aylar" }, ...MONTHS.map((month, index) => ({ value: String(index), label: month }))]} /></Field>
+            <Field label="Durum"><Select value={statusFilter} onChange={setStatusFilter} options={[{ value: "all", label: "Tümü" }, { value: "pending", label: "Bekleyen" }, { value: "done", label: "Tamamlanan" }]} /></Field>
+            <Field label="Kategori"><Select value={categoryFilter} onChange={setCategoryFilter} options={[{ value: "all", label: "Tüm Kategoriler" }, ...CATEGORIES.map((item) => ({ value: item.value, label: `${item.icon} ${item.label}` }))]} /></Field>
+            <Field label="Öncelik"><Select value={priorityFilter} onChange={setPriorityFilter} options={[{ value: "all", label: "Tüm Öncelikler" }, ...PRIORITIES.map((item) => ({ value: item.value, label: `${item.icon} ${item.label}` }))]} /></Field>
+            <Field label="Arama"><input style={inputStyle} value={search} placeholder="Rutin ara" onChange={(event) => setSearch(event.target.value)} /></Field>
+          </div>
+        </Panel>
+
+        <Panel title="📅 Aylar">
+          <div style={gridMonth}>
+            <MonthCard active={selectedMonth === "all"} title="Tüm Yıl" count={filtered.length} onClick={() => setSelectedMonth("all")} />
+            {MONTHS.map((month, index) => {
+              const count = normalized.filter((item) => {
+                const date = dateFromISO(item.date);
+                return date.getFullYear() === Number(selectedYear) && date.getMonth() === index;
+              }).length;
+              return <MonthCard key={month} active={selectedMonth === String(index)} title={month} count={count} onClick={() => setSelectedMonth(String(index))} />;
+            })}
+          </div>
+        </Panel>
+
+        <div style={gridWeek}>
+          {weeks.filter((week) => selectedMonth === "all" || week.monthIndex === Number(selectedMonth)).map((week) => {
+            const weekTasks = week.days.reduce((arr, day) => [...arr, ...(byDate[toISO(day)] || [])], []);
+            return (
+              <div key={week.id} style={{ ...glass, borderRadius: "24px", padding: "16px" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "12px" }}>
+                  <strong style={{ color: "#f8fafc" }}>{week.monthName}</strong>
+                  <span style={{ color: "#93c5fd", fontWeight: 900 }}>{week.number}. Hafta</span>
+                </div>
+
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(7, minmax(0, 1fr))", gap: "6px", marginBottom: "12px" }}>
+                  {week.days.map((day, index) => {
+                    const key = toISO(day);
+                    const dayTasks = byDate[key] || [];
+                    const isToday = key === todayISO();
+                    return (
+                      <div key={key} style={{ minHeight: "46px", borderRadius: "14px", padding: "6px", background: "rgba(2,6,23,.45)", border: isToday ? "1px solid rgba(96,165,250,.85)" : "1px solid rgba(148,163,184,.13)", color: "#cbd5e1", fontSize: "11px", boxShadow: isToday ? "0 12px 25px rgba(96,165,250,.20)" : "none" }}>
+                        <strong>{DAYS[index]}</strong>
+                        <div>{day.getDate()}</div>
+                        <div style={{ display: "flex", gap: "3px", flexWrap: "wrap", marginTop: "5px" }}>
+                          {dayTasks.slice(0, 4).map((task) => <span key={task.id} style={{ width: "7px", height: "7px", borderRadius: "999px", background: categoryInfo(task.category).color }} />)}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                  {weekTasks.length === 0 ? <SmallEmpty text="Bu haftaya kayıt yok." /> : weekTasks.slice(0, 6).map((task) => <TaskCard key={task.id} task={task} onToggle={toggleRoutine} onDelete={deleteRoutine} />)}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      <aside style={{ minWidth: 0 }}>
+        <Panel title="⏰ Yaklaşan İşler">
+          <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+            {upcoming.length === 0 ? <SmallEmpty text="Yaklaşan iş yok." /> : upcoming.map((task) => <UpcomingCard key={task.id} task={task} />)}
+          </div>
+        </Panel>
+
+        <Panel title="🎯 Kategori Görselleri">
+          <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+            {CATEGORIES.map((category) => {
+              const count = filtered.filter((item) => item.category === category.value).length;
+              return <div key={category.value} style={{ padding: "13px", borderRadius: "18px", background: "rgba(2,6,23,.48)", border: `1px solid ${category.color}66` }}><strong style={{ color: "#f8fafc" }}>{category.icon} {category.label}</strong><span style={{ display: "block", color: "#94a3b8", fontSize: "12px", marginTop: "5px" }}>{count} kayıt</span></div>;
+            })}
+          </div>
+        </Panel>
+      </aside>
+    </section>
+  );
 }
 
-function MiniPanel({ title, totalLabel, total, color, open, onToggle, children }) {
-  return <section className={`miniPanel ${color}`}><button type="button" className="miniHeader" onClick={onToggle}><div><h3 className={`miniTitle miniTitle-${color}`}>{title}</h3></div><div className="miniRight"><div className="miniTotal"><span>{totalLabel}</span><strong>{total}</strong></div><div className="miniToggle">{open ? "−" : "+"}</div></div></button>{open ? <div className="miniBody">{children}</div> : null}</section>;
+function Panel({ title, children }) {
+  return <div style={{ ...glass, borderRadius: "26px", padding: "20px", marginBottom: "18px" }}><div style={{ marginBottom: "16px" }}><h3 style={{ margin: 0, color: "#f8fafc", fontSize: "20px" }}>{title}</h3></div>{children}</div>;
 }
 
-function InputBox({ label, value, onChange, type = "text", placeholder = "" }) {
-  return <label className="inputBox"><span>{label}</span><input type={type} value={value} placeholder={placeholder} inputMode={type === "date" ? undefined : "text"} onChange={(event) => onChange(event.target.value)} /></label>;
+function Stat({ label, value }) {
+  return <div style={{ padding: "16px", borderRadius: "20px", background: "rgba(15,23,42,.72)", border: "1px solid rgba(255,255,255,.08)" }}><span style={{ display: "block", color: "#94a3b8", fontSize: "12px", fontWeight: 700 }}>{label}</span><strong style={{ display: "block", marginTop: "6px", fontSize: "24px", color: "#f8fafc" }}>{value}</strong></div>;
 }
 
-function SelectBox({ label, value, onChange, options }) {
-  return <label className="inputBox"><span>{label}</span><select value={value} onChange={(event) => onChange(event.target.value)}>{options.map((option) => typeof option === "string" ? <option key={option} value={option}>{option}</option> : <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>;
+function MonthCard({ active, title, count, onClick }) {
+  return <button type="button" onClick={onClick} style={{ ...glass, borderRadius: "20px", padding: "15px", cursor: "pointer", textAlign: "left", borderColor: active ? "rgba(96,165,250,.75)" : "rgba(148,163,184,.18)", transform: active ? "translateY(-4px)" : "none" }}><strong style={{ display: "block", color: "#f8fafc", fontSize: "15px" }}>{title}</strong><span style={{ display: "block", color: "#94a3b8", marginTop: "5px", fontSize: "12px" }}>{count} kayıt</span></button>;
+}
+
+function TaskCard({ task, onToggle, onDelete }) {
+  const category = categoryInfo(task.category);
+  const priority = priorityInfo(task.priority);
+  return <div style={{ ...glass, borderRadius: "16px", padding: "10px 11px", display: "flex", justifyContent: "space-between", gap: "10px", opacity: task.done ? .55 : 1 }}><div style={{ display: "flex", gap: "9px" }}><span style={{ fontSize: "20px" }}>{category.icon}</span><div><strong style={{ color: "#f8fafc", display: "block", fontSize: "13px" }}>{task.title}</strong><span style={{ color: "#94a3b8", display: "block", fontSize: "11px", marginTop: "3px" }}>{formatDate(task.date)} • {category.label} • {priority.icon} {priority.label}</span>{task.note ? <span style={{ color: "#94a3b8", display: "block", fontSize: "11px", marginTop: "3px" }}>{task.note}</span> : null}</div></div><div style={{ display: "flex", gap: "6px", alignItems: "center" }}><MiniButton onClick={() => onToggle(task.id)}>{task.done ? "Geri Al" : "Bitti"}</MiniButton><MiniButton danger onClick={() => onDelete(task.id)}>Sil</MiniButton></div></div>;
+}
+
+function UpcomingCard({ task }) {
+  const category = categoryInfo(task.category);
+  const priority = priorityInfo(task.priority);
+  return <div style={{ padding: "13px", borderRadius: "18px", background: "rgba(2,6,23,.48)", border: "1px solid rgba(148,163,184,.14)" }}><strong style={{ color: "#f8fafc", display: "block" }}>{category.icon} {task.title}</strong><span style={{ color: "#94a3b8", fontSize: "12px", marginTop: "5px", display: "block" }}>{formatDate(task.date)} • {category.label} • {priority.icon} {priority.label}</span>{task.note ? <span style={{ color: "#94a3b8", fontSize: "12px", marginTop: "5px", display: "block" }}>{task.note}</span> : null}</div>;
+}
+
+function SmallEmpty({ text }) {
+  return <div style={{ padding: "13px", borderRadius: "18px", background: "rgba(2,6,23,.48)", border: "1px solid rgba(148,163,184,.14)", color: "#94a3b8", fontSize: "12px" }}>{text}</div>;
+}
+
+function MiniButton({ children, onClick, danger = false }) {
+  return <button type="button" onClick={onClick} style={{ border: danger ? "1px solid rgba(248,113,113,.28)" : "1px solid rgba(148,163,184,.2)", background: "rgba(15,23,42,.8)", color: danger ? "#fecaca" : "#f8fafc", borderRadius: "10px", padding: "7px 9px", cursor: "pointer" }}>{children}</button>;
 }
 
