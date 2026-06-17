@@ -190,7 +190,7 @@ export default function RoutinePlanner({ routines, setRoutines }) {
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [priorityFilter, setPriorityFilter] = useState("all");
   const [search, setSearch] = useState("");
-  const [selectedDate, setSelectedDate] = useState(todayISO());
+  const [selectedDate, setSelectedDate] = useState(null);
   const [dayNote, setDayNote] = useState("");
   const [quickTitle, setQuickTitle] = useState("");
   const [quickCategory, setQuickCategory] = useState("gunluk");
@@ -225,7 +225,7 @@ export default function RoutinePlanner({ routines, setRoutines }) {
     return map;
   }, {}), [normalized]);
 
-  const selectedDateTasks = allByDate[selectedDate] || [];
+  const selectedDateTasks = selectedDate ? allByDate[selectedDate] || [] : [];
 
   const stats = useMemo(() => {
     const total = filtered.length;
@@ -287,6 +287,7 @@ export default function RoutinePlanner({ routines, setRoutines }) {
   };
 
   const addQuickTask = () => {
+    if (!selectedDate) return alert("Önce takvimden bir gün seç.");
     const title = quickTitle.trim();
     if (!title) return alert("Bu güne eklenecek iş / not başlığı gir.");
     addItem({ title, category: quickCategory, priority: quickPriority, date: selectedDate, note: "" });
@@ -294,6 +295,7 @@ export default function RoutinePlanner({ routines, setRoutines }) {
   };
 
   const addDayNote = () => {
+    if (!selectedDate) return alert("Önce takvimden bir gün seç.");
     const note = dayNote.trim();
     if (!note) return alert("Not gir.");
     addItem({ title: `Gün Notu - ${formatDate(selectedDate)}`, category: "not", priority: "orta", date: selectedDate, note });
@@ -301,6 +303,14 @@ export default function RoutinePlanner({ routines, setRoutines }) {
   };
 
   const selectDay = (dateKey) => {
+    if (selectedDate === dateKey) {
+      setSelectedDate(null);
+      setDayNote("");
+      setQuickTitle("");
+      setOpenPanels((current) => ({ ...current, dayNote: false }));
+      return;
+    }
+
     setSelectedDate(dateKey);
     setForm((current) => ({ ...current, date: dateKey }));
     setOpenPanels((current) => ({ ...current, dayNote: true }));
@@ -328,7 +338,7 @@ export default function RoutinePlanner({ routines, setRoutines }) {
           <div style={{ display: "flex", justifyContent: "space-between", gap: "18px", flexWrap: "wrap" }}>
             <div>
               <h2 style={{ margin: 0, fontSize: "clamp(28px, 4vw, 44px)", color: "#f8fafc", letterSpacing: "-0.04em", textShadow: "0 14px 35px rgba(0,0,0,.35)" }}>{selectedYear} Rutin Planı</h2>
-              <p style={{ color: "#e0f2fe", maxWidth: "760px", lineHeight: 1.6 }}>Hedeflerini, haftalık rutinlerini ve gün notlarını tek ekranda yönet.</p>
+              <p style={{ color: "#e0f2fe", maxWidth: "760px", lineHeight: 1.6 }}>Hedeflerini, haftalık rutinlerini ve gün notlarını tek ekranda yönet. Seçili güne tekrar tıklarsan seçim ve not alanı kapanır.</p>
             </div>
             <Field label="Yıl"><Select value={selectedYear} onChange={setSelectedYear} options={[currentYear - 1, currentYear, currentYear + 1].map((year) => ({ value: year, label: String(year) }))} /></Field>
           </div>
@@ -441,15 +451,17 @@ export default function RoutinePlanner({ routines, setRoutines }) {
           </div>
         </Panel>
 
-        <Panel title={`📝 Seçili Gün Notu - ${formatDate(selectedDate)}`} gradient="linear-gradient(145deg, rgba(131,24,67,.88), rgba(15,23,42,.88))" open={openPanels.dayNote} onToggle={() => togglePanel("dayNote")}>
-          <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) 160px", gap: "12px" }}>
-            <Field label="Güne Not Ekle"><textarea value={dayNote} placeholder="Bu güne ait notunu yaz..." onChange={(event) => setDayNote(event.target.value)} style={{ ...inputStyle, minHeight: "94px", resize: "vertical" }} /></Field>
-            <button type="button" onClick={addDayNote} style={primaryButtonStyle("linear-gradient(135deg, #f9a8d4, #fef08a)")}>Not Ekle</button>
-          </div>
-          <div style={{ marginTop: "14px", display: "flex", flexDirection: "column", gap: "8px" }}>
-            {selectedDateTasks.length === 0 ? <SmallEmpty text="Bu güne ait kayıt yok. Takvimden gün seçip not ekleyebilirsin." /> : selectedDateTasks.map((task) => <TaskCard key={task.id} task={task} onToggle={toggleRoutine} onDelete={deleteRoutine} />)}
-          </div>
-        </Panel>
+        {selectedDate ? (
+          <Panel title={`📝 Seçili Gün Notu - ${formatDate(selectedDate)}`} gradient="linear-gradient(145deg, rgba(131,24,67,.88), rgba(15,23,42,.88))" open={openPanels.dayNote} onToggle={() => togglePanel("dayNote")}>
+            <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) 160px", gap: "12px" }}>
+              <Field label="Güne Not Ekle"><textarea value={dayNote} placeholder="Bu güne ait notunu yaz. Kaydetmeden kayıt oluşmaz." onChange={(event) => setDayNote(event.target.value)} style={{ ...inputStyle, minHeight: "94px", resize: "vertical" }} /></Field>
+              <button type="button" onClick={addDayNote} style={primaryButtonStyle("linear-gradient(135deg, #f9a8d4, #fef08a)")}>Kaydet</button>
+            </div>
+            <div style={{ marginTop: "14px", display: "flex", flexDirection: "column", gap: "8px" }}>
+              {selectedDateTasks.length === 0 ? <SmallEmpty text="Bu güne ait kayıt yok. Kaydet dediğinde kayıt oluşur." /> : selectedDateTasks.map((task) => <TaskCard key={task.id} task={task} onToggle={toggleRoutine} onDelete={deleteRoutine} />)}
+            </div>
+          </Panel>
+        ) : null}
       </div>
 
       <aside style={{ minWidth: 0 }}>
