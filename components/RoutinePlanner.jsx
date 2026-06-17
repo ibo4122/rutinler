@@ -8,7 +8,7 @@ const DAYS = ["Pzt", "Sal", "Çar", "Per", "Cum", "Cmt", "Paz"];
 const CATEGORIES = [
   { value: "egitim", label: "Eğitim", icon: "🎓", color: "#60a5fa", bg: "linear-gradient(145deg, rgba(37,99,235,.48), rgba(14,165,233,.18))" },
   { value: "is", label: "İş", icon: "💼", color: "#a78bfa", bg: "linear-gradient(145deg, rgba(124,58,237,.48), rgba(168,85,247,.18))" },
-  { value: "gunluk", label: "Günlük", icon: "✅", color: "#34d399", bg: "linear-gradient(145deg, rgba(5,150,105,.44), rgba(16,185,129,.18))" },
+  { value: "gunluk", label: "Günlük", icon: "🔅", color: "#34d399", bg: "linear-gradient(145deg, rgba(5,150,105,.44), rgba(16,185,129,.18))" },
   { value: "saglik", label: "Sağlık", icon: "💪", color: "#fb7185", bg: "linear-gradient(145deg, rgba(225,29,72,.44), rgba(251,113,133,.18))" },
   { value: "finans", label: "Finans", icon: "💰", color: "#fbbf24", bg: "linear-gradient(145deg, rgba(217,119,6,.44), rgba(251,191,36,.18))" },
   { value: "kisisel", label: "Kişisel", icon: "✨", color: "#22d3ee", bg: "linear-gradient(145deg, rgba(8,145,178,.44), rgba(34,211,238,.18))" },
