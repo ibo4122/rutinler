@@ -32,7 +32,6 @@ function assetValueTry(item) {
   const quantity = Number(item?.quantity || 0);
   const currentPriceTry = Number(item?.currentPriceTry || 0);
   if (quantity > 0 && currentPriceTry > 0) return quantity * currentPriceTry;
-
   const currentPrice = Number(item?.currentPrice || 0);
   const usdTryRate = Number(item?.usdTryRate || 0);
   const value = quantity * currentPrice;
@@ -72,24 +71,38 @@ function pieGradient(items) {
 }
 
 export default function MarketUniversePanel({ investments, investmentTotals, marketData, onReload }) {
+  const [open, setOpen] = useState(true);
   const [active, setActive] = useState("crypto");
   const [query, setQuery] = useState("");
   const [localData, setLocalData] = useState(marketData || null);
   const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState("");
 
   useEffect(() => {
-    if (marketData) setLocalData(marketData);
+    if (marketData?.markets) setLocalData(marketData);
   }, [marketData]);
 
   const load = async () => {
     setLoading(true);
+    setMessage("");
     try {
-      const response = await fetch("/api/market-prices", { cache: "no-store" });
+      const response = await fetch("/api/market-prices", {
+        method: "POST",
+        cache: "no-store",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ investments }),
+      });
       const payload = await response.json();
-      setLocalData(payload);
-      onReload?.(payload);
+      if (payload?.markets) {
+        setLocalData((current) => ({ ...(current || {}), ...payload }));
+        onReload?.(payload);
+        setMessage("Piyasa verileri güncellendi");
+      } else {
+        setMessage("Piyasa verisi alınamadı, mevcut liste korundu");
+      }
     } catch (error) {
       console.log(error);
+      setMessage("Piyasa verisi alınamadı, mevcut liste korundu");
     } finally {
       setLoading(false);
     }
@@ -113,61 +126,63 @@ export default function MarketUniversePanel({ investments, investmentTotals, mar
     return source.filter((item) => {
       if (!q) return true;
       return normalize(`${item.symbol} ${item.name} ${item.category || ""}`).includes(q);
-    }).slice(0, 180);
+    }).slice(0, 300);
   }, [active, query, markets]);
 
   return (
     <section className="panelCard" style={{ marginTop: 18 }}>
-      <div className="panelHeader" style={{ cursor: "default" }}>
+      <button type="button" className="panelHeader" onClick={() => setOpen((v) => !v)}>
         <div>
           <h2 className="gradientTitle">Canlı Piyasa Merkezi</h2>
-          <p>Türk hisseleri, ABD hisseleri, kripto piyasası ve değerli metaller tek alanda.</p>
+          <p>Türk hisseleri, ABD hisseleri, tüm kripto piyasası ve altın/gümüş/metaller.</p>
+          {message ? <p className="sectionDescription" style={{ marginTop: 6 }}>{message}</p> : null}
         </div>
         <div className="panelRight">
-          <button type="button" className="premiumButton" onClick={load} disabled={loading}>{loading ? "Yükleniyor" : "Piyasayı Yenile"}</button>
+          <div className="panelTotal"><span>Veri Durumu</span><strong>{loading ? "Yükleniyor" : "Hazır"}</strong></div>
+          <div className="toggleButton">{open ? "−" : "+"}</div>
         </div>
-      </div>
+      </button>
 
-      <div className="panelBody">
-        <div style={{ display: "grid", gridTemplateColumns: "360px minmax(0,1fr)", gap: 16, alignItems: "stretch" }}>
-          <div style={{ border: "1px solid rgba(255,255,255,.14)", borderRadius: 24, padding: 18, background: "linear-gradient(145deg, rgba(15,23,42,.72), rgba(49,46,129,.34))" }}>
-            <h3 style={{ margin: "0 0 8px", color: "#fff" }}>Portföy Dağılımı</h3>
-            <p className="sectionDescription">Yatırım kalemlerinin toplam içindeki yüzdesel dağılımı.</p>
-            <div style={{ width: 230, height: 230, borderRadius: "50%", margin: "20px auto", background: pieGradient(distribution), boxShadow: "0 22px 45px rgba(0,0,0,.35)", display: "grid", placeItems: "center" }}>
-              <div style={{ width: 118, height: 118, borderRadius: "50%", background: "rgba(15,23,42,.92)", border: "1px solid rgba(255,255,255,.16)", display: "grid", placeItems: "center", textAlign: "center", color: "#fff", fontWeight: 900 }}>
-                <span style={{ display: "block", fontSize: 11, color: "#cbd5e1" }}>Toplam</span>
-                {trMoney(totalDistribution)}
+      {open ? (
+        <div className="panelBody">
+          <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 12 }}>
+            <button type="button" className="premiumButton" onClick={load} disabled={loading}>{loading ? "Yükleniyor" : "Piyasayı Yenile"}</button>
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "360px minmax(0,1fr)", gap: 16, alignItems: "stretch" }}>
+            <div style={{ border: "1px solid rgba(255,255,255,.14)", borderRadius: 24, padding: 18, background: "linear-gradient(145deg, rgba(15,23,42,.72), rgba(49,46,129,.34))" }}>
+              <h3 style={{ margin: "0 0 8px", color: "#fff" }}>Portföy Dağılımı</h3>
+              <p className="sectionDescription">Yatırım kalemlerinin toplam içindeki yüzdesel dağılımı.</p>
+              <div style={{ width: 230, height: 230, borderRadius: "50%", margin: "20px auto", background: pieGradient(distribution), boxShadow: "0 22px 45px rgba(0,0,0,.35)", display: "grid", placeItems: "center" }}>
+                <div style={{ width: 118, height: 118, borderRadius: "50%", background: "rgba(15,23,42,.92)", border: "1px solid rgba(255,255,255,.16)", display: "grid", placeItems: "center", textAlign: "center", color: "#fff", fontWeight: 900 }}>
+                  <span style={{ display: "block", fontSize: 11, color: "#cbd5e1" }}>Toplam</span>
+                  {trMoney(totalDistribution)}
+                </div>
+              </div>
+              <div style={{ display: "grid", gap: 8 }}>
+                {distribution.length ? distribution.map((item) => (
+                  <div key={item.key} style={{ display: "flex", justifyContent: "space-between", gap: 10, color: "#e2e8f0", fontSize: 12 }}>
+                    <span><i style={{ display: "inline-block", width: 10, height: 10, borderRadius: 999, background: item.color, marginRight: 7 }} />{item.label}</span>
+                    <strong>{pct((item.value / totalDistribution) * 100)}</strong>
+                  </div>
+                )) : <div className="emptyState"><strong>Dağılım için yatırım kaydı yok.</strong></div>}
               </div>
             </div>
-            <div style={{ display: "grid", gap: 8 }}>
-              {distribution.length ? distribution.map((item) => (
-                <div key={item.key} style={{ display: "flex", justifyContent: "space-between", gap: 10, color: "#e2e8f0", fontSize: 12 }}>
-                  <span><i style={{ display: "inline-block", width: 10, height: 10, borderRadius: 999, background: item.color, marginRight: 7 }} />{item.label}</span>
-                  <strong>{pct((item.value / totalDistribution) * 100)}</strong>
-                </div>
-              )) : <div className="emptyState"><strong>Dağılım için yatırım kaydı yok.</strong></div>}
+
+            <div style={{ border: "1px solid rgba(255,255,255,.14)", borderRadius: 24, padding: 18, background: "rgba(15,23,42,.54)", minWidth: 0 }}>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
+                <MarketTab active={active === "crypto"} onClick={() => setActive("crypto")} label={`Kripto (${markets.crypto?.length || 0})`} />
+                <MarketTab active={active === "tr"} onClick={() => setActive("tr")} label={`Türk Hisseleri (${markets.turkishStocks?.length || 0})`} />
+                <MarketTab active={active === "us"} onClick={() => setActive("us")} label={`ABD Hisseleri (${markets.usStocks?.length || 0})`} />
+                <MarketTab active={active === "metals"} onClick={() => setActive("metals")} label={`Altın / Gümüş (${markets.metals?.length || 0})`} />
+              </div>
+
+              <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Sembol veya isim ara..." style={{ width: "100%", border: "1px solid rgba(255,255,255,.18)", background: "rgba(2,6,23,.62)", color: "#fff", borderRadius: 14, padding: "12px 14px", outline: "none", marginBottom: 12 }} />
+              <MarketTable type={active} rows={rows} />
             </div>
-          </div>
-
-          <div style={{ border: "1px solid rgba(255,255,255,.14)", borderRadius: 24, padding: 18, background: "rgba(15,23,42,.54)", minWidth: 0 }}>
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
-              <MarketTab active={active === "crypto"} onClick={() => setActive("crypto")} label={`Kripto (${markets.crypto?.length || 0})`} />
-              <MarketTab active={active === "tr"} onClick={() => setActive("tr")} label={`Türk Hisseleri (${markets.turkishStocks?.length || 0})`} />
-              <MarketTab active={active === "us"} onClick={() => setActive("us")} label={`ABD Hisseleri (${markets.usStocks?.length || 0})`} />
-              <MarketTab active={active === "metals"} onClick={() => setActive("metals")} label={`Altın / Gümüş (${markets.metals?.length || 0})`} />
-            </div>
-
-            <input
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="Sembol veya isim ara..."
-              style={{ width: "100%", border: "1px solid rgba(255,255,255,.18)", background: "rgba(2,6,23,.62)", color: "#fff", borderRadius: 14, padding: "12px 14px", outline: "none", marginBottom: 12 }}
-            />
-
-            <MarketTable type={active} rows={rows} />
           </div>
         </div>
-      </div>
+      ) : null}
     </section>
   );
 }
@@ -177,31 +192,24 @@ function MarketTab({ active, label, onClick }) {
 }
 
 function MarketTable({ rows, type }) {
-  if (!rows.length) return <div className="emptyState"><strong>Veri bulunamadı.</strong><span>Arama metnini değiştir veya piyasayı yenile.</span></div>;
-
+  if (!rows.length) return <div className="emptyState"><strong>Veri bulunamadı.</strong><span>Piyasayı yenile veya arama metnini değiştir.</span></div>;
   return (
     <div style={{ maxHeight: 520, overflow: "auto", borderRadius: 16, border: "1px solid rgba(255,255,255,.10)" }}>
       <table style={{ width: "100%", borderCollapse: "collapse", color: "#e2e8f0", fontSize: 12 }}>
         <thead style={{ position: "sticky", top: 0, background: "rgba(15,23,42,.96)", zIndex: 1 }}>
-          <tr>
-            <Th>Sembol</Th>
-            <Th>İsim</Th>
-            <Th>Fiyat</Th>
-            <Th>Değişim</Th>
-            <Th>Hacim / Market Cap</Th>
-          </tr>
+          <tr><Th>Sembol</Th><Th>İsim</Th><Th>Fiyat</Th><Th>Değişim</Th><Th>Hacim / Market Cap</Th></tr>
         </thead>
         <tbody>
           {rows.map((item, index) => {
             const key = `${type}-${item.symbol || item.id}-${index}`;
             const currency = item.currency || (type === "tr" || type === "metals" ? "TRY" : "USD");
             const price = type === "metals" ? item.priceTry : item.price;
-            const volume = type === "crypto" ? item.marketCap : item.volume;
+            const volume = type === "crypto" ? (item.marketCap || item.volume) : item.volume;
             return (
               <tr key={key} style={{ borderTop: "1px solid rgba(255,255,255,.08)" }}>
                 <Td><strong style={{ color: "#fff" }}>{item.symbol}</strong></Td>
                 <Td>{item.name || item.category || "-"}<div style={{ color: "#94a3b8", fontSize: 10 }}>{item.source || item.market || ""}</div></Td>
-                <Td>{price ? trMoney(price, currency) : "-"}</Td>
+                <Td>{price ? trMoney(price, currency) : <span style={{ color: "#94a3b8" }}>Fiyat bekleniyor</span>}</Td>
                 <Td><span style={{ color: Number(item.changePercent || item.change24h || 0) >= 0 ? "#86efac" : "#fca5a5", fontWeight: 900 }}>{item.changePercent || item.change24h ? pct(item.changePercent || item.change24h) : "-"}</span></Td>
                 <Td>{volume ? compact(volume) : "-"}</Td>
               </tr>
