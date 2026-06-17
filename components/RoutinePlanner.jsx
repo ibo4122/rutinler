@@ -185,7 +185,9 @@ function Field({ label, children }) {
 function Select({ value, onChange, options }) {
   return (
     <select value={value} onChange={(event) => onChange(event.target.value)} style={inputStyle}>
-      {options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+      {options.map((option) => (
+        <option key={option.value} value={option.value}>{option.label}</option>
+      ))}
     </select>
   );
 }
@@ -214,7 +216,17 @@ export default function RoutinePlanner({ routines, setRoutines }) {
   const [editGoalId, setEditGoalId] = useState(null);
   const [editGoal, setEditGoal] = useState({ title: "", progress: "0", color: "blue", note: "" });
   const [collapsedMonths, setCollapsedMonths] = useState({});
-  const [openPanels, setOpenPanels] = useState({ hero: true, goals: true, add: true, filters: true, months: true, calendar: true, dayNote: true, upcoming: true, goalSummary: true });
+  const [openPanels, setOpenPanels] = useState({
+    hero: true,
+    goals: true,
+    add: true,
+    filters: true,
+    months: true,
+    calendar: true,
+    dayNote: true,
+    upcoming: true,
+    goalSummary: true,
+  });
 
   useEffect(() => {
     try {
@@ -255,7 +267,10 @@ export default function RoutinePlanner({ routines, setRoutines }) {
   const doneCount = filtered.filter((task) => task.status === "done").length;
   const failedCount = filtered.filter((task) => task.status === "failed").length;
   const goalAverage = goals.length ? Math.round(goals.reduce((sum, goal) => sum + goal.progress, 0) / goals.length) : 0;
-  const upcoming = tasks.filter((task) => task.status === "pending" && dateFromISO(task.date) >= dateFromISO(todayISO())).sort((a, b) => a.date.localeCompare(b.date)).slice(0, 10);
+
+  const upcoming = tasks
+    .filter((task) => task.status === "pending" && dateFromISO(task.date) >= dateFromISO(todayISO()))
+    .sort((a, b) => a.date.localeCompare(b.date));
 
   const togglePanel = (key) => setOpenPanels((current) => ({ ...current, [key]: !current[key] }));
   const toggleMonth = (index) => setCollapsedMonths((current) => ({ ...current, [index]: !current[index] }));
@@ -312,115 +327,169 @@ export default function RoutinePlanner({ routines, setRoutines }) {
   const startGoalEdit = (goal) => { setEditGoalId(goal.id); setEditGoal({ title: goal.title, progress: String(goal.progress), color: goal.color, note: goal.note || "" }); };
   const saveGoalEdit = (id) => { const title = editGoal.title.trim(); if (!title) return alert("Hedef adı boş olamaz."); updateItem(id, { title, progress: Math.max(0, Math.min(100, Number(editGoal.progress || 0))), color: editGoal.color, note: editGoal.note.trim() }); setEditGoalId(null); };
 
-  return <section style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) 360px", gap: 22, alignItems: "start" }}>
-    <div>
-      <Panel title="Rutin Takvimi" open={openPanels.hero} onToggle={() => togglePanel("hero")} gradient="linear-gradient(135deg, rgba(30,64,175,.88), rgba(88,28,135,.82), rgba(15,23,42,.92))">
-        <div style={{ display: "flex", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
-          <div><h2 style={{ margin: 0, color: "#fff", fontSize: 34 }}>{year} Planı</h2><p style={{ color: "#dbeafe" }}>Ay kapatma seçimi kalıcıdır. Tarih seçilince sadece o tarihin kayıtları görünür.</p></div>
-          <Field label="Yıl"><Select value={year} onChange={setYear} options={[currentYear - 1, currentYear, currentYear + 1].map((item) => ({ value: item, label: String(item) }))} /></Field>
-        </div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: 12, marginTop: 18 }}>
-          <Stat label="Rutin" value={filtered.length} color="#60a5fa" />
-          <Stat label="Tamamlandı" value={doneCount} color="#22c55e" />
-          <Stat label="Tamamlanamadı" value={failedCount} color="#ef4444" />
-          <Stat label="Hedef Ort." value={`%${goalAverage}`} color="#a78bfa" />
-        </div>
-      </Panel>
+  return (
+    <section style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) 360px", gap: 22, alignItems: "start" }}>
+      <div>
+        <Panel title="Rutin Takvimi" open={openPanels.hero} onToggle={() => togglePanel("hero")} gradient="linear-gradient(135deg, rgba(30,64,175,.88), rgba(88,28,135,.82), rgba(15,23,42,.92))">
+          <div style={{ display: "flex", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
+            <div>
+              <h2 style={{ margin: 0, color: "#fff", fontSize: 34 }}>{year} Planı</h2>
+              <p style={{ color: "#dbeafe" }}>Ay kapatma seçimi kalıcıdır. Tarih seçilince sadece o tarihin kayıtları görünür.</p>
+            </div>
+            <Field label="Yıl">
+              <Select value={year} onChange={setYear} options={[currentYear - 1, currentYear, currentYear + 1].map((item) => ({ value: item, label: String(item) }))} />
+            </Field>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: 12, marginTop: 18 }}>
+            <Stat label="Rutin" value={filtered.length} color="#60a5fa" />
+            <Stat label="Tamamlandı" value={doneCount} color="#22c55e" />
+            <Stat label="Tamamlanamadı" value={failedCount} color="#ef4444" />
+            <Stat label="Hedef Ort." value={`%${goalAverage}`} color="#a78bfa" />
+          </div>
+        </Panel>
 
-      <Panel title="Hedeflerim" open={openPanels.goals} onToggle={() => togglePanel("goals")} gradient="linear-gradient(145deg, rgba(49,46,129,.88), rgba(8,47,73,.82), rgba(15,23,42,.88))">
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 12, marginBottom: 14 }}>
-          <Field label="Hedef"><input style={inputStyle} value={goalForm.title} onChange={(event) => setGoalForm((current) => ({ ...current, title: event.target.value }))} placeholder="SQL, Saz, İngilizce" /></Field>
-          <Field label="İlerleme %"><input style={inputStyle} type="number" min="0" max="100" value={goalForm.progress} onChange={(event) => setGoalForm((current) => ({ ...current, progress: event.target.value }))} /></Field>
-          <Field label="Renk"><Select value={goalForm.color} onChange={(value) => setGoalForm((current) => ({ ...current, color: value }))} options={GOAL_COLORS.map((item) => ({ value: item.value, label: item.label }))} /></Field>
-          <Field label="Not"><input style={inputStyle} value={goalForm.note} onChange={(event) => setGoalForm((current) => ({ ...current, note: event.target.value }))} placeholder="Opsiyonel" /></Field>
-          <button type="button" style={primaryButton("linear-gradient(135deg,#c4b5fd,#67e8f9,#fef08a)")} onClick={addGoal}>Hedef Ekle</button>
-        </div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 12 }}>
-          {goals.length === 0 ? <Empty text="Henüz hedef yok." /> : goals.map((goal) => <GoalCard key={goal.id} goal={goal} editId={editGoalId} edit={editGoal} setEdit={setEditGoal} onEdit={startGoalEdit} onSave={saveGoalEdit} onCancel={() => setEditGoalId(null)} onDelete={deleteItem} />)}
-        </div>
-      </Panel>
+        <Panel title="Hedeflerim" open={openPanels.goals} onToggle={() => togglePanel("goals")} gradient="linear-gradient(145deg, rgba(49,46,129,.88), rgba(8,47,73,.82), rgba(15,23,42,.88))">
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 12, marginBottom: 14 }}>
+            <Field label="Hedef"><input style={inputStyle} value={goalForm.title} onChange={(event) => setGoalForm((current) => ({ ...current, title: event.target.value }))} placeholder="SQL, Saz, İngilizce" /></Field>
+            <Field label="İlerleme %"><input style={inputStyle} type="number" min="0" max="100" value={goalForm.progress} onChange={(event) => setGoalForm((current) => ({ ...current, progress: event.target.value }))} /></Field>
+            <Field label="Renk"><Select value={goalForm.color} onChange={(value) => setGoalForm((current) => ({ ...current, color: value }))} options={GOAL_COLORS.map((item) => ({ value: item.value, label: item.label }))} /></Field>
+            <Field label="Not"><input style={inputStyle} value={goalForm.note} onChange={(event) => setGoalForm((current) => ({ ...current, note: event.target.value }))} placeholder="Opsiyonel" /></Field>
+            <button type="button" style={primaryButton("linear-gradient(135deg,#c4b5fd,#67e8f9,#fef08a)")} onClick={addGoal}>Hedef Ekle</button>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 12 }}>
+            {goals.length === 0 ? <Empty text="Henüz hedef yok." /> : goals.map((goal) => <GoalCard key={goal.id} goal={goal} editId={editGoalId} edit={editGoal} setEdit={setEditGoal} onEdit={startGoalEdit} onSave={saveGoalEdit} onCancel={() => setEditGoalId(null)} onDelete={deleteItem} />)}
+          </div>
+        </Panel>
 
-      <Panel title="Yeni Rutin / İş Ekle" open={openPanels.add} onToggle={() => togglePanel("add")} gradient="linear-gradient(145deg, rgba(6,78,59,.88), rgba(15,23,42,.86))">
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 12 }}>
-          <Field label="Başlık"><input style={inputStyle} value={taskForm.title} onChange={(event) => setTaskForm((current) => ({ ...current, title: event.target.value }))} /></Field>
-          <Field label="Kategori"><Select value={taskForm.category} onChange={(value) => setTaskForm((current) => ({ ...current, category: value }))} options={CATEGORIES.map((item) => ({ value: item.value, label: `${item.icon} ${item.label}` }))} /></Field>
-          <Field label="Öncelik"><Select value={taskForm.priority} onChange={(value) => setTaskForm((current) => ({ ...current, priority: value }))} options={PRIORITIES.map((item) => ({ value: item.value, label: `${item.icon} ${item.label}` }))} /></Field>
-          <Field label="Tarih"><input style={inputStyle} type="date" value={taskForm.date} onChange={(event) => setTaskForm((current) => ({ ...current, date: event.target.value }))} /></Field>
-          <Field label="Not"><input style={inputStyle} value={taskForm.note} onChange={(event) => setTaskForm((current) => ({ ...current, note: event.target.value }))} /></Field>
-          <button type="button" style={primaryButton("linear-gradient(135deg,#fef08a,#34d399,#22d3ee)")} onClick={addTask}>Ekle</button>
-        </div>
-      </Panel>
+        <Panel title="Yeni Rutin / İş Ekle" open={openPanels.add} onToggle={() => togglePanel("add")} gradient="linear-gradient(145deg, rgba(6,78,59,.88), rgba(15,23,42,.86))">
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 12 }}>
+            <Field label="Başlık"><input style={inputStyle} value={taskForm.title} onChange={(event) => setTaskForm((current) => ({ ...current, title: event.target.value }))} /></Field>
+            <Field label="Kategori"><Select value={taskForm.category} onChange={(value) => setTaskForm((current) => ({ ...current, category: value }))} options={CATEGORIES.map((item) => ({ value: item.value, label: `${item.icon} ${item.label}` }))} /></Field>
+            <Field label="Öncelik"><Select value={taskForm.priority} onChange={(value) => setTaskForm((current) => ({ ...current, priority: value }))} options={PRIORITIES.map((item) => ({ value: item.value, label: `${item.icon} ${item.label}` }))} /></Field>
+            <Field label="Tarih"><input style={inputStyle} type="date" value={taskForm.date} onChange={(event) => setTaskForm((current) => ({ ...current, date: event.target.value }))} /></Field>
+            <Field label="Not"><input style={inputStyle} value={taskForm.note} onChange={(event) => setTaskForm((current) => ({ ...current, note: event.target.value }))} /></Field>
+            <button type="button" style={primaryButton("linear-gradient(135deg,#fef08a,#34d399,#22d3ee)")} onClick={addTask}>Ekle</button>
+          </div>
+        </Panel>
 
-      <Panel title="Filtreler" open={openPanels.filters} onToggle={() => togglePanel("filters")} gradient="linear-gradient(145deg, rgba(120,53,15,.88), rgba(88,28,135,.70), rgba(15,23,42,.86))">
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12 }}>
-          <Field label="Ay"><Select value={month} onChange={setMonth} options={[{ value: "all", label: "Tüm Aylar" }, ...MONTHS.map((item, index) => ({ value: String(index), label: item }))]} /></Field>
-          <Field label="Durum"><Select value={statusFilter} onChange={setStatusFilter} options={[{ value: "all", label: "Tümü" }, ...STATUSES.map((item) => ({ value: item.value, label: `${item.icon} ${item.label}` }))]} /></Field>
-          <Field label="Kategori"><Select value={categoryFilter} onChange={setCategoryFilter} options={[{ value: "all", label: "Tüm Kategoriler" }, ...CATEGORIES.map((item) => ({ value: item.value, label: `${item.icon} ${item.label}` }))]} /></Field>
-          <Field label="Öncelik"><Select value={priorityFilter} onChange={setPriorityFilter} options={[{ value: "all", label: "Tüm Öncelikler" }, ...PRIORITIES.map((item) => ({ value: item.value, label: `${item.icon} ${item.label}` }))]} /></Field>
-          <Field label="Arama"><input style={inputStyle} value={search} onChange={(event) => setSearch(event.target.value)} /></Field>
-        </div>
-      </Panel>
+        <Panel title="Filtreler" open={openPanels.filters} onToggle={() => togglePanel("filters")} gradient="linear-gradient(145deg, rgba(120,53,15,.88), rgba(88,28,135,.70), rgba(15,23,42,.86))">
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12 }}>
+            <Field label="Ay"><Select value={month} onChange={setMonth} options={[{ value: "all", label: "Tüm Aylar" }, ...MONTHS.map((item, index) => ({ value: String(index), label: item }))]} /></Field>
+            <Field label="Durum"><Select value={statusFilter} onChange={setStatusFilter} options={[{ value: "all", label: "Tümü" }, ...STATUSES.map((item) => ({ value: item.value, label: `${item.icon} ${item.label}` }))]} /></Field>
+            <Field label="Kategori"><Select value={categoryFilter} onChange={setCategoryFilter} options={[{ value: "all", label: "Tüm Kategoriler" }, ...CATEGORIES.map((item) => ({ value: item.value, label: `${item.icon} ${item.label}` }))]} /></Field>
+            <Field label="Öncelik"><Select value={priorityFilter} onChange={setPriorityFilter} options={[{ value: "all", label: "Tüm Öncelikler" }, ...PRIORITIES.map((item) => ({ value: item.value, label: `${item.icon} ${item.label}` }))]} /></Field>
+            <Field label="Arama"><input style={inputStyle} value={search} onChange={(event) => setSearch(event.target.value)} /></Field>
+          </div>
+        </Panel>
 
-      <Panel title="Aylar" open={openPanels.months} onToggle={() => togglePanel("months")} gradient="linear-gradient(145deg, rgba(30,41,59,.90), rgba(49,46,129,.64), rgba(15,23,42,.86))">
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 12 }}>
-          <MonthCard title="Tüm Yıl" count={filtered.length} active={month === "all"} onClick={() => setMonth("all")} />
-          {MONTHS.map((item, index) => <MonthCard key={item} title={item} count={tasks.filter((task) => dateFromISO(task.date).getFullYear() === Number(year) && dateFromISO(task.date).getMonth() === index).length} active={month === String(index)} collapsed={Boolean(collapsedMonths[index])} onClick={() => setMonth(String(index))} onToggle={() => toggleMonth(index)} color={MONTH_COLORS[index]} />)}
-        </div>
-      </Panel>
+        <Panel title="Aylar" open={openPanels.months} onToggle={() => togglePanel("months")} gradient="linear-gradient(145deg, rgba(30,41,59,.90), rgba(49,46,129,.64), rgba(15,23,42,.86))">
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 12 }}>
+            <MonthCard title="Tüm Yıl" count={filtered.length} active={month === "all"} onClick={() => setMonth("all")} />
+            {MONTHS.map((item, index) => <MonthCard key={item} title={item} count={tasks.filter((task) => dateFromISO(task.date).getFullYear() === Number(year) && dateFromISO(task.date).getMonth() === index).length} active={month === String(index)} collapsed={Boolean(collapsedMonths[index])} onClick={() => setMonth(String(index))} onToggle={() => toggleMonth(index)} color={MONTH_COLORS[index]} />)}
+          </div>
+        </Panel>
 
-      <Panel title="Haftalık Takvim" open={openPanels.calendar} onToggle={() => togglePanel("calendar")} gradient="linear-gradient(145deg, rgba(8,47,73,.88), rgba(15,23,42,.88))">
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(420px, 1fr))", gap: 16 }}>
-          {weeks.filter((week) => {
-            const monthVisible = (month === "all" || week.monthIndex === Number(month)) && !collapsedMonths[week.monthIndex];
-            const selectedWeekVisible = !selectedDate || week.days.some((day) => localISO(day) === selectedDate);
-            return monthVisible && selectedWeekVisible;
-          }).map((week) => {
-            const weekTasks = week.days.flatMap((day) => byDate[localISO(day)] || []);
-            const selectedInWeek = selectedDate && week.days.some((day) => localISO(day) === selectedDate);
-            const visibleTasks = selectedDate ? (selectedInWeek ? selectedDateTasks : []) : weekTasks;
-            return <div key={week.id} style={{ ...glass, background: `linear-gradient(145deg, ${MONTH_COLORS[week.monthIndex]}44, rgba(15,23,42,.76))`, borderRadius: 24, padding: 16 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 12 }}><strong style={{ color: "#fff" }}>{week.monthName}</strong><span style={{ color: "#dbeafe", fontWeight: 900 }}>{week.number}. Hafta</span></div>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(7, minmax(0, 1fr))", gap: 6, marginBottom: selectedInWeek ? 12 : 0 }}>
-                {week.days.map((day, index) => {
-                  const key = localISO(day);
-                  const dayTasks = byDate[key] || [];
-                  const selected = key === selectedDate;
-                  return <button type="button" key={key} onClick={() => selectDay(key)} style={dayStyle(selected, key === todayISO())}><strong>{DAYS[index]}</strong><div>{day.getDate()}</div><div style={{ display: "flex", gap: 3, flexWrap: "wrap", marginTop: 5 }}>{dayTasks.slice(0, 4).map((task) => <span key={task.id} style={{ width: 7, height: 7, borderRadius: 99, background: statusInfo(task.status).color }} />)}</div></button>;
-                })}
-              </div>
-              {selectedInWeek ? <div style={{ ...glass, background: "rgba(2,6,23,.34)", borderRadius: 18, padding: 12, marginTop: 12 }}>
-                <QuickEntry selectedDate={selectedDate} quickTitle={quickTitle} setQuickTitle={setQuickTitle} quickCategory={quickCategory} setQuickCategory={setQuickCategory} quickPriority={quickPriority} setQuickPriority={setQuickPriority} addQuick={addQuick} />
-                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                  {visibleTasks.length === 0 ? <Empty text="Seçili tarihe ait rutin yok." /> : visibleTasks.map((task) => <TaskCard key={task.id} task={task} editId={editTaskId} edit={editTask} setEdit={setEditTask} onEdit={startTaskEdit} onSave={saveTaskEdit} onCancel={() => setEditTaskId(null)} onStatus={changeStatus} onDelete={deleteItem} />)}
+        <Panel title="Haftalık Takvim" open={openPanels.calendar} onToggle={() => togglePanel("calendar")} gradient="linear-gradient(145deg, rgba(8,47,73,.88), rgba(15,23,42,.88))">
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(420px, 1fr))", gap: 16 }}>
+            {weeks.filter((week) => {
+              const monthVisible = (month === "all" || week.monthIndex === Number(month)) && !collapsedMonths[week.monthIndex];
+              const selectedWeekVisible = !selectedDate || week.days.some((day) => localISO(day) === selectedDate);
+              return monthVisible && selectedWeekVisible;
+            }).map((week) => {
+              const weekTasks = week.days.flatMap((day) => byDate[localISO(day)] || []);
+              const selectedInWeek = selectedDate && week.days.some((day) => localISO(day) === selectedDate);
+              const visibleTasks = selectedDate ? (selectedInWeek ? selectedDateTasks : []) : weekTasks;
+              return (
+                <div key={week.id} style={{ ...glass, background: `linear-gradient(145deg, ${MONTH_COLORS[week.monthIndex]}44, rgba(15,23,42,.76))`, borderRadius: 24, padding: 16 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 12 }}>
+                    <strong style={{ color: "#fff" }}>{week.monthName}</strong>
+                    <span style={{ color: "#dbeafe", fontWeight: 900 }}>{week.number}. Hafta</span>
+                  </div>
+
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(7, minmax(0, 1fr))", gap: 6, marginBottom: selectedInWeek ? 12 : 0 }}>
+                    {week.days.map((day, index) => {
+                      const key = localISO(day);
+                      const dayTasks = byDate[key] || [];
+                      const selected = key === selectedDate;
+                      return (
+                        <button type="button" key={key} onClick={() => selectDay(key)} style={dayStyle(selected, key === todayISO())}>
+                          <strong>{DAYS[index]}</strong>
+                          <div style={{ fontSize: 15, fontWeight: 900, marginTop: 2 }}>{day.getDate()}</div>
+
+                          <div style={{ display: "flex", gap: 3, flexWrap: "wrap", marginTop: 5 }}>
+                            {dayTasks.map((task) => (
+                              <span key={task.id} style={{ width: 7, height: 7, borderRadius: 99, background: statusInfo(task.status).color }} />
+                            ))}
+                          </div>
+
+                          {dayTasks.length > 0 ? (
+                            <div style={{ marginTop: 7, display: "flex", flexDirection: "column", gap: 5, maxHeight: 92, overflowY: "auto", paddingRight: 2 }}>
+                              {dayTasks.map((task) => {
+                                const category = categoryInfo(task.category);
+                                return (
+                                  <div key={`${task.id}-calendar-note`} style={{ background: "rgba(255,255,255,.12)", border: `1px solid ${category.color}55`, borderRadius: 9, padding: "4px 5px", color: "#fff", fontSize: 10, lineHeight: 1.25, wordBreak: "break-word" }}>
+                                    <strong>{category.icon} {task.title}</strong>
+                                    {task.note ? <div style={{ color: "#dbeafe", marginTop: 2 }}>{task.note}</div> : null}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          ) : null}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {selectedInWeek ? (
+                    <div style={{ ...glass, background: "rgba(2,6,23,.34)", borderRadius: 18, padding: 12, marginTop: 12 }}>
+                      <QuickEntry selectedDate={selectedDate} quickTitle={quickTitle} setQuickTitle={setQuickTitle} quickCategory={quickCategory} setQuickCategory={setQuickCategory} quickPriority={quickPriority} setQuickPriority={setQuickPriority} addQuick={addQuick} />
+                      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                        {visibleTasks.length === 0 ? <Empty text="Seçili tarihe ait rutin yok." /> : visibleTasks.map((task) => <TaskCard key={task.id} task={task} editId={editTaskId} edit={editTask} setEdit={setEditTask} onEdit={startTaskEdit} onSave={saveTaskEdit} onCancel={() => setEditTaskId(null)} onStatus={changeStatus} onDelete={deleteItem} />)}
+                      </div>
+                    </div>
+                  ) : null}
                 </div>
-              </div> : null}
-            </div>;
-          })}
-        </div>
-      </Panel>
+              );
+            })}
+          </div>
+        </Panel>
 
-      {selectedDate ? <Panel title={`Seçili Gün Notu - ${formatDate(selectedDate)}`} open={openPanels.dayNote} onToggle={() => togglePanel("dayNote")} gradient="linear-gradient(145deg, rgba(131,24,67,.88), rgba(15,23,42,.88))">
-        <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) 160px", gap: 12 }}>
-          <Field label="Güne Not Ekle"><textarea style={{ ...inputStyle, minHeight: 90, resize: "vertical" }} value={dayNote} onChange={(event) => setDayNote(event.target.value)} /></Field>
-          <button type="button" style={primaryButton("linear-gradient(135deg,#f9a8d4,#fef08a)")} onClick={addNote}>Kaydet</button>
-        </div>
-      </Panel> : null}
-    </div>
+        {selectedDate ? (
+          <Panel title={`Seçili Gün Notu - ${formatDate(selectedDate)}`} open={openPanels.dayNote} onToggle={() => togglePanel("dayNote")} gradient="linear-gradient(145deg, rgba(131,24,67,.88), rgba(15,23,42,.88))">
+            <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) 160px", gap: 12 }}>
+              <Field label="Güne Not Ekle"><textarea style={{ ...inputStyle, minHeight: 90, resize: "vertical" }} value={dayNote} onChange={(event) => setDayNote(event.target.value)} /></Field>
+              <button type="button" style={primaryButton("linear-gradient(135deg,#f9a8d4,#fef08a)")} onClick={addNote}>Kaydet</button>
+            </div>
+          </Panel>
+        ) : null}
+      </div>
 
-    <aside>
-      <Panel title="Yaklaşan İşler" open={openPanels.upcoming} onToggle={() => togglePanel("upcoming")} gradient="linear-gradient(145deg, rgba(49,46,129,.88), rgba(15,23,42,.88))">
-        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>{upcoming.length ? upcoming.map((task) => <SmallTask key={task.id} task={task} />) : <Empty text="Yaklaşan iş yok." />}</div>
-      </Panel>
-      <Panel title="Hedef Özeti" open={openPanels.goalSummary} onToggle={() => togglePanel("goalSummary")} gradient="linear-gradient(145deg, rgba(88,28,135,.88), rgba(15,23,42,.88))">
-        <Empty text={`Toplam hedef: ${goals.length} • Ortalama ilerleme: %${goalAverage}`} />
-        {goals.slice(0, 5).map((goal) => <GoalMini key={goal.id} goal={goal} />)}
-      </Panel>
-    </aside>
-  </section>;
+      <aside style={{ position: "sticky", top: 18, maxHeight: "calc(100vh - 24px)", overflowY: "auto", paddingRight: 6 }}>
+        <Panel title={`Yaklaşan İşler (${upcoming.length})`} open={openPanels.upcoming} onToggle={() => togglePanel("upcoming")} gradient="linear-gradient(145deg, rgba(49,46,129,.88), rgba(15,23,42,.88))">
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            {upcoming.length ? upcoming.map((task) => <SmallTask key={task.id} task={task} />) : <Empty text="Yaklaşan iş yok." />}
+          </div>
+        </Panel>
+
+        <Panel title="Hedef Özeti" open={openPanels.goalSummary} onToggle={() => togglePanel("goalSummary")} gradient="linear-gradient(145deg, rgba(88,28,135,.88), rgba(15,23,42,.88))">
+          <Empty text={`Toplam hedef: ${goals.length} • Ortalama ilerleme: %${goalAverage}`} />
+          {goals.slice(0, 5).map((goal) => <GoalMini key={goal.id} goal={goal} />)}
+        </Panel>
+      </aside>
+    </section>
+  );
 }
 
 function Panel({ title, children, open, onToggle, gradient }) {
-  return <div style={{ ...glass, background: gradient, borderRadius: 26, padding: 20, marginBottom: 18 }}><button type="button" onClick={onToggle} style={{ width: "100%", border: 0, background: "transparent", color: "#fff", padding: 0, marginBottom: open ? 16 : 0, display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer", textAlign: "left" }}><h3 style={{ margin: 0, fontSize: 20 }}>{title}</h3><span style={{ width: 34, height: 34, borderRadius: 12, display: "grid", placeItems: "center", background: "rgba(255,255,255,.14)", fontWeight: 900 }}>{open ? "−" : "+"}</span></button>{open ? children : null}</div>;
+  return (
+    <div style={{ ...glass, background: gradient, borderRadius: 26, padding: 20, marginBottom: 18 }}>
+      <button type="button" onClick={onToggle} style={{ width: "100%", border: 0, background: "transparent", color: "#fff", padding: 0, marginBottom: open ? 16 : 0, display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer", textAlign: "left" }}>
+        <h3 style={{ margin: 0, fontSize: 20 }}>{title}</h3>
+        <span style={{ width: 34, height: 34, borderRadius: 12, display: "grid", placeItems: "center", background: "rgba(255,255,255,.14)", fontWeight: 900 }}>{open ? "−" : "+"}</span>
+      </button>
+      {open ? children : null}
+    </div>
+  );
 }
 
 function Stat({ label, value, color }) {
@@ -436,7 +505,18 @@ function primaryButton(background) {
 }
 
 function dayStyle(selected, today) {
-  return { minHeight: 52, borderRadius: 14, padding: 6, background: selected ? "rgba(255,255,255,.28)" : today ? "rgba(255,255,255,.18)" : "rgba(2,6,23,.38)", border: selected ? "2px solid rgba(255,255,255,.88)" : "1px solid rgba(255,255,255,.12)", color: "#fff", fontSize: 11, cursor: "pointer", textAlign: "left" };
+  return {
+    minHeight: 150,
+    borderRadius: 14,
+    padding: 7,
+    background: selected ? "rgba(255,255,255,.28)" : today ? "rgba(255,255,255,.18)" : "rgba(2,6,23,.38)",
+    border: selected ? "2px solid rgba(255,255,255,.88)" : "1px solid rgba(255,255,255,.12)",
+    color: "#fff",
+    fontSize: 11,
+    cursor: "pointer",
+    textAlign: "left",
+    overflow: "hidden",
+  };
 }
 
 function MonthCard({ title, count, active, collapsed, onClick, onToggle, color = "#2563eb" }) {
@@ -471,6 +551,18 @@ function TaskCard({ task, editId, edit, setEdit, onEdit, onSave, onCancel, onSta
 
 function SmallTask({ task }) {
   const category = categoryInfo(task.category);
-  return <div style={{ padding: 13, borderRadius: 18, background: category.bg, border: `1px solid ${category.color}66` }}><strong style={{ color: "#fff", wordBreak: "break-word" }}>{category.icon} {task.title}</strong><span style={{ display: "block", color: "#dbeafe", fontSize: 12, marginTop: 5 }}>{formatDate(task.date)} • {category.label}</span></div>;
+  const priority = priorityInfo(task.priority);
+
+  return (
+    <div style={{ padding: 13, borderRadius: 18, background: category.bg, border: `1px solid ${category.color}66` }}>
+      <strong style={{ color: "#fff", wordBreak: "break-word" }}>{category.icon} {task.title}</strong>
+      <span style={{ display: "block", color: "#dbeafe", fontSize: 12, marginTop: 5 }}>{formatDate(task.date)} • {category.label} • {priority.icon} {priority.label}</span>
+      {task.note ? (
+        <div style={{ marginTop: 7, color: "#fff", fontSize: 12, lineHeight: 1.35, background: "rgba(2,6,23,.25)", borderRadius: 10, padding: "7px 8px", wordBreak: "break-word" }}>
+          {task.note}
+        </div>
+      ) : null}
+    </div>
+  );
 }
 
