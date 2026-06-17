@@ -12,6 +12,7 @@ const CATEGORIES = [
   { value: "saglik", label: "Sağlık", icon: "💪", color: "#fb7185", bg: "linear-gradient(145deg, rgba(225,29,72,.34), rgba(251,113,133,.14))" },
   { value: "finans", label: "Finans", icon: "💰", color: "#fbbf24", bg: "linear-gradient(145deg, rgba(217,119,6,.34), rgba(251,191,36,.14))" },
   { value: "kisisel", label: "Kişisel", icon: "✨", color: "#22d3ee", bg: "linear-gradient(145deg, rgba(8,145,178,.34), rgba(34,211,238,.14))" },
+  { value: "not", label: "Gün Notu", icon: "📝", color: "#f472b6", bg: "linear-gradient(145deg, rgba(190,24,93,.34), rgba(244,114,182,.14))" },
 ];
 
 const PRIORITIES = [
@@ -162,7 +163,19 @@ export default function RoutinePlanner({ routines, setRoutines }) {
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [priorityFilter, setPriorityFilter] = useState("all");
   const [search, setSearch] = useState("");
+  const [selectedDate, setSelectedDate] = useState(todayISO());
+  const [dayNote, setDayNote] = useState("");
   const [form, setForm] = useState({ title: "", category: "egitim", priority: "orta", date: todayISO(), note: "" });
+  const [openPanels, setOpenPanels] = useState({
+    hero: true,
+    add: true,
+    filters: true,
+    months: true,
+    calendar: true,
+    dayNote: true,
+    upcoming: true,
+    categories: true,
+  });
 
   const normalized = useMemo(() => list.map(normalizeRoutine), [list]);
   const weeks = useMemo(() => buildWeeks(selectedYear), [selectedYear]);
@@ -187,6 +200,16 @@ export default function RoutinePlanner({ routines, setRoutines }) {
     }, {});
   }, [filtered]);
 
+  const allByDate = useMemo(() => {
+    return normalized.reduce((map, item) => {
+      if (!map[item.date]) map[item.date] = [];
+      map[item.date].push(item);
+      return map;
+    }, {});
+  }, [normalized]);
+
+  const selectedDateTasks = allByDate[selectedDate] || [];
+
   const stats = useMemo(() => {
     const total = filtered.length;
     const done = filtered.filter((item) => item.done).length;
@@ -201,6 +224,10 @@ export default function RoutinePlanner({ routines, setRoutines }) {
       .slice(0, 10);
   }, [normalized]);
 
+  const togglePanel = (key) => {
+    setOpenPanels((current) => ({ ...current, [key]: !current[key] }));
+  };
+
   const addRoutine = () => {
     const title = form.title.trim();
     if (!title) return alert("Rutin / iş adı gir.");
@@ -210,14 +237,39 @@ export default function RoutinePlanner({ routines, setRoutines }) {
       title,
       category: form.category,
       priority: form.priority,
-      date: form.date || todayISO(),
+      date: form.date || selectedDate || todayISO(),
       note: form.note.trim(),
       done: false,
       completed: false,
     };
 
     setRoutines?.((current) => [next, ...(Array.isArray(current) ? current : [])]);
-    setForm({ title: "", category: form.category, priority: "orta", date: todayISO(), note: "" });
+    setForm({ title: "", category: form.category, priority: "orta", date: selectedDate || todayISO(), note: "" });
+  };
+
+  const addDayNote = () => {
+    const note = dayNote.trim();
+    if (!note) return alert("Not gir.");
+
+    const next = {
+      id: String(Date.now()),
+      title: `Gün Notu - ${formatDate(selectedDate)}`,
+      category: "not",
+      priority: "orta",
+      date: selectedDate || todayISO(),
+      note,
+      done: false,
+      completed: false,
+    };
+
+    setRoutines?.((current) => [next, ...(Array.isArray(current) ? current : [])]);
+    setDayNote("");
+  };
+
+  const selectDay = (dateKey) => {
+    setSelectedDate(dateKey);
+    setForm((current) => ({ ...current, date: dateKey }));
+    setOpenPanels((current) => ({ ...current, dayNote: true }));
   };
 
   const toggleRoutine = (id) => {
@@ -242,30 +294,25 @@ export default function RoutinePlanner({ routines, setRoutines }) {
   return (
     <section style={pageGrid}>
       <div>
-        <div style={{ ...baseGlass, borderRadius: "30px", padding: "28px", marginBottom: "20px", position: "relative", overflow: "hidden", background: "linear-gradient(135deg, rgba(30,64,175,.88), rgba(88,28,135,.82), rgba(15,23,42,.92))" }}>
-          <div style={{ position: "absolute", left: "-90px", top: "-90px", width: "250px", height: "250px", background: "radial-gradient(circle, rgba(125,211,252,.58), transparent 65%)" }} />
-          <div style={{ position: "absolute", right: "-90px", bottom: "-120px", width: "280px", height: "280px", background: "radial-gradient(circle, rgba(251,191,36,.32), transparent 65%)" }} />
-          <div style={{ position: "relative", zIndex: 1 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", gap: "18px", flexWrap: "wrap" }}>
-              <div>
-                <div style={{ display: "inline-flex", padding: "8px 12px", borderRadius: "999px", background: "rgba(255,255,255,.14)", color: "#f8fafc", fontWeight: 900, marginBottom: "12px", boxShadow: "0 10px 24px rgba(0,0,0,.22)" }}>🗓️ Renkli 3D Rutin Takvimi</div>
-                <h2 style={{ margin: 0, fontSize: "clamp(28px, 4vw, 44px)", color: "#f8fafc", letterSpacing: "-0.04em", textShadow: "0 14px 35px rgba(0,0,0,.35)" }}>{selectedYear} Rutin Planı</h2>
-                <p style={{ color: "#e0f2fe", maxWidth: "760px", lineHeight: 1.6 }}>Ay, hafta, kategori ve öncelik bazlı; tek düze olmayan renkli rutin yönetim alanı.</p>
-              </div>
-              <Field label="Yıl">
-                <Select value={selectedYear} onChange={setSelectedYear} options={[currentYear - 1, currentYear, currentYear + 1].map((year) => ({ value: year, label: String(year) }))} />
-              </Field>
+        <Panel title="🗓️ Renkli 3D Rutin Takvimi" gradient="linear-gradient(135deg, rgba(30,64,175,.88), rgba(88,28,135,.82), rgba(15,23,42,.92))" open={openPanels.hero} onToggle={() => togglePanel("hero")}>
+          <div style={{ display: "flex", justifyContent: "space-between", gap: "18px", flexWrap: "wrap" }}>
+            <div>
+              <h2 style={{ margin: 0, fontSize: "clamp(28px, 4vw, 44px)", color: "#f8fafc", letterSpacing: "-0.04em", textShadow: "0 14px 35px rgba(0,0,0,.35)" }}>{selectedYear} Rutin Planı</h2>
+              <p style={{ color: "#e0f2fe", maxWidth: "760px", lineHeight: 1.6 }}>Ay, hafta, kategori, öncelik, gün notu ve yaklaşan iş yönetimi.</p>
             </div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: "12px", marginTop: "22px" }}>
-              <Stat label="Toplam" value={stats.total} gradient="linear-gradient(145deg, rgba(59,130,246,.42), rgba(14,165,233,.18))" />
-              <Stat label="Tamamlanan" value={stats.done} gradient="linear-gradient(145deg, rgba(16,185,129,.42), rgba(52,211,153,.18))" />
-              <Stat label="Bekleyen" value={stats.pending} gradient="linear-gradient(145deg, rgba(251,191,36,.42), rgba(245,158,11,.18))" />
-              <Stat label="Başarı" value={`%${stats.ratio}`} gradient="linear-gradient(145deg, rgba(168,85,247,.42), rgba(236,72,153,.16))" />
-            </div>
+            <Field label="Yıl">
+              <Select value={selectedYear} onChange={setSelectedYear} options={[currentYear - 1, currentYear, currentYear + 1].map((year) => ({ value: year, label: String(year) }))} />
+            </Field>
           </div>
-        </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: "12px", marginTop: "22px" }}>
+            <Stat label="Toplam" value={stats.total} gradient="linear-gradient(145deg, rgba(59,130,246,.42), rgba(14,165,233,.18))" />
+            <Stat label="Tamamlanan" value={stats.done} gradient="linear-gradient(145deg, rgba(16,185,129,.42), rgba(52,211,153,.18))" />
+            <Stat label="Bekleyen" value={stats.pending} gradient="linear-gradient(145deg, rgba(251,191,36,.42), rgba(245,158,11,.18))" />
+            <Stat label="Başarı" value={`%${stats.ratio}`} gradient="linear-gradient(145deg, rgba(168,85,247,.42), rgba(236,72,153,.16))" />
+          </div>
+        </Panel>
 
-        <Panel title="➕ Yeni Rutin / İş Ekle" gradient="linear-gradient(145deg, rgba(6,78,59,.88), rgba(15,23,42,.86))">
+        <Panel title="➕ Yeni Rutin / İş Ekle" gradient="linear-gradient(145deg, rgba(6,78,59,.88), rgba(15,23,42,.86))" open={openPanels.add} onToggle={() => togglePanel("add")}>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "12px" }}>
             <Field label="Başlık"><input style={inputStyle} value={form.title} placeholder="Örn: SQL çalış, spor yap" onChange={(event) => setForm((current) => ({ ...current, title: event.target.value }))} /></Field>
             <Field label="Kategori"><Select value={form.category} onChange={(value) => setForm((current) => ({ ...current, category: value }))} options={CATEGORIES.map((item) => ({ value: item.value, label: `${item.icon} ${item.label}` }))} /></Field>
@@ -276,7 +323,7 @@ export default function RoutinePlanner({ routines, setRoutines }) {
           </div>
         </Panel>
 
-        <Panel title="🔎 Filtreler" gradient="linear-gradient(145deg, rgba(120,53,15,.88), rgba(88,28,135,.70), rgba(15,23,42,.86))">
+        <Panel title="🔎 Filtreler" gradient="linear-gradient(145deg, rgba(120,53,15,.88), rgba(88,28,135,.70), rgba(15,23,42,.86))" open={openPanels.filters} onToggle={() => togglePanel("filters")}>
           <div style={gridTwo}>
             <Field label="Ay"><Select value={selectedMonth} onChange={setSelectedMonth} options={[{ value: "all", label: "Tüm Aylar" }, ...MONTHS.map((month, index) => ({ value: String(index), label: month }))]} /></Field>
             <Field label="Durum"><Select value={statusFilter} onChange={setStatusFilter} options={[{ value: "all", label: "Tümü" }, { value: "pending", label: "Bekleyen" }, { value: "done", label: "Tamamlanan" }]} /></Field>
@@ -286,7 +333,7 @@ export default function RoutinePlanner({ routines, setRoutines }) {
           </div>
         </Panel>
 
-        <Panel title="📅 Aylar" gradient="linear-gradient(145deg, rgba(30,41,59,.90), rgba(49,46,129,.64), rgba(15,23,42,.86))">
+        <Panel title="📅 Aylar" gradient="linear-gradient(145deg, rgba(30,41,59,.90), rgba(49,46,129,.64), rgba(15,23,42,.86))" open={openPanels.months} onToggle={() => togglePanel("months")}>
           <div style={gridMonth}>
             <MonthCard active={selectedMonth === "all"} title="Tüm Yıl" count={filtered.length} onClick={() => setSelectedMonth("all")} gradient="linear-gradient(145deg, rgba(255,255,255,.18), rgba(59,130,246,.16))" />
             {MONTHS.map((month, index) => {
@@ -299,50 +346,66 @@ export default function RoutinePlanner({ routines, setRoutines }) {
           </div>
         </Panel>
 
-        <div style={gridWeek}>
-          {weeks.filter((week) => selectedMonth === "all" || week.monthIndex === Number(selectedMonth)).map((week) => {
-            const weekTasks = week.days.reduce((arr, day) => [...arr, ...(byDate[toISO(day)] || [])], []);
-            return (
-              <div key={week.id} style={{ ...baseGlass, background: MONTH_GRADIENTS[week.monthIndex], borderRadius: "24px", padding: "16px" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "12px" }}>
-                  <strong style={{ color: "#f8fafc" }}>{week.monthName}</strong>
-                  <span style={{ color: "#dbeafe", fontWeight: 900 }}>{week.number}. Hafta</span>
-                </div>
+        <Panel title="📌 Haftalık Takvim" gradient="linear-gradient(145deg, rgba(8,47,73,.88), rgba(15,23,42,.88))" open={openPanels.calendar} onToggle={() => togglePanel("calendar")}>
+          <div style={gridWeek}>
+            {weeks.filter((week) => selectedMonth === "all" || week.monthIndex === Number(selectedMonth)).map((week) => {
+              const weekTasks = week.days.reduce((arr, day) => [...arr, ...(byDate[toISO(day)] || [])], []);
+              return (
+                <div key={week.id} style={{ ...baseGlass, background: MONTH_GRADIENTS[week.monthIndex], borderRadius: "24px", padding: "16px" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "12px" }}>
+                    <strong style={{ color: "#f8fafc" }}>{week.monthName}</strong>
+                    <span style={{ color: "#dbeafe", fontWeight: 900 }}>{week.number}. Hafta</span>
+                  </div>
 
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(7, minmax(0, 1fr))", gap: "6px", marginBottom: "12px" }}>
-                  {week.days.map((day, index) => {
-                    const key = toISO(day);
-                    const dayTasks = byDate[key] || [];
-                    const isToday = key === todayISO();
-                    return (
-                      <div key={key} style={{ minHeight: "46px", borderRadius: "14px", padding: "6px", background: isToday ? "rgba(255,255,255,.18)" : "rgba(2,6,23,.38)", border: isToday ? "1px solid rgba(255,255,255,.70)" : "1px solid rgba(255,255,255,.12)", color: "#f8fafc", fontSize: "11px", boxShadow: isToday ? "0 14px 28px rgba(255,255,255,.16)" : "none" }}>
-                        <strong>{DAYS[index]}</strong>
-                        <div>{day.getDate()}</div>
-                        <div style={{ display: "flex", gap: "3px", flexWrap: "wrap", marginTop: "5px" }}>
-                          {dayTasks.slice(0, 4).map((task) => <span key={task.id} style={{ width: "7px", height: "7px", borderRadius: "999px", background: categoryInfo(task.category).color }} />)}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(7, minmax(0, 1fr))", gap: "6px", marginBottom: "12px" }}>
+                    {week.days.map((day, index) => {
+                      const key = toISO(day);
+                      const dayTasks = byDate[key] || [];
+                      const isToday = key === todayISO();
+                      const isSelected = key === selectedDate;
+                      return (
+                        <button type="button" key={key} onClick={() => selectDay(key)} style={{ minHeight: "52px", borderRadius: "14px", padding: "6px", background: isSelected ? "rgba(255,255,255,.28)" : isToday ? "rgba(255,255,255,.18)" : "rgba(2,6,23,.38)", border: isSelected ? "2px solid rgba(255,255,255,.88)" : isToday ? "1px solid rgba(255,255,255,.70)" : "1px solid rgba(255,255,255,.12)", color: "#f8fafc", fontSize: "11px", boxShadow: isSelected ? "0 18px 34px rgba(255,255,255,.18)" : "none", cursor: "pointer", textAlign: "left" }}>
+                          <strong>{DAYS[index]}</strong>
+                          <div>{day.getDate()}</div>
+                          <div style={{ display: "flex", gap: "3px", flexWrap: "wrap", marginTop: "5px" }}>
+                            {dayTasks.slice(0, 4).map((task) => <span key={task.id} style={{ width: "7px", height: "7px", borderRadius: "999px", background: categoryInfo(task.category).color }} />)}
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
 
-                <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                  {weekTasks.length === 0 ? <SmallEmpty text="Bu haftaya kayıt yok." /> : weekTasks.slice(0, 6).map((task) => <TaskCard key={task.id} task={task} onToggle={toggleRoutine} onDelete={deleteRoutine} />)}
+                  <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                    {weekTasks.length === 0 ? <SmallEmpty text="Bu haftaya kayıt yok." /> : weekTasks.slice(0, 6).map((task) => <TaskCard key={task.id} task={task} onToggle={toggleRoutine} onDelete={deleteRoutine} />)}
+                  </div>
                 </div>
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
+        </Panel>
+
+        <Panel title={`📝 Seçili Gün Notu - ${formatDate(selectedDate)}`} gradient="linear-gradient(145deg, rgba(131,24,67,.88), rgba(15,23,42,.88))" open={openPanels.dayNote} onToggle={() => togglePanel("dayNote")}>
+          <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) 160px", gap: "12px" }}>
+            <Field label="Güne Not Ekle">
+              <textarea value={dayNote} placeholder="Bu güne ait notunu yaz..." onChange={(event) => setDayNote(event.target.value)} style={{ ...inputStyle, minHeight: "94px", resize: "vertical" }} />
+            </Field>
+            <button type="button" onClick={addDayNote} style={{ border: 0, borderRadius: "16px", padding: "14px 18px", color: "#08111f", fontWeight: 900, cursor: "pointer", background: "linear-gradient(135deg, #f9a8d4, #fef08a)", boxShadow: "0 16px 34px rgba(244,114,182,.24)", alignSelf: "end" }}>Not Ekle</button>
+          </div>
+
+          <div style={{ marginTop: "14px", display: "flex", flexDirection: "column", gap: "8px" }}>
+            {selectedDateTasks.length === 0 ? <SmallEmpty text="Bu güne ait kayıt yok. Takvimden gün seçip not ekleyebilirsin." /> : selectedDateTasks.map((task) => <TaskCard key={task.id} task={task} onToggle={toggleRoutine} onDelete={deleteRoutine} />)}
+          </div>
+        </Panel>
       </div>
 
       <aside style={{ minWidth: 0 }}>
-        <Panel title="⏰ Yaklaşan İşler" gradient="linear-gradient(145deg, rgba(49,46,129,.88), rgba(15,23,42,.88))">
+        <Panel title="⏰ Yaklaşan İşler" gradient="linear-gradient(145deg, rgba(49,46,129,.88), rgba(15,23,42,.88))" open={openPanels.upcoming} onToggle={() => togglePanel("upcoming")}>
           <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
             {upcoming.length === 0 ? <SmallEmpty text="Yaklaşan iş yok." /> : upcoming.map((task) => <UpcomingCard key={task.id} task={task} />)}
           </div>
         </Panel>
 
-        <Panel title="🎯 Kategori Görselleri" gradient="linear-gradient(145deg, rgba(8,47,73,.88), rgba(15,23,42,.88))">
+        <Panel title="🎯 Kategori Görselleri" gradient="linear-gradient(145deg, rgba(8,47,73,.88), rgba(15,23,42,.88))" open={openPanels.categories} onToggle={() => togglePanel("categories")}>
           <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
             {CATEGORIES.map((category) => {
               const count = filtered.filter((item) => item.category === category.value).length;
@@ -355,8 +418,16 @@ export default function RoutinePlanner({ routines, setRoutines }) {
   );
 }
 
-function Panel({ title, children, gradient }) {
-  return <div style={{ ...baseGlass, background: gradient || "linear-gradient(145deg, rgba(15,23,42,.94), rgba(30,41,59,.76))", borderRadius: "26px", padding: "20px", marginBottom: "18px" }}><div style={{ marginBottom: "16px" }}><h3 style={{ margin: 0, color: "#f8fafc", fontSize: "20px", textShadow: "0 10px 24px rgba(0,0,0,.28)" }}>{title}</h3></div>{children}</div>;
+function Panel({ title, children, gradient, open = true, onToggle }) {
+  return (
+    <div style={{ ...baseGlass, background: gradient || "linear-gradient(145deg, rgba(15,23,42,.94), rgba(30,41,59,.76))", borderRadius: "26px", padding: "20px", marginBottom: "18px" }}>
+      <button type="button" onClick={onToggle} style={{ width: "100%", border: 0, background: "transparent", color: "#f8fafc", padding: 0, marginBottom: open ? "16px" : 0, display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer", textAlign: "left" }}>
+        <h3 style={{ margin: 0, color: "#f8fafc", fontSize: "20px", textShadow: "0 10px 24px rgba(0,0,0,.28)" }}>{title}</h3>
+        <span style={{ width: "34px", height: "34px", borderRadius: "12px", display: "grid", placeItems: "center", background: "rgba(255,255,255,.14)", fontWeight: 900 }}>{open ? "−" : "+"}</span>
+      </button>
+      {open ? children : null}
+    </div>
+  );
 }
 
 function Stat({ label, value, gradient }) {
