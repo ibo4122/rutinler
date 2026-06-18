@@ -25,16 +25,26 @@ function pct(value) {
 }
 
 function normalize(value) {
-  return String(value || "").toLowerCase().trim();
+  return String(value || "")
+    .toLowerCase()
+    .trim()
+    .replace(/ı/g, "i")
+    .replace(/ğ/g, "g")
+    .replace(/ü/g, "u")
+    .replace(/ş/g, "s")
+    .replace(/ö/g, "o")
+    .replace(/ç/g, "c");
 }
 
 function assetValueTry(item) {
   const quantity = Number(item?.quantity || 0);
   const currentPriceTry = Number(item?.currentPriceTry || 0);
   if (quantity > 0 && currentPriceTry > 0) return quantity * currentPriceTry;
+
   const currentPrice = Number(item?.currentPrice || 0);
   const usdTryRate = Number(item?.usdTryRate || 0);
   const value = quantity * currentPrice;
+
   if (["USD", "USDT"].includes(item?.currency) && usdTryRate > 0) return value * usdTryRate;
   return value;
 }
@@ -44,8 +54,13 @@ function distributionFrom(investments, investmentTotals) {
   const gold = Number(investmentTotals?.goldValue || 0);
   const crypto = Number(investmentTotals?.cryptoValue || 0);
   const forex = Number(investmentTotals?.forexValue || 0);
-  const trStocks = (investments?.stocks || []).filter((item) => (item.currency || "TRY") === "TRY").reduce((s, item) => s + assetValueTry(item), 0);
-  const usStocks = (investments?.stocks || []).filter((item) => ["USD", "USDT"].includes(item.currency)).reduce((s, item) => s + assetValueTry(item), 0);
+  const funds = (investments?.funds || []).reduce((s, item) => s + assetValueTry(item), 0);
+  const trStocks = (investments?.stocks || [])
+    .filter((item) => (item.currency || "TRY") === "TRY")
+    .reduce((s, item) => s + assetValueTry(item), 0);
+  const usStocks = (investments?.stocks || [])
+    .filter((item) => ["USD", "USDT"].includes(item.currency))
+    .reduce((s, item) => s + assetValueTry(item), 0);
 
   return [
     { key: "bes", label: "BES", value: bes, color: "#a78bfa" },
@@ -53,6 +68,7 @@ function distributionFrom(investments, investmentTotals) {
     { key: "crypto", label: "Kripto", value: crypto, color: "#fb7185" },
     { key: "trStocks", label: "Türk Hisseleri", value: trStocks, color: "#34d399" },
     { key: "usStocks", label: "ABD Hisseleri", value: usStocks, color: "#60a5fa" },
+    { key: "funds", label: "Türk Fonları", value: funds, color: "#f472b6" },
     { key: "forex", label: "Döviz / Nakit", value: forex, color: "#22d3ee" },
   ].filter((item) => item.value > 0);
 }
@@ -60,6 +76,7 @@ function distributionFrom(investments, investmentTotals) {
 function pieGradient(items) {
   const total = items.reduce((sum, item) => sum + item.value, 0);
   if (!total) return "conic-gradient(rgba(148,163,184,.35) 0deg 360deg)";
+
   let angle = 0;
   const parts = items.map((item) => {
     const size = (item.value / total) * 360;
@@ -67,6 +84,7 @@ function pieGradient(items) {
     angle += size;
     return `${item.color} ${start}deg ${angle}deg`;
   });
+
   return `conic-gradient(${parts.join(",")})`;
 }
 
@@ -85,6 +103,7 @@ export default function MarketUniversePanel({ investments, investmentTotals, mar
   const load = async () => {
     setLoading(true);
     setMessage("");
+
     try {
       const response = await fetch("/api/market-prices", {
         method: "POST",
@@ -92,9 +111,11 @@ export default function MarketUniversePanel({ investments, investmentTotals, mar
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ investments }),
       });
-      const payload = await response.json();
-      if (payload?.markets) {
-        setLocalData((current) => ({ ...(current || {}), ...payload }));
+
+      const payload = await response.json().catch(() => null);
+
+      if (response.ok && payload?.markets) {
+        setLocalData(payload);
         onReload?.(payload);
         setMessage("Piyasa verileri güncellendi");
       } else {
@@ -118,15 +139,23 @@ export default function MarketUniversePanel({ investments, investmentTotals, mar
 
   const rows = useMemo(() => {
     const q = normalize(query);
-    const source = active === "tr" ? markets.turkishStocks || []
-      : active === "us" ? markets.usStocks || []
-        : active === "metals" ? markets.metals || []
-          : markets.crypto || [];
+    const source =
+      active === "tr"
+        ? markets.turkishStocks || []
+        : active === "us"
+          ? markets.usStocks || []
+          : active === "metals"
+            ? markets.metals || []
+            : active === "funds"
+              ? markets.funds || []
+              : markets.crypto || [];
 
-    return source.filter((item) => {
-      if (!q) return true;
-      return normalize(`${item.symbol} ${item.name} ${item.category || ""}`).includes(q);
-    }).slice(0, 300);
+    return source
+      .filter((item) => {
+        if (!q) return true;
+        return normalize(`${item.symbol} ${item.name} ${item.category || ""} ${item.source || ""}`).includes(q);
+      })
+      .slice(0, 300);
   }, [active, query, markets]);
 
   return (
@@ -134,7 +163,7 @@ export default function MarketUniversePanel({ investments, investmentTotals, mar
       <button type="button" className="panelHeader" onClick={() => setOpen((v) => !v)}>
         <div>
           <h2 className="gradientTitle">Canlı Piyasa Merkezi</h2>
-          <p>Türk hisseleri, ABD hisseleri, tüm kripto piyasası ve altın/gümüş/metaller.</p>
+          <p>Türk hisseleri, ABD hisseleri, kripto piyasası, altın/gümüş/metaller ve Türk fonları.</p>
           {message ? <p className="sectionDescription" style={{ marginTop: 6 }}>{message}</p> : null}
         </div>
         <div className="panelRight">
@@ -163,7 +192,7 @@ export default function MarketUniversePanel({ investments, investmentTotals, mar
                 {distribution.length ? distribution.map((item) => (
                   <div key={item.key} style={{ display: "flex", justifyContent: "space-between", gap: 10, color: "#e2e8f0", fontSize: 12 }}>
                     <span><i style={{ display: "inline-block", width: 10, height: 10, borderRadius: 999, background: item.color, marginRight: 7 }} />{item.label}</span>
-                    <strong>{pct((item.value / totalDistribution) * 100)}</strong>
+                    <strong>{totalDistribution > 0 ? pct((item.value / totalDistribution) * 100) : "%0.00"}</strong>
                   </div>
                 )) : <div className="emptyState"><strong>Dağılım için yatırım kaydı yok.</strong></div>}
               </div>
@@ -175,9 +204,15 @@ export default function MarketUniversePanel({ investments, investmentTotals, mar
                 <MarketTab active={active === "tr"} onClick={() => setActive("tr")} label={`Türk Hisseleri (${markets.turkishStocks?.length || 0})`} />
                 <MarketTab active={active === "us"} onClick={() => setActive("us")} label={`ABD Hisseleri (${markets.usStocks?.length || 0})`} />
                 <MarketTab active={active === "metals"} onClick={() => setActive("metals")} label={`Altın / Gümüş (${markets.metals?.length || 0})`} />
+                <MarketTab active={active === "funds"} onClick={() => setActive("funds")} label={`Türk Fonları (${markets.funds?.length || 0})`} />
               </div>
 
-              <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Sembol veya isim ara..." style={{ width: "100%", border: "1px solid rgba(255,255,255,.18)", background: "rgba(2,6,23,.62)", color: "#fff", borderRadius: 14, padding: "12px 14px", outline: "none", marginBottom: 12 }} />
+              <input
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="Sembol veya isim ara..."
+                style={{ width: "100%", border: "1px solid rgba(255,255,255,.18)", background: "rgba(2,6,23,.62)", color: "#fff", borderRadius: 14, padding: "12px 14px", outline: "none", marginBottom: 12 }}
+              />
               <MarketTable type={active} rows={rows} />
             </div>
           </div>
@@ -193,25 +228,28 @@ function MarketTab({ active, label, onClick }) {
 
 function MarketTable({ rows, type }) {
   if (!rows.length) return <div className="emptyState"><strong>Veri bulunamadı.</strong><span>Piyasayı yenile veya arama metnini değiştir.</span></div>;
+
   return (
     <div style={{ maxHeight: 520, overflow: "auto", borderRadius: 16, border: "1px solid rgba(255,255,255,.10)" }}>
       <table style={{ width: "100%", borderCollapse: "collapse", color: "#e2e8f0", fontSize: 12 }}>
         <thead style={{ position: "sticky", top: 0, background: "rgba(15,23,42,.96)", zIndex: 1 }}>
-          <tr><Th>Sembol</Th><Th>İsim</Th><Th>Fiyat</Th><Th>Değişim</Th><Th>Hacim / Market Cap</Th></tr>
+          <tr><Th>Sembol</Th><Th>İsim</Th><Th>Fiyat</Th><Th>Değişim</Th><Th>{type === "funds" ? "Tarih / Kaynak" : "Hacim / Market Cap"}</Th></tr>
         </thead>
         <tbody>
           {rows.map((item, index) => {
             const key = `${type}-${item.symbol || item.id}-${index}`;
-            const currency = item.currency || (type === "tr" || type === "metals" ? "TRY" : "USD");
+            const currency = item.currency || (type === "tr" || type === "metals" || type === "funds" ? "TRY" : "USD");
             const price = type === "metals" ? item.priceTry : item.price;
             const volume = type === "crypto" ? (item.marketCap || item.volume) : item.volume;
+            const changeValue = Number(item.changePercent || item.change24h || 0);
+
             return (
               <tr key={key} style={{ borderTop: "1px solid rgba(255,255,255,.08)" }}>
-                <Td><strong style={{ color: "#fff" }}>{item.symbol}</strong></Td>
+                <Td><strong style={{ color: "#fff" }}>{item.symbol}</strong>{item.portfolio ? <div style={{ color: "#86efac", fontSize: 10, fontWeight: 900 }}>Portföy</div> : null}</Td>
                 <Td>{item.name || item.category || "-"}<div style={{ color: "#94a3b8", fontSize: 10 }}>{item.source || item.market || ""}</div></Td>
                 <Td>{price ? trMoney(price, currency) : <span style={{ color: "#94a3b8" }}>Fiyat bekleniyor</span>}</Td>
-                <Td><span style={{ color: Number(item.changePercent || item.change24h || 0) >= 0 ? "#86efac" : "#fca5a5", fontWeight: 900 }}>{item.changePercent || item.change24h ? pct(item.changePercent || item.change24h) : "-"}</span></Td>
-                <Td>{volume ? compact(volume) : "-"}</Td>
+                <Td><span style={{ color: changeValue >= 0 ? "#86efac" : "#fca5a5", fontWeight: 900 }}>{changeValue ? pct(changeValue) : "-"}</span></Td>
+                <Td>{type === "funds" ? (item.date || item.source || "-") : volume ? compact(volume) : "-"}</Td>
               </tr>
             );
           })}
@@ -221,6 +259,11 @@ function MarketTable({ rows, type }) {
   );
 }
 
-function Th({ children }) { return <th style={{ textAlign: "left", padding: "12px 10px", color: "#bfdbfe", fontSize: 11, letterSpacing: ".06em", textTransform: "uppercase" }}>{children}</th>; }
-function Td({ children }) { return <td style={{ padding: "11px 10px", verticalAlign: "top" }}>{children}</td>; }
+function Th({ children }) {
+  return <th style={{ textAlign: "left", padding: "12px 10px", color: "#bfdbfe", fontSize: 11, letterSpacing: ".06em", textTransform: "uppercase" }}>{children}</th>;
+}
+
+function Td({ children }) {
+  return <td style={{ padding: "11px 10px", verticalAlign: "top" }}>{children}</td>;
+}
 
