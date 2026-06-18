@@ -161,6 +161,7 @@ function portfolioSignature(investments) {
 export default function LiveMarketUpdater({ investments, setInvestments, onMarketData, autoUpdate = true }) {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
+  const [lastUpdated, setLastUpdated] = useState("");
   const lastSignatureRef = useRef("");
   const mountedRef = useRef(false);
 
@@ -188,6 +189,11 @@ export default function LiveMarketUpdater({ investments, setInvestments, onMarke
       }
 
       onMarketData?.(payload);
+
+      try {
+        const when = payload.updatedAt ? new Date(payload.updatedAt) : new Date();
+        setLastUpdated(when.toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" }) + (payload.cached ? " (önbellek)" : ""));
+      } catch {}
 
       const prices = payload.prices || {};
       const gold = prices.gold || {};
@@ -322,6 +328,7 @@ export default function LiveMarketUpdater({ investments, setInvestments, onMarke
   return (
     <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap", justifyContent: "flex-end" }}>
       {message ? <span className="sectionDescription">{message}</span> : null}
+      {lastUpdated ? <span className="sectionDescription">Son güncelleme: {lastUpdated}</span> : null}
       <button type="button" className="premiumButton" onClick={() => updateLivePrices()} disabled={loading}>
         {loading ? "Güncelleniyor" : "Fiyat Güncelle"}
       </button>

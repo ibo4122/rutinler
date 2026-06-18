@@ -814,8 +814,33 @@ async function getFundPayload(fundSymbols = []) {
   };
 }
 
-async function buildPayload(investments = {}) {
-  const extra = extractPortfolioSymbols(investments);
+// --- Önbellek ve son-geçerli-fiyat dayanıklılığı ---
+// Sıcak instance boyunca: aynı portföy için kısa süre (TTL) içinde tekrar çağrı
+// gelirse yeniden çekmeden döneriz (hız + kaynaklara yük binmemesi). Ayrıca bir
+// kaynak boş dönerse, o sembolün son geçerli fiyatını koruruz (dayanıklılık).
+const PAYLOAD_TTL_MS = 45_000;
+const payloadCache = new Map();
+let lastGoodPrices = null;
+
+function payloadCacheKey(extra) {
+  return JSON.stringify({
+    c: [...(extra.crypto || [])].sort(),
+    tr: [...(extra.trStocks || [])].sort(),
+    us: [...(extra.usStocks || [])].sort(),
+    f: [...(extra.funds || [])].sort(),
+  });
+}
+
+function mergeGoodMap(previous = {}, fresh = {}) {
+  const out = { ...previous };
+  for (const [key, value] of Object.entries(fresh || {})) {
+    if (numberOrZero(value) > 0) out[key] = value;
+  }
+  return out;
+}
+
+async function buildPayload(investments = {}, extra = null) {
+  extra = extra || extractPortfolioSymbols(investments);
 
   const usdTryRate = await getUsdTry();
 
@@ -827,18 +852,23 @@ async function buildPayload(investments = {}) {
     getFundPayload(extra.funds),
   ]);
 
+  const prices = {
+    usdTry: usdTryRate || lastGoodPrices?.usdTry || 0,
+    usdTryRate: usdTryRate || lastGoodPrices?.usdTryRate || 0,
+    crypto: mergeGoodMap(lastGoodPrices?.crypto, cryptoPayload.prices),
+    forex: mergeGoodMap(lastGoodPrices?.forex, forex),
+    gold: mergeGoodMap(lastGoodPrices?.gold, goldPayload.gold),
+    stocks: mergeGoodMap(lastGoodPrices?.stocks, stockPayload.prices),
+    funds: mergeGoodMap(lastGoodPrices?.funds, fundPayload.prices),
+  };
+
+  lastGoodPrices = prices;
+
   return {
     ok: true,
+    cached: false,
     updatedAt: new Date().toISOString(),
-    prices: {
-      usdTry: usdTryRate,
-      usdTryRate,
-      crypto: cryptoPayload.prices,
-      forex,
-      gold: goldPayload.gold,
-      stocks: stockPayload.prices,
-      funds: fundPayload.prices,
-    },
+    prices,
     markets: {
       turkishStocks: stockPayload.turkishStocks,
       usStocks: stockPayload.usStocks,
@@ -857,8 +887,23 @@ async function buildPayload(investments = {}) {
   };
 }
 
+async function getPayload(investments = {}) {
+  const extra = extractPortfolioSymbols(investments);
+  const key = payloadCacheKey(extra);
+  const now = Date.now();
+
+  const hit = payloadCache.get(key);
+  if (hit && now - hit.ts < PAYLOAD_TTL_MS) {
+    return { ...hit.payload, cached: true };
+  }
+
+  const payload = await buildPayload(investments, extra);
+  payloadCache.set(key, { payload, ts: now });
+  return payload;
+}
+
 export async function GET() {
-  return Response.json(await buildPayload({}));
+  return Response.json(await getPayload({}));
 }
 
 export async function POST(request) {
@@ -868,6 +913,6 @@ export async function POST(request) {
     body = await request.json();
   } catch {}
 
-  return Response.json(await buildPayload(body?.investments || {}));
+  return Response.json(await getPayload(body?.investments || {}));
 }
 ``
