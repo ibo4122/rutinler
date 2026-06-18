@@ -33,7 +33,7 @@ const emptyIncome = { salary: "", mealAllowance: "" };
 const emptyExpense = { title: "", category: "", amount: "", note: "" };
 const emptyCredit = { title: "", monthlyPayment: "", installmentText: "", remainingDebt: "", paymentStartDate: "" };
 const emptyAssetForm = { title: "", quantity: "", buyPrice: "", currentPrice: "", currency: "TRY", goldType: "GRAM", note: "" };
-const emptyInvestments = { bes: [], locked: [], gold: [], crypto: [], stocks: [], forex: [] };
+const emptyInvestments = { bes: [], locked: [], gold: [], crypto: [], stocks: [], forex: [], funds: [] };
 
 function onlyDigits(value) {
   return String(value || "").replace(/[^\d]/g, "");
@@ -160,6 +160,7 @@ function normalizeFinanceData(data) {
       crypto: Array.isArray(data.investments?.crypto) ? data.investments.crypto.map((item) => normalizeAsset(item, "USD")) : [],
       stocks: Array.isArray(data.investments?.stocks) ? data.investments.stocks.map((item) => normalizeAsset(item, "TRY")) : [],
       forex: Array.isArray(data.investments?.forex) ? data.investments.forex.map((item) => normalizeAsset(item, "USD")) : [],
+      funds: Array.isArray(data.investments?.funds) ? data.investments.funds.map((item) => normalizeAsset(item, "TRY")) : [],
     },
     routines: Array.isArray(data.routines) ? data.routines : [],
   };
@@ -208,6 +209,7 @@ export default function HomePage() {
   const [goldOpen, setGoldOpen] = useState(false);
   const [cryptoOpen, setCryptoOpen] = useState(false);
   const [stockOpen, setStockOpen] = useState(false);
+  const [fundOpen, setFundOpen] = useState(false);
   const [forexOpen, setForexOpen] = useState(false);
 
   const [income, setIncome] = useState(emptyIncome);
@@ -226,6 +228,7 @@ export default function HomePage() {
   const [goldForm, setGoldForm] = useState({ ...emptyAssetForm, currency: "TRY", goldType: "GRAM" });
   const [cryptoForm, setCryptoForm] = useState({ ...emptyAssetForm, currency: "USD" });
   const [stockForm, setStockForm] = useState({ ...emptyAssetForm, currency: "TRY" });
+  const [fundForm, setFundForm] = useState({ ...emptyAssetForm, currency: "TRY" });
   const [forexForm, setForexForm] = useState({ ...emptyAssetForm, currency: "USD" });
 
   const [editingExtraIncomeId, setEditingExtraIncomeId] = useState(null);
@@ -235,6 +238,7 @@ export default function HomePage() {
   const [editingGoldId, setEditingGoldId] = useState(null);
   const [editingCryptoId, setEditingCryptoId] = useState(null);
   const [editingStockId, setEditingStockId] = useState(null);
+  const [editingFundId, setEditingFundId] = useState(null);
   const [editingForexId, setEditingForexId] = useState(null);
   const [besProjectionTotal, setBesProjectionTotal] = useState(0);
 
@@ -297,6 +301,7 @@ export default function HomePage() {
       normalized.investments.crypto.length ||
       normalized.investments.stocks.length ||
       normalized.investments.forex.length ||
+      normalized.investments.funds.length ||
       normalized.routines.length;
 
     if (!hasCloudData) {
@@ -438,10 +443,12 @@ export default function HomePage() {
     const cryptoValue = investments.crypto.reduce((sum, item) => sum + assetValueTry(item), 0);
     const stockCost = investments.stocks.reduce((sum, item) => sum + assetCostTry(item), 0);
     const stockValue = investments.stocks.reduce((sum, item) => sum + assetValueTry(item), 0);
+    const fundCost = (investments.funds || []).reduce((sum, item) => sum + assetCostTry(item), 0);
+    const fundValue = (investments.funds || []).reduce((sum, item) => sum + assetValueTry(item), 0);
     const forexCost = investments.forex.reduce((sum, item) => sum + assetCostTry(item), 0);
     const forexValue = investments.forex.reduce((sum, item) => sum + assetValueTry(item), 0);
-    const marketValue = goldValue + cryptoValue + stockValue + forexValue;
-    const marketCost = goldCost + cryptoCost + stockCost + forexCost;
+    const marketValue = goldValue + cryptoValue + stockValue + fundValue + forexValue;
+    const marketCost = goldCost + cryptoCost + stockCost + fundCost + forexCost;
     const totalPnl = marketValue - marketCost;
     return {
       besTotal,
@@ -449,6 +456,7 @@ export default function HomePage() {
       goldValue,
       cryptoValue,
       stockValue,
+      fundValue,
       forexValue,
       totalInvestment: marketValue + besTotal,
       totalPnl,
@@ -466,6 +474,7 @@ export default function HomePage() {
   const updateGoldForm = updateAssetForm(setGoldForm);
   const updateCryptoForm = updateAssetForm(setCryptoForm);
   const updateStockForm = updateAssetForm(setStockForm);
+  const updateFundForm = updateAssetForm(setFundForm);
   const updateForexForm = updateAssetForm(setForexForm);
 
   const resetExtraIncomeForm = () => { setEditingExtraIncomeId(null); setExtraIncomeForm({ title: "", amount: "" }); };
@@ -475,6 +484,7 @@ export default function HomePage() {
   const resetGoldForm = () => { setEditingGoldId(null); setGoldForm({ ...emptyAssetForm, currency: "TRY", goldType: "GRAM" }); };
   const resetCryptoForm = () => { setEditingCryptoId(null); setCryptoForm({ ...emptyAssetForm, currency: "USD" }); };
   const resetStockForm = () => { setEditingStockId(null); setStockForm({ ...emptyAssetForm, currency: "TRY" }); };
+  const resetFundForm = () => { setEditingFundId(null); setFundForm({ ...emptyAssetForm, currency: "TRY" }); };
   const resetForexForm = () => { setEditingForexId(null); setForexForm({ ...emptyAssetForm, currency: "USD" }); };
 
   const addOrUpdateExtraIncome = () => {
@@ -552,23 +562,23 @@ export default function HomePage() {
     setOthersOpen(true);
   };
 
-  const addOrUpdateAsset = (assetKey, form, editingId, resetForm) => {
-    const title = form.title.trim();
+  const addOrUpdateAsset = (assetKey, form, editingId, resetForm, forcedCurrency = null) => {
+    const title = form.title.trim().toUpperCase();
     if (!title) return alert("Varlık adı / sembol gir.");
     const payload = {
       title,
       quantity: parseDecimal(form.quantity),
       buyPrice: parseDecimal(form.buyPrice),
       currentPrice: parseDecimal(form.currentPrice),
-      currency: form.currency || "TRY",
+      currency: forcedCurrency || form.currency || "TRY",
       goldType: form.goldType || "GRAM",
       note: form.note.trim(),
     };
     setInvestments((current) => ({
       ...current,
       [assetKey]: editingId
-        ? current[assetKey].map((item) => (item.id === editingId ? { ...item, ...payload } : item))
-        : [{ id: String(Date.now()), ...payload }, ...current[assetKey]],
+        ? (current[assetKey] || []).map((item) => (item.id === editingId ? { ...item, ...payload } : item))
+        : [{ id: String(Date.now()), ...payload }, ...(current[assetKey] || [])],
     }));
     resetForm();
   };
@@ -588,12 +598,14 @@ export default function HomePage() {
     setPanelOpen(true);
   };
 
-  const addOrUpdateGold = () => addOrUpdateAsset("gold", goldForm, editingGoldId, resetGoldForm);
+  const addOrUpdateGold = () => addOrUpdateAsset("gold", goldForm, editingGoldId, resetGoldForm, "TRY");
   const startEditGold = (item) => startEditAsset(item, setGoldForm, setEditingGoldId, setGoldOpen);
   const addOrUpdateCrypto = () => addOrUpdateAsset("crypto", cryptoForm, editingCryptoId, resetCryptoForm);
   const startEditCrypto = (item) => startEditAsset(item, setCryptoForm, setEditingCryptoId, setCryptoOpen);
   const addOrUpdateStock = () => addOrUpdateAsset("stocks", stockForm, editingStockId, resetStockForm);
   const startEditStock = (item) => startEditAsset(item, setStockForm, setEditingStockId, setStockOpen);
+  const addOrUpdateFund = () => addOrUpdateAsset("funds", fundForm, editingFundId, resetFundForm, "TRY");
+  const startEditFund = (item) => startEditAsset(item, setFundForm, setEditingFundId, setFundOpen);
   const addOrUpdateForex = () => addOrUpdateAsset("forex", forexForm, editingForexId, resetForexForm);
   const startEditForex = (item) => startEditAsset(item, setForexForm, setEditingForexId, setForexOpen);
 
@@ -621,7 +633,7 @@ export default function HomePage() {
 
         {activeTab === "finance" ? <FinanceTab financeTotals={financeTotals} income={income} updateIncome={updateIncome} incomeOpen={incomeOpen} setIncomeOpen={setIncomeOpen} extraIncomeOpen={extraIncomeOpen} setExtraIncomeOpen={setExtraIncomeOpen} extraIncomeForm={extraIncomeForm} updateExtraIncomeForm={updateExtraIncomeForm} addOrUpdateExtraIncome={addOrUpdateExtraIncome} editingExtraIncomeId={editingExtraIncomeId} resetExtraIncomeForm={resetExtraIncomeForm} extraIncomes={extraIncomes} startEditExtraIncome={startEditExtraIncome} setExtraIncomes={setExtraIncomes} expensesOpen={expensesOpen} setExpensesOpen={setExpensesOpen} creditsOpen={creditsOpen} setCreditsOpen={setCreditsOpen} creditForm={creditForm} updateCreditForm={updateCreditForm} addOrUpdateCredit={addOrUpdateCredit} editingCreditId={editingCreditId} resetCreditForm={resetCreditForm} credits={credits} parseInstallment={parseInstallment} isCreditActive={isCreditActive} startEditCredit={startEditCredit} setCredits={setCredits} cardsOpen={cardsOpen} setCardsOpen={setCardsOpen} cardForm={cardForm} updateCardForm={updateCardForm} addOrUpdateSimpleExpense={addOrUpdateSimpleExpense} editingCardId={editingCardId} resetCardForm={resetCardForm} cardExpenses={cardExpenses} startEditCard={startEditCard} setCardExpenses={setCardExpenses} othersOpen={othersOpen} setOthersOpen={setOthersOpen} otherForm={otherForm} updateOtherForm={updateOtherForm} editingOtherId={editingOtherId} resetOtherForm={resetOtherForm} otherExpenses={otherExpenses} startEditOther={startEditOther} setOtherExpenses={setOtherExpenses} /> : null}
 
-        {activeTab === "investments" ? <InvestmentsTab investmentTotals={investmentTotals} investmentOpen={investmentOpen} setInvestmentOpen={setInvestmentOpen} goldOpen={goldOpen} setGoldOpen={setGoldOpen} goldForm={goldForm} updateGoldForm={updateGoldForm} addOrUpdateGold={addOrUpdateGold} editingGoldId={editingGoldId} resetGoldForm={resetGoldForm} startEditGold={startEditGold} cryptoOpen={cryptoOpen} setCryptoOpen={setCryptoOpen} cryptoForm={cryptoForm} updateCryptoForm={updateCryptoForm} addOrUpdateCrypto={addOrUpdateCrypto} editingCryptoId={editingCryptoId} resetCryptoForm={resetCryptoForm} startEditCrypto={startEditCrypto} stockOpen={stockOpen} setStockOpen={setStockOpen} stockForm={stockForm} updateStockForm={updateStockForm} addOrUpdateStock={addOrUpdateStock} editingStockId={editingStockId} resetStockForm={resetStockForm} startEditStock={startEditStock} forexOpen={forexOpen} setForexOpen={setForexOpen} forexForm={forexForm} updateForexForm={updateForexForm} addOrUpdateForex={addOrUpdateForex} editingForexId={editingForexId} resetForexForm={resetForexForm} startEditForex={startEditForex} investments={investments} setInvestments={setInvestments} setBesProjectionTotal={setBesProjectionTotal} marketData={marketData} setMarketData={setMarketData} /> : null}
+        {activeTab === "investments" ? <InvestmentsTab investmentTotals={investmentTotals} investmentOpen={investmentOpen} setInvestmentOpen={setInvestmentOpen} goldOpen={goldOpen} setGoldOpen={setGoldOpen} goldForm={goldForm} updateGoldForm={updateGoldForm} addOrUpdateGold={addOrUpdateGold} editingGoldId={editingGoldId} resetGoldForm={resetGoldForm} startEditGold={startEditGold} cryptoOpen={cryptoOpen} setCryptoOpen={setCryptoOpen} cryptoForm={cryptoForm} updateCryptoForm={updateCryptoForm} addOrUpdateCrypto={addOrUpdateCrypto} editingCryptoId={editingCryptoId} resetCryptoForm={resetCryptoForm} startEditCrypto={startEditCrypto} stockOpen={stockOpen} setStockOpen={setStockOpen} stockForm={stockForm} updateStockForm={updateStockForm} addOrUpdateStock={addOrUpdateStock} editingStockId={editingStockId} resetStockForm={resetStockForm} startEditStock={startEditStock} fundOpen={fundOpen} setFundOpen={setFundOpen} fundForm={fundForm} updateFundForm={updateFundForm} addOrUpdateFund={addOrUpdateFund} editingFundId={editingFundId} resetFundForm={resetFundForm} startEditFund={startEditFund} forexOpen={forexOpen} setForexOpen={setForexOpen} forexForm={forexForm} updateForexForm={updateForexForm} addOrUpdateForex={addOrUpdateForex} editingForexId={editingForexId} resetForexForm={resetForexForm} startEditForex={startEditForex} investments={investments} setInvestments={setInvestments} setBesProjectionTotal={setBesProjectionTotal} marketData={marketData} setMarketData={setMarketData} /> : null}
 
         {activeTab === "routines" ? <RoutinePlanner routines={routines} setRoutines={setRoutines} /> : null}
       </div>
@@ -651,7 +663,7 @@ function FinanceTab(p) {
 }
 
 function InvestmentsTab(p) {
-  return <><div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "12px" }}><LiveMarketUpdater investments={p.investments} setInvestments={p.setInvestments} onMarketData={p.setMarketData} /></div><section className="summaryGrid investmentSummaryGrid"><SummaryCard tone="green" title="Toplam Portföy" value={money(p.investmentTotals.totalInvestment)} detail="BES + altın/metaller + hisse + kripto + döviz" /><SummaryCard tone="purple" title="Blokajlı / Uzun Vadeli" value={money(p.investmentTotals.blockedTotal)} detail="BES projeksiyon toplamı" /><SummaryCard tone="blue" title="Likide Edilebilir" value={money(p.investmentTotals.availableInvestment)} detail="BES hariç kullanılabilir varlıklar" /><SummaryCard tone={p.investmentTotals.totalPnl >= 0 ? "green" : "red"} title="Kar / Zarar" value={money(p.investmentTotals.totalPnl)} detail={`TL bazlı oran: %${p.investmentTotals.totalPnlRate.toFixed(2)}`} /></section><BesProjectionPanel onTotalChange={p.setBesProjectionTotal} /><MarketUniversePanel investments={p.investments} investmentTotals={p.investmentTotals} marketData={p.marketData} onReload={p.setMarketData} /><Panel title="Portföy Kayıtlarım" subtitle="Yeni veri girdiğinde Fiyat Güncelle ile sistem sembol eşleşmesi yapıp fiyatını bulmaya çalışır." totalLabel="BES Hariç Toplam" total={money(p.investmentTotals.availableInvestment)} open={p.investmentOpen} onToggle={() => p.setInvestmentOpen((value) => !value)}><MiniPanel title="Altın / Gümüş / Metal" totalLabel="Metal Değeri" total={money(p.investmentTotals.goldValue)} color="orange" open={p.goldOpen} onToggle={() => p.setGoldOpen((value) => !value)}><AssetForm form={p.goldForm} onChange={p.updateGoldForm} buttonText={p.editingGoldId ? "Metali Güncelle" : "Metal Ekle"} onAdd={p.addOrUpdateGold} nameLabel="Metal Adı" namePlaceholder="Örn: Gram Altın / Gümüş" showGoldType />{p.editingGoldId ? <button type="button" className="deleteButton" onClick={p.resetGoldForm}>Düzenlemeyi İptal Et</button> : null}<AssetList items={p.investments.gold} onEdit={p.startEditGold} onDelete={(id) => p.setInvestments((current) => ({ ...current, gold: current.gold.filter((item) => item.id !== id) }))} /></MiniPanel><MiniPanel title="Hisse Yatırımı" totalLabel="Hisse Değeri" total={money(p.investmentTotals.stockValue)} color="mint" open={p.stockOpen} onToggle={() => p.setStockOpen((value) => !value)}><AssetForm form={p.stockForm} onChange={p.updateStockForm} buttonText={p.editingStockId ? "Hisseyi Güncelle" : "Hisse Ekle"} onAdd={p.addOrUpdateStock} nameLabel="Hisse / Sembol" namePlaceholder="Örn: THYAO / AAPL" /><p className="sectionDescription">BIST için THYAO, ASELS gibi; ABD için AAPL, NVDA gibi sembol gir. ABD hisselerinde para birimini USD seç.</p>{p.editingStockId ? <button type="button" className="deleteButton" onClick={p.resetStockForm}>Düzenlemeyi İptal Et</button> : null}<AssetList items={p.investments.stocks} onEdit={p.startEditStock} onDelete={(id) => p.setInvestments((current) => ({ ...current, stocks: current.stocks.filter((item) => item.id !== id) }))} /></MiniPanel><MiniPanel title="Kripto Yatırımı" totalLabel="Kripto Değeri" total={money(p.investmentTotals.cryptoValue)} color="rose" open={p.cryptoOpen} onToggle={() => p.setCryptoOpen((value) => !value)}><AssetForm form={p.cryptoForm} onChange={p.updateCryptoForm} buttonText={p.editingCryptoId ? "Kriptoyu Güncelle" : "Kripto Ekle"} onAdd={p.addOrUpdateCrypto} nameLabel="Coin / Token" namePlaceholder="Örn: BTC / SOL" /><p className="sectionDescription">Coin sembolünü yazman yeterli. Sistem CoinGecko/Binance verisiyle fiyatı eşleştirmeye çalışır.</p>{p.editingCryptoId ? <button type="button" className="deleteButton" onClick={p.resetCryptoForm}>Düzenlemeyi İptal Et</button> : null}<AssetList items={p.investments.crypto} onEdit={p.startEditCrypto} onDelete={(id) => p.setInvestments((current) => ({ ...current, crypto: current.crypto.filter((item) => item.id !== id) }))} /></MiniPanel><MiniPanel title="Döviz / Nakit" totalLabel="Döviz Değeri" total={money(p.investmentTotals.forexValue)} color="purple" open={p.forexOpen} onToggle={() => p.setForexOpen((value) => !value)}><AssetForm form={p.forexForm} onChange={p.updateForexForm} buttonText={p.editingForexId ? "Dövizi Güncelle" : "Döviz Ekle"} onAdd={p.addOrUpdateForex} nameLabel="Döviz / Parite" namePlaceholder="Örn: USD Nakit / EUR" />{p.editingForexId ? <button type="button" className="deleteButton" onClick={p.resetForexForm}>Düzenlemeyi İptal Et</button> : null}<AssetList items={p.investments.forex} onEdit={p.startEditForex} onDelete={(id) => p.setInvestments((current) => ({ ...current, forex: current.forex.filter((item) => item.id !== id) }))} /></MiniPanel></Panel></>;
+  return <><div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "12px" }}><LiveMarketUpdater investments={p.investments} setInvestments={p.setInvestments} onMarketData={p.setMarketData} /></div><section className="summaryGrid investmentSummaryGrid"><SummaryCard tone="green" title="Toplam Portföy" value={money(p.investmentTotals.totalInvestment)} detail="BES + altın/metaller + hisse + kripto + fon + döviz" /><SummaryCard tone="purple" title="Blokajlı / Uzun Vadeli" value={money(p.investmentTotals.blockedTotal)} detail="BES projeksiyon toplamı" /><SummaryCard tone="blue" title="Likide Edilebilir" value={money(p.investmentTotals.availableInvestment)} detail="BES hariç kullanılabilir varlıklar" /><SummaryCard tone={p.investmentTotals.totalPnl >= 0 ? "green" : "red"} title="Kar / Zarar" value={money(p.investmentTotals.totalPnl)} detail={`TL bazlı oran: %${p.investmentTotals.totalPnlRate.toFixed(2)}`} /></section><BesProjectionPanel onTotalChange={p.setBesProjectionTotal} /><MarketUniversePanel investments={p.investments} investmentTotals={p.investmentTotals} marketData={p.marketData} onReload={p.setMarketData} /><Panel title="Portföy Kayıtlarım" subtitle="Yeni veri girdiğinde Fiyat Güncelle ile sistem sembol eşleşmesi yapıp fiyatını bulmaya çalışır." totalLabel="BES Hariç Toplam" total={money(p.investmentTotals.availableInvestment)} open={p.investmentOpen} onToggle={() => p.setInvestmentOpen((value) => !value)}><MiniPanel title="Altın / Gümüş / Metal" totalLabel="Metal Değeri" total={money(p.investmentTotals.goldValue)} color="orange" open={p.goldOpen} onToggle={() => p.setGoldOpen((value) => !value)}><AssetForm form={p.goldForm} onChange={p.updateGoldForm} buttonText={p.editingGoldId ? "Metali Güncelle" : "Metal Ekle"} onAdd={p.addOrUpdateGold} nameLabel="Metal Adı" namePlaceholder="Örn: Gram Altın / Gümüş" showGoldType />{p.editingGoldId ? <button type="button" className="deleteButton" onClick={p.resetGoldForm}>Düzenlemeyi İptal Et</button> : null}<AssetList items={p.investments.gold} onEdit={p.startEditGold} onDelete={(id) => p.setInvestments((current) => ({ ...current, gold: current.gold.filter((item) => item.id !== id) }))} /></MiniPanel><MiniPanel title="Hisse Yatırımı" totalLabel="Hisse Değeri" total={money(p.investmentTotals.stockValue)} color="mint" open={p.stockOpen} onToggle={() => p.setStockOpen((value) => !value)}><AssetForm form={p.stockForm} onChange={p.updateStockForm} buttonText={p.editingStockId ? "Hisseyi Güncelle" : "Hisse Ekle"} onAdd={p.addOrUpdateStock} nameLabel="Hisse / Sembol" namePlaceholder="Örn: THYAO / AAPL" /><p className="sectionDescription">BIST için THYAO, ASELS gibi; ABD için AAPL, NVDA gibi sembol gir. ABD hisselerinde para birimini USD seç.</p>{p.editingStockId ? <button type="button" className="deleteButton" onClick={p.resetStockForm}>Düzenlemeyi İptal Et</button> : null}<AssetList items={p.investments.stocks} onEdit={p.startEditStock} onDelete={(id) => p.setInvestments((current) => ({ ...current, stocks: current.stocks.filter((item) => item.id !== id) }))} /></MiniPanel><MiniPanel title="Türk Fonları" totalLabel="Fon Değeri" total={money(p.investmentTotals.fundValue)} color="purple" open={p.fundOpen} onToggle={() => p.setFundOpen((value) => !value)}><AssetForm form={p.fundForm} onChange={p.updateFundForm} buttonText={p.editingFundId ? "Fonu Güncelle" : "Fon Ekle"} onAdd={p.addOrUpdateFund} nameLabel="Fon Kodu" namePlaceholder="Örn: AFT / IIH / MAC" hideCurrency /><p className="sectionDescription">TEFAS fon kodunu yazman yeterli. Fon fiyatları anlık değil, son açıklanan günlük fiyat olarak güncellenir.</p>{p.editingFundId ? <button type="button" className="deleteButton" onClick={p.resetFundForm}>Düzenlemeyi İptal Et</button> : null}<AssetList items={p.investments.funds || []} onEdit={p.startEditFund} onDelete={(id) => p.setInvestments((current) => ({ ...current, funds: (current.funds || []).filter((item) => item.id !== id) }))} /></MiniPanel><MiniPanel title="Kripto Yatırımı" totalLabel="Kripto Değeri" total={money(p.investmentTotals.cryptoValue)} color="rose" open={p.cryptoOpen} onToggle={() => p.setCryptoOpen((value) => !value)}><AssetForm form={p.cryptoForm} onChange={p.updateCryptoForm} buttonText={p.editingCryptoId ? "Kriptoyu Güncelle" : "Kripto Ekle"} onAdd={p.addOrUpdateCrypto} nameLabel="Coin / Token" namePlaceholder="Örn: BTC / SOL" /><p className="sectionDescription">Coin sembolünü yazman yeterli. Sistem CoinGecko/Binance verisiyle fiyatı eşleştirmeye çalışır.</p>{p.editingCryptoId ? <button type="button" className="deleteButton" onClick={p.resetCryptoForm}>Düzenlemeyi İptal Et</button> : null}<AssetList items={p.investments.crypto} onEdit={p.startEditCrypto} onDelete={(id) => p.setInvestments((current) => ({ ...current, crypto: current.crypto.filter((item) => item.id !== id) }))} /></MiniPanel><MiniPanel title="Döviz / Nakit" totalLabel="Döviz Değeri" total={money(p.investmentTotals.forexValue)} color="purple" open={p.forexOpen} onToggle={() => p.setForexOpen((value) => !value)}><AssetForm form={p.forexForm} onChange={p.updateForexForm} buttonText={p.editingForexId ? "Dövizi Güncelle" : "Döviz Ekle"} onAdd={p.addOrUpdateForex} nameLabel="Döviz / Parite" namePlaceholder="Örn: USD Nakit / EUR" />{p.editingForexId ? <button type="button" className="deleteButton" onClick={p.resetForexForm}>Düzenlemeyi İptal Et</button> : null}<AssetList items={p.investments.forex} onEdit={p.startEditForex} onDelete={(id) => p.setInvestments((current) => ({ ...current, forex: current.forex.filter((item) => item.id !== id) }))} /></MiniPanel></Panel></>;
 }
 
 function sortAssetRecords(items, sortMode) {
@@ -671,7 +683,7 @@ function sortAssetRecords(items, sortMode) {
 
 function AssetList({ items, onEdit, onDelete }) {
   const [sortMode, setSortMode] = useState("bakiyeBuyuk");
-  if (items.length === 0) return <EmptyState text="Henüz yatırım kaydı bulunmuyor." />;
+  if (!items || items.length === 0) return <EmptyState text="Henüz yatırım kaydı bulunmuyor." />;
   const sortedItems = sortAssetRecords(items, sortMode);
   return <div className="recordList"><div className="formGrid two"><SelectBox label="Sıralama" value={sortMode} onChange={setSortMode} options={[{ value: "bakiyeBuyuk", label: "Toplam bakiyeye göre büyükten küçüğe" }, { value: "bakiyeKucuk", label: "Toplam bakiyeye göre küçükten büyüğe" }, { value: "karBuyuk", label: "Kâra göre büyükten küçüğe" }, { value: "karKucuk", label: "Kâra göre küçükten büyüğe" }, { value: "isim", label: "İsme göre A-Z" }]} /><div className="emptyState" style={{ padding: "14px 16px", minHeight: "58px", textAlign: "left" }}><strong style={{ fontSize: "13px" }}>Sıralama</strong><span style={{ fontSize: "12px", marginTop: "4px" }}>Kayıtları kâr veya toplam bakiye değerine göre sıralayabilirsin.</span></div></div>{sortedItems.map((item) => { const cost = assetCostTry(item); const value = assetValueTry(item); const pnl = value - cost; const pnlRate = cost > 0 ? (pnl / cost) * 100 : 0; const hasValue = value > 0; const hasCost = cost > 0; const isProfit = pnl >= 0; const recordStyle = hasCost && hasValue ? { borderColor: isProfit ? "rgba(34, 197, 94, 0.55)" : "rgba(248, 113, 113, 0.55)", background: isProfit ? "rgba(34, 197, 94, 0.10)" : "rgba(248, 113, 113, 0.10)" } : undefined; return <div key={item.id} className="simpleRecord investmentRecord" style={recordStyle}><div className="simpleRecordTop"><div><h4>{item.title}</h4><p>Miktar: {item.quantity || 0} • Para birimi: {item.currency || "TRY"}{item.goldTypeLabel ? ` • ${item.goldTypeLabel}` : item.goldType ? ` • ${item.goldType}` : ""}</p><p>Alış: {item.buyPrice ? formatCurrency(item.buyPrice, item.currency) : "Girilmedi"} • Güncel: {item.currentPrice ? formatCurrency(item.currentPrice, item.currency) : "Girilmedi"}</p><p>TL Maliyet: {hasCost ? money(cost) : "Hesaplanmadı"} • TL Güncel Değer: {hasValue ? money(value) : "Hesaplanmadı"}</p>{item.usdTryRate ? <p>USD/TRY: {Number(item.usdTryRate).toFixed(4)}</p> : null}{item.livePriceSource ? <p>Canlı kaynak: {item.livePriceSource}</p> : null}{item.note ? <p>{item.note}</p> : null}</div><div className="simpleRecordRight"><strong className={isProfit ? "profitText" : "lossText"}>{hasCost && hasValue ? `${money(pnl)} / %${pnlRate.toFixed(2)}` : "Kar/Zarar yok"}</strong><button type="button" className="editButton" onClick={() => onEdit(item)}>Düzenle</button><button type="button" className="deleteButton" onClick={() => onDelete(item.id)}>Sil</button></div></div></div>; })}</div>;
 }
@@ -682,7 +694,7 @@ function MiniPanel({ title, totalLabel, total, color, open, onToggle, children }
 function InputBox({ label, value, onChange, type = "text", placeholder = "" }) { return <label className="inputBox"><span>{label}</span><input type={type} value={value} placeholder={placeholder} inputMode={type === "date" ? undefined : "text"} onChange={(event) => onChange(event.target.value)} /></label>; }
 function SelectBox({ label, value, onChange, options }) { return <label className="inputBox"><span>{label}</span><select value={value} onChange={(event) => onChange(event.target.value)}>{options.map((option) => typeof option === "string" ? <option key={option} value={option}>{option}</option> : <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>; }
 function SimpleExpenseForm({ form, onChange, onAdd, buttonText }) { return <div className="formGrid four"><InputBox label="Gider Adı" value={form.title} placeholder="Örn: Market" onChange={(value) => onChange("title", value)} /><InputBox label="Kategori" value={form.category} placeholder="Örn: Alışveriş" onChange={(value) => onChange("category", value)} /><InputBox label="Tutar" value={form.amount} placeholder="0" onChange={(value) => onChange("amount", value)} /><InputBox label="Not" value={form.note} placeholder="Opsiyonel" onChange={(value) => onChange("note", value)} /><button type="button" className="premiumButton wide" onClick={onAdd}>{buttonText}</button></div>; }
-function AssetForm({ form, onChange, onAdd, buttonText, nameLabel, namePlaceholder, showGoldType = false }) { return <><p className="sectionDescription">Alış fiyatı ve güncel fiyat zorunlu değildir. Fiyat Güncelle ile sembol eşleşirse güncel fiyat otomatik yazılır.</p><div className="formGrid six"><InputBox label={nameLabel} value={form.title} placeholder={namePlaceholder} onChange={(value) => onChange("title", value)} />{showGoldType ? <SelectBox label="Altın / Metal Türü" value={form.goldType || "GRAM"} onChange={(value) => onChange("goldType", value)} options={goldTypeOptions} /> : null}<InputBox label="Adet / Miktar" value={form.quantity} placeholder="Örn: 0,63" onChange={(value) => onChange("quantity", value)} /><SelectBox label="Para Birimi" value={form.currency} onChange={(value) => onChange("currency", value)} options={currencyOptions} /><InputBox label="Alış Fiyatı" value={form.buyPrice} placeholder="Opsiyonel" onChange={(value) => onChange("buyPrice", value)} /><InputBox label="Güncel Fiyat" value={form.currentPrice} placeholder="Opsiyonel" onChange={(value) => onChange("currentPrice", value)} /><InputBox label="Not" value={form.note} placeholder="Opsiyonel" onChange={(value) => onChange("note", value)} /><button type="button" className="premiumButton wide" onClick={onAdd}>{buttonText}</button></div></>; }
+function AssetForm({ form, onChange, onAdd, buttonText, nameLabel, namePlaceholder, showGoldType = false, hideCurrency = false }) { return <><p className="sectionDescription">Alış fiyatı ve güncel fiyat zorunlu değildir. Fiyat Güncelle ile sembol eşleşirse güncel fiyat otomatik yazılır.</p><div className="formGrid six"><InputBox label={nameLabel} value={form.title} placeholder={namePlaceholder} onChange={(value) => onChange("title", value)} />{showGoldType ? <SelectBox label="Altın / Metal Türü" value={form.goldType || "GRAM"} onChange={(value) => onChange("goldType", value)} options={goldTypeOptions} /> : null}<InputBox label="Adet / Miktar" value={form.quantity} placeholder="Örn: 0,63" onChange={(value) => onChange("quantity", value)} />{hideCurrency ? null : <SelectBox label="Para Birimi" value={form.currency} onChange={(value) => onChange("currency", value)} options={currencyOptions} />}<InputBox label="Alış Fiyatı" value={form.buyPrice} placeholder="Opsiyonel" onChange={(value) => onChange("buyPrice", value)} /><InputBox label="Güncel Fiyat" value={form.currentPrice} placeholder="Opsiyonel" onChange={(value) => onChange("currentPrice", value)} /><InputBox label="Not" value={form.note} placeholder="Opsiyonel" onChange={(value) => onChange("note", value)} /><button type="button" className="premiumButton wide" onClick={onAdd}>{buttonText}</button></div></>; }
 function CreditList({ items, money, parseInstallment, isCreditActive, onEdit, onDelete }) { if (items.length === 0) return <EmptyState text="Henüz kredi kaydı bulunmuyor." />; return <div className="recordList">{items.map((item) => { const installment = parseInstallment(item.installmentText); const active = isCreditActive(item.paymentStartDate); const progressClass = installment.percent >= 100 ? "success" : installment.percent >= 70 ? "warm" : installment.percent >= 35 ? "mid" : "danger"; return <div key={item.id} className="creditRecord"><div className="creditRecordTop"><div><div className="recordTitleRow"><h4>{item.title}</h4><span className={installment.completed ? "status done" : "status waiting"}>{installment.completed ? "✅ Tamamlandı" : "⏳ Devam ediyor"}</span>{!active ? <span className="status deferred">Ödeme tarihi bekleniyor</span> : null}</div><p className="recordSubText">Taksit: {item.installmentText || "0/0"} • Kalan borç: {money(item.remainingDebt)}</p></div><div className="recordAmount">{money(item.monthlyPayment)}</div></div><div className="progressWrap"><div className="progressInfo"><span>Ödeme ilerlemesi</span><strong>{installment.percent}%</strong></div><div className="progressTrack"><div className={`progressBar ${progressClass}`} style={{ width: `${installment.percent}%` }} /></div></div><div className="recordFooter"><span>Başlangıç: {item.paymentStartDate || "Hemen aktif"}</span><div className="recordActions"><button type="button" className="editButton" onClick={() => onEdit(item)}>Düzenle</button><button type="button" className="deleteButton" onClick={() => onDelete(item.id)}>Sil</button></div></div></div>; })}</div>; }
 function SimpleExpenseList({ items, money, onEdit, onDelete }) { if (items.length === 0) return <EmptyState text="Henüz kayıt bulunmuyor." />; return <div className="recordList">{items.map((item) => <div key={item.id} className="simpleRecord"><div className="simpleRecordTop"><div><h4>{item.title}</h4><p>{item.category}{item.note ? ` • ${item.note}` : ""}</p></div><div className="simpleRecordRight"><strong>{money(item.amount)}</strong><button type="button" className="editButton" onClick={() => onEdit(item)}>Düzenle</button><button type="button" className="deleteButton" onClick={() => onDelete(item.id)}>Sil</button></div></div></div>)}</div>; }
 function IncomeList({ items, money, onEdit, onDelete }) { if (items.length === 0) return <EmptyState text="Henüz ek gelir kaydı bulunmuyor." />; return <div className="recordList">{items.map((item) => <div key={item.id} className="simpleRecord"><div className="simpleRecordTop"><div><h4>{item.title}</h4><p>Ek gelir</p></div><div className="simpleRecordRight"><strong>{money(item.amount)}</strong><button type="button" className="editButton" onClick={() => onEdit(item)}>Düzenle</button><button type="button" className="deleteButton" onClick={() => onDelete(item.id)}>Sil</button></div></div></div>)}</div>; }
