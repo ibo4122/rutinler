@@ -116,8 +116,11 @@ function findDirectPrice(source, keys) {
 function findCryptoSymbol(title) {
   const normalized = normalizeSymbol(title).replace(/USDT$/, "");
 
+  // Tam eşleşme kullanıyoruz. Gevşek includes() eşleşmesi yanlış sonuç veriyordu:
+  // "DOGS".includes("S") true olduğu için DOGS, "S" (Sonic) fiyatını alıyordu.
+  // Alias listeleri tam isimleri (BITCOIN, ETHEREUM, ...) zaten içeriyor.
   for (const [symbol, aliases] of Object.entries(cryptoAliases)) {
-    if (aliases.some((alias) => normalized === normalizeSymbol(alias) || normalized.includes(normalizeSymbol(alias)))) {
+    if (aliases.some((alias) => normalized === normalizeSymbol(alias))) {
       return symbol;
     }
   }
@@ -304,16 +307,15 @@ export default function LiveMarketUpdater({ investments, setInvestments, onMarke
   useEffect(() => {
     if (!autoUpdate) return;
 
-    if (!mountedRef.current) {
-      mountedRef.current = true;
-      lastSignatureRef.current = signature;
-      return;
-    }
-
+    // Sinyal (portföy bileşimi) değiştiğinde canlı fiyatları sessizce çekeriz.
+    // İlk yüklemede de bir kez çalışır: kayıtlı eski "Güncel" fiyatlar (örn. eski
+    // kaynaklardan kalan değerler) güncel canlı verilerle tazelenir.
     if (!signature || signature === lastSignatureRef.current) return;
 
     lastSignatureRef.current = signature;
-    const timer = setTimeout(() => updateLivePrices({ silent: true }), 900);
+    const delay = mountedRef.current ? 900 : 300;
+    mountedRef.current = true;
+    const timer = setTimeout(() => updateLivePrices({ silent: true }), delay);
     return () => clearTimeout(timer);
   }, [signature]);
 

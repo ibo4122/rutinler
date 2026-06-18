@@ -5,6 +5,10 @@ function numberOrZero(value) {
   return Number.isFinite(number) && number > 0 ? number : 0;
 }
 
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 function normalizeNumber(value) {
   if (typeof value === "number") return numberOrZero(value);
   if (!value) return 0;
@@ -52,26 +56,6 @@ async function safeJson(url, options = {}) {
   } catch (error) {
     console.log("market json error", url, error?.message || error);
     return null;
-  }
-}
-
-async function safeText(url, options = {}) {
-  try {
-    const response = await fetch(url, {
-      cache: "no-store",
-      ...options,
-      headers: {
-        accept: "text/csv,text/plain,*/*",
-        "user-agent": "Mozilla/5.0 personal-finance-market-panel",
-        ...(options.headers || {}),
-      },
-    });
-
-    if (!response.ok) return "";
-    return await response.text();
-  } catch (error) {
-    console.log("market text error", url, error?.message || error);
-    return "";
   }
 }
 
@@ -346,36 +330,54 @@ async function getCryptoPayload(portfolioSymbols = []) {
 }
 
 async function getYahooQuotes(symbols, type) {
+  // Yahoo /v7/finance/quote artık auth (crumb) istiyor → 401. Auth gerektirmeyen
+  // spark endpoint'i ile toplu fiyat çekiyoruz (meta içinde fiyat/değişim/hacim var).
   const clean = [...new Set(symbols.filter(Boolean))];
   if (!clean.length) return [];
 
   const rows = [];
 
-  for (let i = 0; i < clean.length; i += 60) {
-    const chunk = clean.slice(i, i + 60);
+  // Spark tek istekte ~20 sembolle sınırlı (fazlası 400) ve ardışık yoğun
+  // çağrılarda rate-limit uygulayabiliyor. Bu yüzden 20'lik bloklar halinde,
+  // sıralı, kısa gecikme ve birkaç denemeli (retry) çekiyoruz.
+  for (let i = 0; i < clean.length; i += 20) {
+    const chunk = clean.slice(i, i + 20);
+    const url = `https://query1.finance.yahoo.com/v7/finance/spark?symbols=${encodeURIComponent(
+      chunk.join(",")
+    )}&interval=1d&range=1d`;
 
-    const data = await safeJson(
-      `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${encodeURIComponent(
-        chunk.join(",")
-      )}`
-    );
+    let data = null;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      data = await safeJson(url);
+      if (data?.spark?.result) break;
+      await sleep(500 * (attempt + 1));
+    }
 
-    const result = data?.quoteResponse?.result || [];
+    const result = data?.spark?.result || [];
 
-    rows.push(
-      ...result.map((item) => ({
-        symbol: String(item.symbol || "").replace(".IS", ""),
-        rawSymbol: item.symbol,
-        name: item.shortName || item.longName || item.symbol,
-        price: numberOrZero(item.regularMarketPrice),
-        change: Number(item.regularMarketChange || 0),
-        changePercent: Number(item.regularMarketChangePercent || 0),
-        volume: Number(item.regularMarketVolume || 0),
-        currency: item.currency || (type === "TR" ? "TRY" : "USD"),
+    result.forEach((entry) => {
+      const meta = entry?.response?.[0]?.meta || {};
+      const price = numberOrZero(meta.regularMarketPrice);
+      const prev = numberOrZero(meta.chartPreviousClose || meta.previousClose);
+      const symbol = String(meta.symbol || entry.symbol || "").replace(".IS", "");
+
+      if (!symbol || price <= 0) return;
+
+      rows.push({
+        symbol,
+        rawSymbol: meta.symbol || entry.symbol,
+        name: symbol,
+        price,
+        change: prev > 0 ? price - prev : 0,
+        changePercent: prev > 0 ? ((price - prev) / prev) * 100 : 0,
+        volume: Number(meta.regularMarketVolume || 0),
+        currency: meta.currency || (type === "TR" ? "TRY" : "USD"),
         market: type === "TR" ? "BIST" : "ABD",
         source: "Yahoo Finance",
-      }))
-    );
+      });
+    });
+
+    await sleep(250);
   }
 
   return rows.filter((row) => row.symbol && row.price > 0);
@@ -408,58 +410,6 @@ async function getTwelveQuotes(symbols, type, apiKey) {
         source: "Twelve Data Quote",
       });
     }
-  }
-
-  return rows;
-}
-
-function parseStooqCsv(csv, type) {
-  if (!csv || !csv.includes("Symbol")) return [];
-
-  const lines = csv.trim().split(/\r?\n/).slice(1);
-
-  return lines
-    .map((line) => {
-      const cells = line.split(",");
-      const rawSymbol = cells[0] || "";
-      const close = numberOrZero(cells[6]);
-      const volume = Number(cells[7] || 0);
-      const symbol = rawSymbol.replace(/\.US$/i, "").replace(/\.TR$/i, "").toUpperCase();
-
-      return {
-        symbol,
-        rawSymbol,
-        name: symbol,
-        price: close,
-        changePercent: 0,
-        volume,
-        currency: type === "TR" ? "TRY" : "USD",
-        market: type === "TR" ? "BIST" : "ABD",
-        source: "Stooq fallback",
-      };
-    })
-    .filter((row) => row.symbol && row.price > 0);
-}
-
-async function getStooqQuotes(symbols, type) {
-  const suffix = type === "TR" ? ".tr" : ".us";
-  const clean = [...new Set(symbols.filter(Boolean))];
-
-  if (!clean.length) return [];
-
-  const rows = [];
-
-  for (let i = 0; i < clean.length; i += 80) {
-    const chunk = clean
-      .slice(i, i + 80)
-      .map((symbol) => `${String(symbol).toLowerCase()}${suffix}`)
-      .join(",");
-
-    const csv = await safeText(
-      `https://stooq.com/q/l/?s=${encodeURIComponent(chunk)}&f=sd2t2ohlcv&h&e=csv`
-    );
-
-    rows.push(...parseStooqCsv(csv, type));
   }
 
   return rows;
@@ -525,17 +475,17 @@ async function getStockPayload(extra = {}) {
   const trSymbols = [...new Set([...bistUniverse, ...portfolioTr])];
   const usSymbols = [...new Set([...usUniverse, ...portfolioUs])];
 
-  const [yahooTr, yahooUs, stooqTr, stooqUs, twelveTr, twelveUs] = await Promise.all([
-    getYahooQuotes(trSymbols.map((s) => `${s}.IS`), "TR"),
-    getYahooQuotes(usSymbols, "US"),
-    getStooqQuotes(trSymbols, "TR"),
-    getStooqQuotes(usSymbols, "US"),
+  // Yahoo'yu sıralı çağırıyoruz; TR ve US bloklarını aynı anda çekmek
+  // rate-limit ihtimalini artırıyor. Twelve (varsa) portföyle sınırlı ve küçük.
+  const yahooTr = await getYahooQuotes(trSymbols.map((s) => `${s}.IS`), "TR");
+  const yahooUs = await getYahooQuotes(usSymbols, "US");
+  const [twelveTr, twelveUs] = await Promise.all([
     getTwelveQuotes(portfolioTr, "TR", apiKey),
     getTwelveQuotes(portfolioUs, "US", apiKey),
   ]);
 
-  const trPrices = mergeStocks(mergeStocks(yahooTr, stooqTr), twelveTr);
-  const usPrices = mergeStocks(mergeStocks(yahooUs, stooqUs), twelveUs);
+  const trPrices = mergeStocks(yahooTr, twelveTr);
+  const usPrices = mergeStocks(yahooUs, twelveUs);
 
   const trBase = trSymbols.map((s) => ({
     symbol: s,
@@ -604,23 +554,36 @@ async function getGoldPrices(usdTryRate) {
     });
   };
 
-  const genelPara = await safeJson("https://api.genelpara.com/embed/altin.json");
+  // truncgil canlı altın/metal verisi (genelpara kapandı). Selling tercih edilir.
+  const data = await safeJson("https://finance.truncgil.com/api/today.json");
+  const rates = data?.Rates || data || {};
+  const pick = (...keys) => {
+    for (const key of keys) {
+      const node = rates?.[key];
+      const value = normalizeNumber(node?.Selling ?? node?.Buying ?? node);
+      if (value > 0) return value;
+    }
+    return 0;
+  };
 
-  const gram = normalizeNumber(
-    genelPara?.GA?.satis ||
-      genelPara?.GA?.alis ||
-      genelPara?.gram_altin?.satis ||
-      genelPara?.gram_altin?.alis
-  );
-
-  const ceyrek =
-    normalizeNumber(genelPara?.C?.satis || genelPara?.C?.alis) || (gram > 0 ? gram * 1.75 : 0);
-  const yarim =
-    normalizeNumber(genelPara?.Y?.satis || genelPara?.Y?.alis) || (gram > 0 ? gram * 3.5 : 0);
-  const tam =
-    normalizeNumber(genelPara?.T?.satis || genelPara?.T?.alis) || (gram > 0 ? gram * 7 : 0);
-  const cumhuriyet =
-    normalizeNumber(genelPara?.CMR?.satis || genelPara?.CMR?.alis) || (gram > 0 ? gram * 7.216 : 0);
+  const gram = pick("GRA", "HAS", "GRAMALTIN");
+  const ceyrek = pick("CEYREKALTIN") || (gram > 0 ? gram * 1.75 : 0);
+  const yarim = pick("YARIMALTIN") || (gram > 0 ? gram * 3.5 : 0);
+  const tam = pick("TAMALTIN") || (gram > 0 ? gram * 7 : 0);
+  const cumhuriyet = pick("CUMHURIYETALTINI") || (gram > 0 ? gram * 7.216 : 0);
+  const ata = pick("ATAALTIN") || cumhuriyet;
+  const resat = pick("RESATALTIN") || cumhuriyet;
+  const gremse = pick("GREMSEALTIN") || (gram > 0 ? gram * 17.5 : 0);
+  const ayar22 = pick("22AYARALTIN") || (gram > 0 ? gram * 0.916 : 0);
+  const ayar18 = pick("18AYARALTIN") || (gram > 0 ? gram * 0.75 : 0);
+  const ayar14 = pick("14AYARALTIN") || (gram > 0 ? gram * 0.585 : 0);
+  const gumus = pick("GUMUS"); // gram gümüş (TRY)
+  const onsAltin = pick("ONS") || (gram > 0 ? gram * 31.1035 : 0); // truncgil ONS 0 dönebiliyor → gramdan hesapla
+  const onsGumus = gumus > 0 ? gumus * 31.1035 : 0; // gram → ons
+  const gramPlatin = pick("GPL", "PLATIN"); // truncgil gram platin veriyor
+  const gramPaladyum = pick("PAL", "PALADYUM"); // truncgil gram paladyum veriyor
+  const platin = gramPlatin > 0 ? gramPlatin * 31.1035 : 0; // ons platin
+  const paladyum = gramPaladyum > 0 ? gramPaladyum * 31.1035 : 0; // ons paladyum
 
   if (gram > 0) {
     result.GRAM = gram;
@@ -629,29 +592,35 @@ async function getGoldPrices(usdTryRate) {
     result.HASALTIN = gram;
     result.AYAR_24 = gram;
     result.AYAR24 = gram;
-    result.AYAR_22 = gram * 0.916;
-    result.AYAR22 = gram * 0.916;
-    result.AYAR_18 = gram * 0.75;
-    result.AYAR18 = gram * 0.75;
-    result.AYAR_14 = gram * 0.585;
-    result.AYAR14 = gram * 0.585;
-    result.GREMSE = gram * 17.5;
-    result.GREMSEALTIN = gram * 17.5;
+    result.AYAR_22 = ayar22;
+    result.AYAR22 = ayar22;
+    result.AYAR_18 = ayar18;
+    result.AYAR18 = ayar18;
+    result.AYAR_14 = ayar14;
+    result.AYAR14 = ayar14;
+    result.GREMSE = gremse;
+    result.GREMSEALTIN = gremse;
 
     addMetal("GRAM", "Gram Altın", gram);
     addMetal("HAS", "Has Altın", gram);
     addMetal("AYAR_24", "24 Ayar Gram", gram);
-    addMetal("AYAR_22", "22 Ayar Altın", gram * 0.916);
-    addMetal("AYAR_18", "18 Ayar Altın", gram * 0.75);
-    addMetal("AYAR_14", "14 Ayar Altın", gram * 0.585);
+    addMetal("AYAR_22", "22 Ayar Altın", ayar22);
+    addMetal("AYAR_18", "18 Ayar Altın", ayar18);
+    addMetal("AYAR_14", "14 Ayar Altın", ayar14);
     addMetal("CEYREK", "Çeyrek Altın", ceyrek);
     addMetal("YARIM", "Yarım Altın", yarim);
     addMetal("TAM", "Tam Altın", tam);
     addMetal("CUMHURIYET", "Cumhuriyet Altını", cumhuriyet);
-    addMetal("ATA", "Ata Altın", cumhuriyet);
-    addMetal("RESAT", "Reşat Altın", cumhuriyet);
-    addMetal("GREMSE", "Gremse Altın", gram * 17.5);
+    addMetal("ATA", "Ata Altın", ata);
+    addMetal("RESAT", "Reşat Altın", resat);
+    addMetal("GREMSE", "Gremse Altın", gremse);
   }
+
+  addMetal("ONS", "Ons Altın", onsAltin, "Altın", "truncgil");
+  addMetal("GUMUS", "Gram Gümüş", gumus, "Gümüş", "truncgil");
+  addMetal("XAG", "Ons Gümüş", onsGumus, "Gümüş", "truncgil");
+  addMetal("XPT", "Ons Platin", platin, "Platin", "truncgil");
+  addMetal("XPD", "Ons Paladyum", paladyum, "Paladyum", "truncgil");
 
   [
     ["GRAM", "Gram Altın", "Altın"],
@@ -691,6 +660,26 @@ function formatDateTR(date) {
   return `${d}.${m}.${y}`;
 }
 
+// TEFAS BindHistoryInfo artık önce ana sayfadan oturum çerezi alınmasını istiyor.
+// Çerezi tek seferde alıp sıcak instance boyunca yeniden kullanıyoruz.
+let tefasCookie = "";
+async function getTefasCookie() {
+  if (tefasCookie) return tefasCookie;
+  try {
+    const res = await fetch("https://www.tefas.gov.tr/FonAnaliz.aspx", {
+      cache: "no-store",
+      headers: { "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)" },
+    });
+    const raw = res.headers.get("set-cookie") || "";
+    tefasCookie = raw
+      .split(",")
+      .map((part) => part.split(";")[0].trim())
+      .filter(Boolean)
+      .join("; ");
+  } catch {}
+  return tefasCookie;
+}
+
 async function getTefasFundOne(symbol) {
   const code = normalizeSymbol(symbol);
   if (!code) return null;
@@ -706,6 +695,8 @@ async function getTefasFundOne(symbol) {
     bittarih: formatDateTR(end),
   });
 
+  const cookie = await getTefasCookie();
+
   const data = await safeJson("https://www.tefas.gov.tr/api/DB/BindHistoryInfo", {
     method: "POST",
     headers: {
@@ -713,6 +704,8 @@ async function getTefasFundOne(symbol) {
       origin: "https://www.tefas.gov.tr",
       referer: "https://www.tefas.gov.tr/FonAnaliz.aspx",
       "x-requested-with": "XMLHttpRequest",
+      "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+      ...(cookie ? { cookie } : {}),
     },
     body,
   });
