@@ -5,6 +5,8 @@ import { supabase } from "../lib/supabaseClient";
 import BesProjectionPanel from "../components/BesProjectionPanel";
 import RoutinePlanner from "../components/RoutinePlanner";
 import OverviewDashboard from "../components/OverviewDashboard";
+import { money, formatCurrency } from "../lib/format";
+import { assetValueTry, assetCostTry } from "../lib/assets";
 import LiveMarketUpdater from "../components/LiveMarketUpdater";
 import MarketUniversePanel from "../components/MarketUniversePanel";
 
@@ -56,66 +58,6 @@ function parseDecimal(value) {
 function formatNumberInput(value) {
   const digits = onlyDigits(value);
   return digits ? new Intl.NumberFormat("tr-TR").format(Number(digits)) : "";
-}
-
-function money(value) {
-  return new Intl.NumberFormat("tr-TR", {
-    style: "currency",
-    currency: "TRY",
-    maximumFractionDigits: 0,
-  }).format(Number(value || 0));
-}
-
-function formatCurrency(value, currency = "TRY") {
-  const number = Number(value || 0);
-  if (currency === "USDT") return `${new Intl.NumberFormat("tr-TR", { maximumFractionDigits: 6 }).format(number)} USDT`;
-  try {
-    return new Intl.NumberFormat("tr-TR", {
-      style: "currency",
-      currency,
-      maximumFractionDigits: currency === "JPY" ? 0 : 2,
-    }).format(number);
-  } catch {
-    return `${new Intl.NumberFormat("tr-TR", { maximumFractionDigits: 2 }).format(number)} ${currency}`;
-  }
-}
-
-function assetUnitValue(item) {
-  const quantity = Number(item?.quantity || 0);
-  const currentPrice = Number(item?.currentPrice || 0);
-  return quantity > 0 && currentPrice > 0 ? quantity * currentPrice : 0;
-}
-
-function assetUnitCost(item) {
-  const quantity = Number(item?.quantity || 0);
-  const buyPrice = Number(item?.buyPrice || 0);
-  return quantity > 0 && buyPrice > 0 ? quantity * buyPrice : 0;
-}
-
-function assetValueTry(item) {
-  const quantity = Number(item?.quantity || 0);
-  const currentPriceTry = Number(item?.currentPriceTry || 0);
-  if (quantity > 0 && currentPriceTry > 0) return quantity * currentPriceTry;
-
-  const value = assetUnitValue(item);
-  const currency = item?.currency || "TRY";
-  const usdTryRate = Number(item?.usdTryRate || 0);
-
-  if ((currency === "USD" || currency === "USDT") && usdTryRate > 0) return value * usdTryRate;
-  return value;
-}
-
-function assetCostTry(item) {
-  const quantity = Number(item?.quantity || 0);
-  const buyPriceTry = Number(item?.buyPriceTry || 0);
-  if (quantity > 0 && buyPriceTry > 0) return quantity * buyPriceTry;
-
-  const cost = assetUnitCost(item);
-  const currency = item?.currency || "TRY";
-  const usdTryRate = Number(item?.usdTryRate || 0);
-
-  if ((currency === "USD" || currency === "USDT") && usdTryRate > 0) return cost * usdTryRate;
-  return cost;
 }
 
 function normalizeAsset(item, fallbackCurrency = "TRY") {

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { money } from "../lib/format";
 
 const defaultYearlyInputs = [
   { year: 2025, monthlyContribution: "5000", fundReturn: "30", stateReturn: "20" },
@@ -17,14 +18,6 @@ function numberValue(value) {
 
 function percentValue(value) {
   return numberValue(value) / 100;
-}
-
-function money(value) {
-  return new Intl.NumberFormat("tr-TR", {
-    style: "currency",
-    currency: "TRY",
-    maximumFractionDigits: 0,
-  }).format(Number(value || 0));
 }
 
 function formatDate(date) {

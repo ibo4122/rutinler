@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { pct } from "../lib/format";
+import { assetValueTry } from "../lib/assets";
 
 function trMoney(value, currency = "TRY") {
   const number = Number(value || 0);
@@ -19,11 +21,6 @@ function compact(value) {
   return new Intl.NumberFormat("tr-TR", { notation: "compact", maximumFractionDigits: 1 }).format(Number(value || 0));
 }
 
-function pct(value) {
-  const n = Number(value || 0);
-  return `%${n.toFixed(2)}`;
-}
-
 function normalize(value) {
   return String(value || "")
     .toLowerCase()
@@ -34,19 +31,6 @@ function normalize(value) {
     .replace(/ş/g, "s")
     .replace(/ö/g, "o")
     .replace(/ç/g, "c");
-}
-
-function assetValueTry(item) {
-  const quantity = Number(item?.quantity || 0);
-  const currentPriceTry = Number(item?.currentPriceTry || 0);
-  if (quantity > 0 && currentPriceTry > 0) return quantity * currentPriceTry;
-
-  const currentPrice = Number(item?.currentPrice || 0);
-  const usdTryRate = Number(item?.usdTryRate || 0);
-  const value = quantity * currentPrice;
-
-  if (["USD", "USDT"].includes(item?.currency) && usdTryRate > 0) return value * usdTryRate;
-  return value;
 }
 
 function distributionFrom(investments, investmentTotals) {

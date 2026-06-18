@@ -1,18 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-
-function money(value) {
-  return new Intl.NumberFormat("tr-TR", {
-    style: "currency",
-    currency: "TRY",
-    maximumFractionDigits: 0,
-  }).format(Number(value || 0));
-}
-
-function pct(value) {
-  return `%${Number(value || 0).toFixed(2)}`;
-}
+import { money, pct } from "../lib/format";
 
 function pieGradient(items) {
   const total = items.reduce((sum, item) => sum + item.value, 0);
