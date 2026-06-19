@@ -28,6 +28,7 @@ export default function NotesModule({ userId }) {
   const [loading, setLoading] = useState(true);
   const [schemaMissing, setSchemaMissing] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [ai, setAi] = useState({ open: false, loading: false, title: "", result: "", error: "" });
   const saveTimer = useRef(null);
 
   useEffect(() => {
@@ -152,6 +153,29 @@ export default function NotesModule({ userId }) {
     return uploadAttachment(userId, selectedNote.id, file);
   };
 
+  const AI_TITLES = {
+    summary: "📝 Özet", gaps: "🔍 Eksik Noktalar", quiz: "❓ Quiz", flashcards: "🃏 Flashcard'lar",
+    toEn: "🇬🇧 İngilizce Çeviri", toTr: "🇹🇷 Türkçe Çeviri", keywords: "🔑 Anahtar Kavramlar", plan: "🗓️ Çalışma Planı",
+  };
+  const handleAiAction = async (action, text) => {
+    setAi({ open: true, loading: true, title: AI_TITLES[action] || "AI", result: "", error: "" });
+    try {
+      const res = await fetch("/api/notes-ai", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ action, text }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) setAi((a) => ({ ...a, loading: false, error: data?.error || "AI çağrısı başarısız." }));
+      else setAi((a) => ({ ...a, loading: false, result: data?.result || "(boş yanıt)" }));
+    } catch (e) {
+      setAi((a) => ({ ...a, loading: false, error: "AI çağrısı başarısız: " + e.message }));
+    }
+  };
+  const copyAiResult = async () => {
+    try { await navigator.clipboard.writeText(ai.result); } catch {}
+  };
+
   if (schemaMissing) {
     return (
       <section className="panelCard">
@@ -233,7 +257,7 @@ export default function NotesModule({ userId }) {
                 <button className="ghostBtn danger" onClick={() => removeNote(selectedNote)}>Sil</button>
               </div>
             </div>
-            <NoteEditor noteId={selectedNote.id} content={selectedNote.content} onChange={onContentChange} uploadFile={handleUpload} />
+            <NoteEditor noteId={selectedNote.id} content={selectedNote.content} onChange={onContentChange} uploadFile={handleUpload} onAiAction={handleAiAction} />
           </div>
         ) : (
           <div className="notesEmpty">
@@ -242,6 +266,31 @@ export default function NotesModule({ userId }) {
           </div>
         )}
       </main>
+
+      {ai.open ? (
+        <div className="aiModalOverlay" onClick={() => setAi((a) => ({ ...a, open: false }))}>
+          <div className="aiModal" onClick={(e) => e.stopPropagation()}>
+            <div className="aiModalHead">
+              <strong>{ai.title}</strong>
+              <button className="ghostBtn" onClick={() => setAi((a) => ({ ...a, open: false }))}>Kapat</button>
+            </div>
+            <div className="aiModalBody">
+              {ai.loading ? (
+                <div className="aiLoading">✨ Yapay zeka çalışıyor…</div>
+              ) : ai.error ? (
+                <div className="aiError">⚠️ {ai.error}</div>
+              ) : (
+                <pre className="aiResult">{ai.result}</pre>
+              )}
+            </div>
+            {!ai.loading && !ai.error ? (
+              <div className="aiModalFoot">
+                <button className="ghostBtn" onClick={copyAiResult}>📋 Kopyala</button>
+              </div>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
     </section>
   );
 }

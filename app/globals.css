@@ -1711,3 +1711,12 @@ button {
   .notesLayout { grid-template-columns: 1fr; }
   .notesTree { max-height: 260px; }
 }
+
+.aiModalOverlay { position: fixed; inset: 0; background: rgba(2,6,23,.72); backdrop-filter: blur(4px); display: grid; place-items: center; z-index: 100; padding: 20px; }
+.aiModal { width: min(680px, 100%); max-height: 80vh; display: flex; flex-direction: column; background: linear-gradient(160deg, rgba(15,23,42,.98), rgba(30,27,75,.96)); border: 1px solid rgba(255,255,255,.16); border-radius: 18px; box-shadow: 0 30px 80px rgba(0,0,0,.6); }
+.aiModalHead { display: flex; align-items: center; justify-content: space-between; padding: 16px 18px; border-bottom: 1px solid rgba(255,255,255,.10); color: #fff; font-size: 16px; }
+.aiModalBody { padding: 18px; overflow-y: auto; }
+.aiLoading { color: #c4b5fd; text-align: center; padding: 30px; font-weight: 700; }
+.aiError { color: #fca5a5; padding: 14px; background: rgba(239,68,68,.12); border: 1px solid rgba(239,68,68,.3); border-radius: 12px; }
+.aiResult { white-space: pre-wrap; word-break: break-word; color: #e8edf6; font-family: inherit; font-size: 14px; line-height: 1.7; margin: 0; }
+.aiModalFoot { padding: 12px 18px; border-top: 1px solid rgba(255,255,255,.10); display: flex; justify-content: flex-end; }
