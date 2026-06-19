@@ -73,7 +73,7 @@ export default function OverviewDashboard({ financeTotals, investmentTotals, rou
         </div>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1.4fr) minmax(0, 1fr)", gap: 18 }}>
+      <div className="dashTwoCol">
         {/* Finansal özet */}
         <div style={glassCard}>
           <h3 className="gradientTitle" style={{ margin: "0 0 4px" }}>Finansal Özet</h3>

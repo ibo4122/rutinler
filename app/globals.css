@@ -1608,3 +1608,24 @@ button {
     justify-content: flex-start;
   }
 }
+
+/* Genel Bakış ve Piyasa paneli iki-kolon düzenleri — mobilde alt alta iner */
+.dashTwoCol {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+  gap: 18px;
+}
+
+.marketTwoCol {
+  display: grid;
+  grid-template-columns: 360px minmax(0, 1fr);
+  gap: 16px;
+  align-items: stretch;
+}
+
+@media (max-width: 860px) {
+  .dashTwoCol,
+  .marketTwoCol {
+    grid-template-columns: 1fr;
+  }
+}

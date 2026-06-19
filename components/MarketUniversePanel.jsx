@@ -162,7 +162,7 @@ export default function MarketUniversePanel({ investments, investmentTotals, mar
             <button type="button" className="premiumButton" onClick={load} disabled={loading}>{loading ? "Yükleniyor" : "Piyasayı Yenile"}</button>
           </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "360px minmax(0,1fr)", gap: 16, alignItems: "stretch" }}>
+          <div className="marketTwoCol">
             <div style={{ border: "1px solid rgba(255,255,255,.14)", borderRadius: 24, padding: 18, background: "linear-gradient(145deg, rgba(15,23,42,.72), rgba(49,46,129,.34))" }}>
               <h3 style={{ margin: "0 0 8px", color: "#fff" }}>Portföy Dağılımı</h3>
               <p className="sectionDescription">Yatırım kalemlerinin toplam içindeki yüzdesel dağılımı.</p>
