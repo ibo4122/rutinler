@@ -130,6 +130,7 @@ export default function HomePage() {
   const [dataLoading, setDataLoading] = useState(false);
   const [financeLoaded, setFinanceLoaded] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState("");
   const [activeTab, setActiveTab] = useState("overview");
 
   const [authMode, setAuthMode] = useState("login");
@@ -280,7 +281,12 @@ export default function HomePage() {
     saveLocalBackup(payload);
     setSaving(true);
     const { error } = await supabase.from("user_finance_data").upsert({ user_id: session.user.id, data: payload }, { onConflict: "user_id" });
-    if (error) console.log(error);
+    if (error) {
+      console.log(error);
+      setSaveError("Buluta kaydedilemedi (yerel yedek alındı). Bağlantını kontrol et.");
+    } else {
+      setSaveError("");
+    }
     setSaving(false);
   };
 
@@ -572,7 +578,7 @@ export default function HomePage() {
         <header className="topHeader appHeader">
           <div>
             <div className="topBadge">Kişisel Finans Yönetimi</div>
-            <p className="saveStatus">{saving ? "Kaydediliyor..." : "Veriler Supabase üzerinde güvende"}</p>
+            <p className="saveStatus" style={saveError ? { color: "#fca5a5" } : undefined}>{saving ? "Kaydediliyor..." : saveError ? `⚠️ ${saveError}` : "Veriler Supabase üzerinde güvende"}</p>
           </div>
           <button type="button" className="secondaryButton" onClick={handleLogout}>Çıkış Yap</button>
         </header>
