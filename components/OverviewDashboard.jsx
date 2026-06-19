@@ -1,22 +1,8 @@
 "use client";
 
 import { useMemo } from "react";
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
 import { money, pct } from "../lib/format";
-
-function pieGradient(items) {
-  const total = items.reduce((sum, item) => sum + item.value, 0);
-  if (!total) return "conic-gradient(rgba(148,163,184,.35) 0deg 360deg)";
-
-  let angle = 0;
-  const parts = items.map((item) => {
-    const size = (item.value / total) * 360;
-    const start = angle;
-    angle += size;
-    return `${item.color} ${start}deg ${angle}deg`;
-  });
-
-  return `conic-gradient(${parts.join(",")})`;
-}
 
 const glassCard = {
   border: "1px solid rgba(255,255,255,.14)",
@@ -107,10 +93,24 @@ export default function OverviewDashboard({ financeTotals, investmentTotals, rou
           <p style={{ color: "#94a3b8", fontSize: 12, margin: "0 0 12px" }}>Varlık türlerinin toplam içindeki payı.</p>
           {distribution.length ? (
             <>
-              <div style={{ width: 180, height: 180, borderRadius: "50%", margin: "8px auto 16px", background: pieGradient(distribution), display: "grid", placeItems: "center", boxShadow: "0 18px 40px rgba(0,0,0,.35)" }}>
-                <div style={{ width: 96, height: 96, borderRadius: "50%", background: "rgba(15,23,42,.92)", border: "1px solid rgba(255,255,255,.16)", display: "grid", placeItems: "center", textAlign: "center", color: "#fff" }}>
-                  <span style={{ fontSize: 10, color: "#cbd5e1" }}>Toplam</span>
-                  <strong style={{ fontSize: 13 }}>{money(distributionTotal)}</strong>
+              <div style={{ position: "relative", width: "100%", height: 200, margin: "4px 0 16px" }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie data={distribution} dataKey="value" nameKey="label" innerRadius={58} outerRadius={88} paddingAngle={2} stroke="none">
+                      {distribution.map((item) => <Cell key={item.key} fill={item.color} />)}
+                    </Pie>
+                    <Tooltip
+                      formatter={(value, name) => [money(value), name]}
+                      contentStyle={{ background: "rgba(15,23,42,.96)", border: "1px solid rgba(255,255,255,.16)", borderRadius: 12, color: "#fff" }}
+                      itemStyle={{ color: "#fff" }}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+                <div style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", pointerEvents: "none", textAlign: "center", color: "#fff" }}>
+                  <div>
+                    <span style={{ display: "block", fontSize: 10, color: "#cbd5e1" }}>Toplam</span>
+                    <strong style={{ fontSize: 14 }}>{money(distributionTotal)}</strong>
+                  </div>
                 </div>
               </div>
               <div style={{ display: "grid", gap: 7 }}>
