@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import { Underline } from "@tiptap/extension-underline";
@@ -8,6 +8,7 @@ import { Link } from "@tiptap/extension-link";
 import { Placeholder } from "@tiptap/extension-placeholder";
 import { TextStyle, Color } from "@tiptap/extension-text-style";
 import { Table, TableRow, TableCell, TableHeader } from "@tiptap/extension-table";
+import { Image } from "@tiptap/extension-image";
 
 const AI_ACTIONS = [
   { key: "summary", label: "Notu özetle", icon: "📝" },
@@ -22,8 +23,11 @@ const AI_ACTIONS = [
 
 const COLORS = ["#f8fafc", "#fb7185", "#fbbf24", "#34d399", "#60a5fa", "#a78bfa", "#22d3ee"];
 
-export default function NoteEditor({ noteId, content, onChange, onAiAction }) {
+export default function NoteEditor({ noteId, content, onChange, onAiAction, uploadFile }) {
   const [aiOpen, setAiOpen] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef(null);
+  const uploadModeRef = useRef("image");
 
   const editor = useEditor({
     immediatelyRender: false,
@@ -38,6 +42,7 @@ export default function NoteEditor({ noteId, content, onChange, onAiAction }) {
       TableRow,
       TableHeader,
       TableCell,
+      Image.configure({ HTMLAttributes: { class: "noteImg" } }),
     ],
     content: content && Object.keys(content || {}).length ? content : "",
     onUpdate: ({ editor }) => onChange?.(editor.getJSON()),
@@ -60,6 +65,30 @@ export default function NoteEditor({ noteId, content, onChange, onAiAction }) {
     else editor.chain().focus().extendMarkRange("link").setLink({ href: url }).run();
   };
 
+  const openUpload = (mode) => {
+    if (!uploadFile || !fileInputRef.current) return;
+    uploadModeRef.current = mode;
+    fileInputRef.current.value = "";
+    fileInputRef.current.accept = mode === "image" ? "image/*" : "*/*";
+    fileInputRef.current.click();
+  };
+  const handleFileChange = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file || !uploadFile) return;
+    setUploading(true);
+    try {
+      const res = await uploadFile(file);
+      if (res?.url) {
+        if (uploadModeRef.current === "image") editor.chain().focus().setImage({ src: res.url, alt: file.name }).run();
+        else editor.chain().focus().insertContent(`<a href="${res.url}">📎 ${file.name}</a> `).run();
+      } else {
+        window.alert("Yükleme başarısız: " + (res?.error?.message || "bilinmeyen hata"));
+      }
+    } finally {
+      setUploading(false);
+    }
+  };
+
   return (
     <div className="noteEditor">
       <div className="noteToolbar">
@@ -80,6 +109,8 @@ export default function NoteEditor({ noteId, content, onChange, onAiAction }) {
         <Sep />
         <Btn active={editor.isActive("link")} onClick={addLink} title="Bağlantı">🔗</Btn>
         <Btn onClick={() => editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()} title="Tablo ekle">▦</Btn>
+        {uploadFile ? <Btn onClick={() => openUpload("image")} title="Görsel ekle">{uploading ? "⏳" : "🖼"}</Btn> : null}
+        {uploadFile ? <Btn onClick={() => openUpload("file")} title="Dosya ekle">📎</Btn> : null}
         <Sep />
         <span className="colorRow" title="Metin rengi">
           {COLORS.map((c) => (
@@ -108,6 +139,8 @@ export default function NoteEditor({ noteId, content, onChange, onAiAction }) {
           ) : null}
         </div>
       </div>
+
+      <input ref={fileInputRef} type="file" style={{ display: "none" }} onChange={handleFileChange} />
 
       <EditorContent editor={editor} className="noteContent" />
 

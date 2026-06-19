@@ -1699,6 +1699,8 @@ button {
 .noteContent .ProseMirror pre { background: rgba(2,6,23,.85); border: 1px solid rgba(255,255,255,.12); border-radius: 12px; padding: 14px 16px; overflow-x: auto; margin: 10px 0; }
 .noteContent .ProseMirror pre code { background: none; border: none; color: #e2e8f0; padding: 0; }
 .noteContent .ProseMirror a { color: #60a5fa; text-decoration: underline; }
+.noteContent .ProseMirror img { max-width: 100%; height: auto; border-radius: 12px; margin: 10px 0; border: 1px solid rgba(255,255,255,.12); }
+.noteContent .ProseMirror img.ProseMirror-selectednode { outline: 2px solid #60a5fa; }
 .noteContent .ProseMirror table { border-collapse: collapse; width: 100%; margin: 12px 0; }
 .noteContent .ProseMirror th, .noteContent .ProseMirror td { border: 1px solid rgba(255,255,255,.18); padding: 7px 10px; min-width: 50px; }
 .noteContent .ProseMirror th { background: rgba(139,92,246,.18); font-weight: 800; }

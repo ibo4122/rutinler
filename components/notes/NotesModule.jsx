@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import NoteEditor from "./NoteEditor";
 import {
   fetchCategories, fetchNotes, createCategory, updateCategory, deleteCategory,
-  createNote, updateNote, deleteNote, isMissingTableError,
+  createNote, updateNote, deleteNote, isMissingTableError, uploadAttachment,
 } from "../../lib/notesApi";
 
 const ICONS = ["📁", "📘", "📗", "📙", "📕", "💻", "🗄️", "📊", "💰", "💼", "🧠", "🌐", "🔤", "⚙️", "🎯", "📐"];
@@ -147,6 +147,10 @@ export default function NotesModule({ userId }) {
     setNotes((n) => n.map((x) => (x.id === selectedNote.id ? { ...x, title } : x)));
     scheduleSave(selectedNote.id, { title });
   };
+  const handleUpload = async (file) => {
+    if (!selectedNote) return { error: { message: "Önce bir not seç." } };
+    return uploadAttachment(userId, selectedNote.id, file);
+  };
 
   if (schemaMissing) {
     return (
@@ -229,7 +233,7 @@ export default function NotesModule({ userId }) {
                 <button className="ghostBtn danger" onClick={() => removeNote(selectedNote)}>Sil</button>
               </div>
             </div>
-            <NoteEditor noteId={selectedNote.id} content={selectedNote.content} onChange={onContentChange} />
+            <NoteEditor noteId={selectedNote.id} content={selectedNote.content} onChange={onContentChange} uploadFile={handleUpload} />
           </div>
         ) : (
           <div className="notesEmpty">
