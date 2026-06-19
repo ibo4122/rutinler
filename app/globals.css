@@ -1720,3 +1720,5 @@ button {
 .aiError { color: #fca5a5; padding: 14px; background: rgba(239,68,68,.12); border: 1px solid rgba(239,68,68,.3); border-radius: 12px; }
 .aiResult { white-space: pre-wrap; word-break: break-word; color: #e8edf6; font-family: inherit; font-size: 14px; line-height: 1.7; margin: 0; }
 .aiModalFoot { padding: 12px 18px; border-top: 1px solid rgba(255,255,255,.10); display: flex; justify-content: flex-end; }
+.aiAskInput { width: 100%; box-sizing: border-box; min-height: 90px; resize: vertical; border: 1px solid rgba(255,255,255,.22); background: rgba(2,6,23,.6); color: #f8fafc; border-radius: 12px; padding: 12px; outline: none; font-family: inherit; font-size: 14px; line-height: 1.6; }
+.aiAskInput:focus { border-color: rgba(139,92,246,.6); }

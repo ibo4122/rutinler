@@ -25,10 +25,21 @@ export async function POST(request) {
 
   const action = body?.action;
   const text = String(body?.text || "").trim();
-  const prompt = PROMPTS[action];
+  const question = String(body?.question || "").trim();
 
-  if (!prompt) return Response.json({ error: "Geçersiz AI işlemi." }, { status: 400 });
-  if (!text) return Response.json({ error: "Not içeriği boş — önce bir şeyler yaz." }, { status: 400 });
+  // Serbest soru/açıklama: kullanıcının kendi sorusunu notu bağlam alarak yanıtlar.
+  let userPrompt;
+  if (action === "ask") {
+    if (!question) return Response.json({ error: "Bir soru yaz." }, { status: 400 });
+    userPrompt =
+      "Aşağıdaki not bağlamında kullanıcının sorusunu Türkçe, açık ve öğretici biçimde yanıtla. " +
+      "Not yetersizse genel bilginle de yardımcı ol; gerekirse örnek ver.\n\nSORU: " +
+      question;
+  } else {
+    userPrompt = PROMPTS[action];
+    if (!userPrompt) return Response.json({ error: "Geçersiz AI işlemi." }, { status: 400 });
+    if (!text) return Response.json({ error: "Not içeriği boş — önce bir şeyler yaz." }, { status: 400 });
+  }
 
   const key = process.env.GEMINI_API_KEY;
   if (!key) {
@@ -44,7 +55,7 @@ export async function POST(request) {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           systemInstruction: { parts: [{ text: SYSTEM }] },
-          contents: [{ role: "user", parts: [{ text: `${prompt}\n\n---\nNOT:\n${text}` }] }],
+          contents: [{ role: "user", parts: [{ text: `${userPrompt}\n\n---\nNOT:\n${text || "(boş)"}` }] }],
           generationConfig: { temperature: 0.7, maxOutputTokens: 4096 },
         }),
       }

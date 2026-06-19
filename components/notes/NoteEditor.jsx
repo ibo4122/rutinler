@@ -11,6 +11,7 @@ import { Table, TableRow, TableCell, TableHeader } from "@tiptap/extension-table
 import { Image } from "@tiptap/extension-image";
 
 const AI_ACTIONS = [
+  { key: "ask", label: "Soru sor / Açıkla", icon: "💬" },
   { key: "summary", label: "Notu özetle", icon: "📝" },
   { key: "gaps", label: "Eksik noktaları bul", icon: "🔍" },
   { key: "quiz", label: "Quiz oluştur", icon: "❓" },

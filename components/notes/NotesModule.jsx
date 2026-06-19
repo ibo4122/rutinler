@@ -154,11 +154,17 @@ export default function NotesModule({ userId }) {
   };
 
   const AI_TITLES = {
+    ask: "💬 Soru sor / Açıkla",
     summary: "📝 Özet", gaps: "🔍 Eksik Noktalar", quiz: "❓ Quiz", flashcards: "🃏 Flashcard'lar",
     toEn: "🇬🇧 İngilizce Çeviri", toTr: "🇹🇷 Türkçe Çeviri", keywords: "🔑 Anahtar Kavramlar", plan: "🗓️ Çalışma Planı",
   };
   const handleAiAction = async (action, text) => {
-    setAi({ open: true, loading: true, title: AI_TITLES[action] || "AI", result: "", error: "" });
+    // Serbest soru: önce kullanıcının sorusunu girmesi için input modunu aç.
+    if (action === "ask") {
+      setAi({ open: true, loading: false, title: AI_TITLES.ask, result: "", error: "", askMode: true, noteText: text || "", question: "" });
+      return;
+    }
+    setAi({ open: true, loading: true, title: AI_TITLES[action] || "AI", result: "", error: "", askMode: false });
     try {
       const res = await fetch("/api/notes-ai", {
         method: "POST",
@@ -168,6 +174,23 @@ export default function NotesModule({ userId }) {
       const data = await res.json().catch(() => ({}));
       if (!res.ok) setAi((a) => ({ ...a, loading: false, error: data?.error || "AI çağrısı başarısız." }));
       else setAi((a) => ({ ...a, loading: false, result: data?.result || "(boş yanıt)" }));
+    } catch (e) {
+      setAi((a) => ({ ...a, loading: false, error: "AI çağrısı başarısız: " + e.message }));
+    }
+  };
+  const runAsk = async () => {
+    const question = (ai.question || "").trim();
+    if (!question) return;
+    setAi((a) => ({ ...a, loading: true, error: "", result: "" }));
+    try {
+      const res = await fetch("/api/notes-ai", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ action: "ask", question, text: ai.noteText }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) setAi((a) => ({ ...a, loading: false, error: data?.error || "AI çağrısı başarısız." }));
+      else setAi((a) => ({ ...a, loading: false, result: data?.result || "(boş yanıt)", askMode: false }));
     } catch (e) {
       setAi((a) => ({ ...a, loading: false, error: "AI çağrısı başarısız: " + e.message }));
     }
@@ -277,17 +300,32 @@ export default function NotesModule({ userId }) {
             <div className="aiModalBody">
               {ai.loading ? (
                 <div className="aiLoading">✨ Yapay zeka çalışıyor…</div>
+              ) : ai.askMode && !ai.result ? (
+                <div className="aiAskBox">
+                  <p className="sectionDescription" style={{ marginTop: 0 }}>Bu nota dayanarak bir şey sor: "şunu açıkla", "örnek ver", "bu ne demek", "beni sına"…</p>
+                  <textarea
+                    className="aiAskInput"
+                    value={ai.question}
+                    autoFocus
+                    placeholder="Sorunu yaz…"
+                    onChange={(e) => setAi((a) => ({ ...a, question: e.target.value }))}
+                    onKeyDown={(e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) runAsk(); }}
+                  />
+                  {ai.error ? <div className="aiError" style={{ marginTop: 10 }}>⚠️ {ai.error}</div> : null}
+                </div>
               ) : ai.error ? (
                 <div className="aiError">⚠️ {ai.error}</div>
               ) : (
                 <pre className="aiResult">{ai.result}</pre>
               )}
             </div>
-            {!ai.loading && !ai.error ? (
-              <div className="aiModalFoot">
+            <div className="aiModalFoot">
+              {ai.askMode && !ai.result ? (
+                <button className="premiumButton" onClick={runAsk} disabled={ai.loading || !(ai.question || "").trim()}>Gönder ✨</button>
+              ) : !ai.loading && !ai.error && ai.result ? (
                 <button className="ghostBtn" onClick={copyAiResult}>📋 Kopyala</button>
-              </div>
-            ) : null}
+              ) : null}
+            </div>
           </div>
         </div>
       ) : null}
