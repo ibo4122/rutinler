@@ -188,7 +188,6 @@ export default function MarketUniversePanel({ investments, investmentTotals, mar
                 <MarketTab active={active === "tr"} onClick={() => setActive("tr")} label={`Türk Hisseleri (${markets.turkishStocks?.length || 0})`} />
                 <MarketTab active={active === "us"} onClick={() => setActive("us")} label={`ABD Hisseleri (${markets.usStocks?.length || 0})`} />
                 <MarketTab active={active === "metals"} onClick={() => setActive("metals")} label={`Altın / Gümüş (${markets.metals?.length || 0})`} />
-                <MarketTab active={active === "funds"} onClick={() => setActive("funds")} label={`Türk Fonları (${markets.funds?.length || 0})`} />
               </div>
 
               <input
