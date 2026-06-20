@@ -30,6 +30,7 @@ export default function NotesModule({ userId }) {
   const [saving, setSaving] = useState(false);
   const [ai, setAi] = useState({ open: false, loading: false, title: "", result: "", error: "" });
   const saveTimer = useRef(null);
+  const editorRef = useRef(null);
 
   useEffect(() => {
     if (userId) load();
@@ -198,6 +199,11 @@ export default function NotesModule({ userId }) {
   const copyAiResult = async () => {
     try { await navigator.clipboard.writeText(ai.result); } catch {}
   };
+  const insertAiIntoNote = () => {
+    if (!ai.result || !editorRef.current) return;
+    editorRef.current.appendAiResult(ai.title, ai.result);
+    setAi((a) => ({ ...a, open: false }));
+  };
 
   if (schemaMissing) {
     return (
@@ -280,7 +286,7 @@ export default function NotesModule({ userId }) {
                 <button className="ghostBtn danger" onClick={() => removeNote(selectedNote)}>Sil</button>
               </div>
             </div>
-            <NoteEditor noteId={selectedNote.id} content={selectedNote.content} onChange={onContentChange} uploadFile={handleUpload} onAiAction={handleAiAction} />
+            <NoteEditor ref={editorRef} noteId={selectedNote.id} content={selectedNote.content} onChange={onContentChange} uploadFile={handleUpload} onAiAction={handleAiAction} />
           </div>
         ) : (
           <div className="notesEmpty">
@@ -323,7 +329,10 @@ export default function NotesModule({ userId }) {
               {ai.askMode && !ai.result ? (
                 <button className="premiumButton" onClick={runAsk} disabled={ai.loading || !(ai.question || "").trim()}>Gönder ✨</button>
               ) : !ai.loading && !ai.error && ai.result ? (
-                <button className="ghostBtn" onClick={copyAiResult}>📋 Kopyala</button>
+                <>
+                  <button className="ghostBtn" onClick={copyAiResult}>📋 Kopyala</button>
+                  {selectedNote ? <button className="premiumButton" onClick={insertAiIntoNote}>⬇ Nota ekle</button> : null}
+                </>
               ) : null}
             </div>
           </div>

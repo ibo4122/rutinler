@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import { Underline } from "@tiptap/extension-underline";
@@ -24,7 +24,7 @@ const AI_ACTIONS = [
 
 const COLORS = ["#f8fafc", "#fb7185", "#fbbf24", "#34d399", "#60a5fa", "#a78bfa", "#22d3ee"];
 
-export default function NoteEditor({ noteId, content, onChange, onAiAction, uploadFile }) {
+const NoteEditor = forwardRef(function NoteEditor({ noteId, content, onChange, onAiAction, uploadFile }, ref) {
   const [aiOpen, setAiOpen] = useState(false);
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef(null);
@@ -56,6 +56,21 @@ export default function NoteEditor({ noteId, content, onChange, onAiAction, uplo
     editor.commands.setContent(next, false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [noteId, editor]);
+
+  // AI sonucunu notun sonuna ekleme (hem görünür hem onChange ile kayıtlı).
+  useImperativeHandle(ref, () => ({
+    appendAiResult(title, text) {
+      if (!editor) return;
+      editor
+        .chain()
+        .focus("end")
+        .insertContent([
+          { type: "heading", attrs: { level: 3 }, content: [{ type: "text", text: String(title || "AI") }] },
+          { type: "paragraph", content: [{ type: "text", text: String(text || "") }] },
+        ])
+        .run();
+    },
+  }), [editor]);
 
   if (!editor) return null;
 
@@ -156,7 +171,9 @@ export default function NoteEditor({ noteId, content, onChange, onAiAction, uplo
       ) : null}
     </div>
   );
-}
+});
+
+export default NoteEditor;
 
 function Btn({ active, onClick, title, children }) {
   return (
