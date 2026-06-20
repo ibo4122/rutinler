@@ -575,12 +575,12 @@ export default function HomePage() {
   if (!session) return <AuthView authMode={authMode} setAuthMode={setAuthMode} fullName={fullName} setFullName={setFullName} email={email} setEmail={setEmail} password={password} setPassword={setPassword} passwordAgain={passwordAgain} setPasswordAgain={setPasswordAgain} pendingEmail={pendingEmail} verificationCode={verificationCode} setVerificationCode={setVerificationCode} rememberMe={rememberMe} setRememberMe={setRememberMe} authMessage={authMessage} handleLogin={handleLogin} handleRegister={handleRegister} handleVerifyCode={handleVerifyCode} handleResendCode={handleResendCode} handleForgotPassword={handleForgotPassword} />;
 
   return (
-    <main className="financePage">
-      <div className="financeShell">
+    <main className={activeTab === "notes" ? "financePage notesFull" : "financePage"}>
+      <div className={activeTab === "notes" ? "financeShell notesFull" : "financeShell"}>
         <header className="topHeader appHeader">
           <div>
             <div className="topBadge">Kişisel Finans Yönetimi</div>
-            <p className="saveStatus" style={saveError ? { color: "#fca5a5" } : undefined}>{saving ? "Kaydediliyor..." : saveError ? `⚠️ ${saveError}` : "Veriler Supabase üzerinde güvende"}</p>
+            <p className="saveStatus" style={saveError ? { color: "#fca5a5" } : undefined}>{saving ? "Kaydediliyor..." : saveError ? `⚠️ ${saveError}` : "Tüm değişiklikler kaydedildi"}</p>
           </div>
           <button type="button" className="secondaryButton" onClick={handleLogout}>Çıkış Yap</button>
         </header>
@@ -595,7 +595,7 @@ export default function HomePage() {
 
         {dataLoading ? <section className="panelCard"><div className="emptyState"><strong>Veriler yükleniyor...</strong></div></section> : null}
 
-        {activeTab === "overview" ? <OverviewDashboard financeTotals={financeTotals} investmentTotals={investmentTotals} routines={routines} showPnl={showPnl} onNavigate={setActiveTab} /> : null}
+        {activeTab === "overview" ? <OverviewDashboard userId={session.user.id} financeTotals={financeTotals} investmentTotals={investmentTotals} routines={routines} showPnl={showPnl} onNavigate={setActiveTab} /> : null}
 
         {activeTab === "finance" ? <FinanceTab financeTotals={financeTotals} income={income} updateIncome={updateIncome} incomeOpen={incomeOpen} setIncomeOpen={setIncomeOpen} extraIncomeOpen={extraIncomeOpen} setExtraIncomeOpen={setExtraIncomeOpen} extraIncomeForm={extraIncomeForm} updateExtraIncomeForm={updateExtraIncomeForm} addOrUpdateExtraIncome={addOrUpdateExtraIncome} editingExtraIncomeId={editingExtraIncomeId} resetExtraIncomeForm={resetExtraIncomeForm} extraIncomes={extraIncomes} startEditExtraIncome={startEditExtraIncome} setExtraIncomes={setExtraIncomes} expensesOpen={expensesOpen} setExpensesOpen={setExpensesOpen} creditsOpen={creditsOpen} setCreditsOpen={setCreditsOpen} creditForm={creditForm} updateCreditForm={updateCreditForm} addOrUpdateCredit={addOrUpdateCredit} editingCreditId={editingCreditId} resetCreditForm={resetCreditForm} credits={credits} parseInstallment={parseInstallment} isCreditActive={isCreditActive} startEditCredit={startEditCredit} setCredits={setCredits} cardsOpen={cardsOpen} setCardsOpen={setCardsOpen} cardForm={cardForm} updateCardForm={updateCardForm} addOrUpdateSimpleExpense={addOrUpdateSimpleExpense} editingCardId={editingCardId} resetCardForm={resetCardForm} cardExpenses={cardExpenses} startEditCard={startEditCard} setCardExpenses={setCardExpenses} othersOpen={othersOpen} setOthersOpen={setOthersOpen} otherForm={otherForm} updateOtherForm={updateOtherForm} editingOtherId={editingOtherId} resetOtherForm={resetOtherForm} otherExpenses={otherExpenses} startEditOther={startEditOther} setOtherExpenses={setOtherExpenses} /> : null}
 

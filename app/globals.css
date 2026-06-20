@@ -1631,6 +1631,13 @@ button {
 }
 
 /* ============ NOTLAR MODÜLÜ ============ */
+/* Notlar sekmesinde tam ekran çalışma alanı: kabuğun genişlik sınırını ve yan boşlukları kaldır */
+.financePage.notesFull { padding: 16px 22px 28px; }
+.financeShell.notesFull { width: 100%; max-width: none; }
+.financeShell.notesFull .notesLayout { grid-template-columns: 320px minmax(0, 1fr); min-height: calc(100vh - 230px); }
+.financeShell.notesFull .notesTree { max-height: calc(100vh - 360px); }
+.financeShell.notesFull .noteContent .ProseMirror { min-height: calc(100vh - 360px); }
+
 .notesLayout { display: grid; grid-template-columns: 300px minmax(0, 1fr); gap: 16px; min-height: 560px; }
 .notesSidebar { display: flex; flex-direction: column; gap: 12px; border: 1px solid rgba(255,255,255,.12); border-radius: 20px; padding: 14px; background: linear-gradient(160deg, rgba(15,23,42,.72), rgba(30,27,75,.34)); }
 .notesSearch input { width: 100%; box-sizing: border-box; border: 1px solid rgba(255,255,255,.18); background: rgba(2,6,23,.6); color: #f8fafc; border-radius: 12px; padding: 10px 12px; outline: none; }
