@@ -653,120 +653,47 @@ async function getGoldPrices(usdTryRate) {
   return { gold: result, metals };
 }
 
-function formatDateTR(date) {
-  const d = String(date.getDate()).padStart(2, "0");
-  const m = String(date.getMonth() + 1).padStart(2, "0");
-  const y = date.getFullYear();
-  return `${d}.${m}.${y}`;
-}
-
-// TEFAS BindHistoryInfo artık önce ana sayfadan oturum çerezi alınmasını istiyor.
-// Çerezi tek seferde alıp sıcak instance boyunca yeniden kullanıyoruz.
-let tefasCookie = "";
-async function getTefasCookie() {
-  if (tefasCookie) return tefasCookie;
+// Fon (TEFAS) fiyatları: resmi TEFAS API'si (BindHistoryInfo) kapalı (ERR-006) ve
+// fintables Cloudflare "managed challenge" ile sunucu fetch'ini bloklar. hangikredi
+// fon sayfası HTML'i Cloudflare'siz, Node fetch ile sorunsuz açılır ve son birim pay
+// fiyatını `data-testid="initial-data-last"` içinde verir (değişim: initial-data-cp).
+async function fetchText(url) {
   try {
-    const res = await fetch("https://www.tefas.gov.tr/FonAnaliz.aspx", {
+    const res = await fetch(url, {
       cache: "no-store",
-      headers: { "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)" },
+      headers: {
+        accept: "text/html,application/xhtml+xml",
+        "accept-language": "tr-TR,tr;q=0.9",
+        "user-agent":
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36",
+      },
     });
-    const raw = res.headers.get("set-cookie") || "";
-    tefasCookie = raw
-      .split(",")
-      .map((part) => part.split(";")[0].trim())
-      .filter(Boolean)
-      .join("; ");
-  } catch {}
-  return tefasCookie;
+    if (!res.ok) return "";
+    return await res.text();
+  } catch (error) {
+    console.log("market text error", url, error?.message || error);
+    return "";
+  }
 }
 
-async function getTefasFundOne(symbol) {
+async function getHangikrediFundOne(symbol) {
   const code = normalizeSymbol(symbol);
   if (!code) return null;
 
-  const end = new Date();
-  const start = new Date();
-  start.setDate(start.getDate() - 21);
+  const html = await fetchText(`https://www.hangikredi.com/yatirim-araclari/fon/${encodeURIComponent(code)}`);
 
-  const body = new URLSearchParams({
-    fontip: "YAT",
-    fonkod: code,
-    bastarih: formatDateTR(start),
-    bittarih: formatDateTR(end),
-  });
+  const value = normalizeNumber((html.match(/data-testid="initial-data-last">([\d.,]+)/) || [])[1] || "");
 
-  const cookie = await getTefasCookie();
+  // initial-data-cp: "(<!-- -->%-1,08<!-- -->)" → -1.08
+  const cpBlock = (html.match(/data-testid="initial-data-cp">([\s\S]*?)<\/div>/) || [])[1] || "";
+  const cpMatch = cpBlock.replace(/<!--[\s\S]*?-->/g, "").match(/-?\d+(?:[.,]\d+)?/);
+  const changePercent = cpMatch ? Number(cpMatch[0].replace(",", ".")) : 0;
 
-  const data = await safeJson("https://www.tefas.gov.tr/api/DB/BindHistoryInfo", {
-    method: "POST",
-    headers: {
-      "content-type": "application/x-www-form-urlencoded; charset=UTF-8",
-      origin: "https://www.tefas.gov.tr",
-      referer: "https://www.tefas.gov.tr/FonAnaliz.aspx",
-      "x-requested-with": "XMLHttpRequest",
-      "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
-      ...(cookie ? { cookie } : {}),
-    },
-    body,
-  });
+  // <title> "AFT Fon - AK PORTFÖY YENİ TEKNOLOJİ" → "AK PORTFÖY YENİ TEKNOLOJİ"
+  const titleRaw = (html.match(/<title>([^<|]+)/) || [])[1] || "";
+  const name = titleRaw.replace(/^[A-ZİĞÜŞÖÇ0-9]+\s*Fon\s*-\s*/i, "").trim() || code;
 
-  const rows = Array.isArray(data?.data)
-    ? data.data
-    : Array.isArray(data)
-      ? data
-      : Array.isArray(data?.Data)
-        ? data.Data
-        : [];
-
-  const latest = rows
-    .map((row) => {
-      const price = normalizeNumber(
-        row.FIYAT ||
-          row.Fiyat ||
-          row.fiyat ||
-          row.BIRIMFIYAT ||
-          row.BirimFiyat ||
-          row.PRICE ||
-          row.price
-      );
-
-      const name =
-        row.FONUNVAN ||
-        row.FONADI ||
-        row.FON_ADI ||
-        row.FonUnvan ||
-        row.fonunvan ||
-        row.name ||
-        code;
-
-      const date =
-        row.TARIH ||
-        row.Tarih ||
-        row.tarih ||
-        row.DATE ||
-        row.date ||
-        row.ISLEMTARIHI ||
-        "";
-
-      const changePercent = Number(
-        String(
-          row.GETIRI1G ||
-            row.Getiri1G ||
-            row.GUNLUKGETIRI ||
-            row.GunlukGetiri ||
-            row.changePercent ||
-            0
-        )
-          .replace(",", ".")
-          .replace(/[^\d.-]/g, "")
-      );
-
-      return { price, name, date, changePercent };
-    })
-    .filter((row) => row.price > 0)
-    .pop();
-
-  if (!latest) {
+  if (value <= 0) {
     return {
       symbol: code,
       name: code,
@@ -775,20 +702,20 @@ async function getTefasFundOne(symbol) {
       changePercent: 0,
       volume: 0,
       date: "",
-      source: "TEFAS / Fiyat bekleniyor",
+      source: "Fon / Fiyat bekleniyor",
       portfolio: true,
     };
   }
 
   return {
     symbol: code,
-    name: latest.name || code,
-    price: latest.price,
+    name,
+    price: value,
     currency: "TRY",
-    changePercent: Number.isFinite(latest.changePercent) ? latest.changePercent : 0,
+    changePercent: Number.isFinite(changePercent) ? changePercent : 0,
     volume: 0,
-    date: latest.date || "",
-    source: "TEFAS / Son açıklanan fiyat",
+    date: "",
+    source: "hangikredi · TEFAS son fiyat",
     portfolio: true,
   };
 }
@@ -797,10 +724,10 @@ async function getFundPayload(fundSymbols = []) {
   const clean = [...new Set((fundSymbols || []).map(normalizeSymbol).filter(Boolean))];
 
   const rows = [];
-
-  for (const symbol of clean.slice(0, 60)) {
-    const item = await getTefasFundOne(symbol);
+  for (const symbol of clean.slice(0, 40)) {
+    const item = await getHangikrediFundOne(symbol);
     if (item) rows.push(item);
+    await sleep(120);
   }
 
   const prices = {};

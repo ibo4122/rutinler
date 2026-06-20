@@ -33,6 +33,11 @@ export default function OverviewDashboard({ userId, financeTotals, investmentTot
   const netWorth = liquid - debt;
   const balance = Number(financeTotals?.balance || 0);
 
+  const totalIncome = Number(financeTotals?.totalIncome || 0);
+  const totalExpense = Number(financeTotals?.totalExpense || 0);
+  const salaryValue = Math.max(0, totalIncome - Number(financeTotals?.extraIncomeTotal || 0));
+  const expenseRatio = totalIncome > 0 ? (totalExpense / totalIncome) * 100 : 0;
+
   const [notes, setNotes] = useState([]);
   const [notesLoading, setNotesLoading] = useState(false);
 
@@ -127,6 +132,34 @@ export default function OverviewDashboard({ userId, financeTotals, investmentTot
             <StatCard label="Aylık Kalan" value={money(balance)} color="#60a5fa" />
             <StatCard label="Toplam Borç" value={money(debt)} color="#a78bfa" />
           </div>
+
+          {/* Gelir / gider dökümü */}
+          <div style={{ marginTop: 16, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: 18 }}>
+            <div>
+              <div style={detailHeadStyle}>Gelir Detayı</div>
+              <BreakdownRow label="Maaş" value={money(salaryValue)} color="#34d399" />
+              <BreakdownRow label="Ek Gelirler" value={money(financeTotals?.extraIncomeTotal)} color="#34d399" />
+              <BreakdownRow label="Yemek Kartı" value={money(financeTotals?.mealAllowance)} color="#7dd3fc" />
+            </div>
+            <div>
+              <div style={detailHeadStyle}>Gider Detayı</div>
+              <BreakdownRow label="Kredi Taksitleri" value={money(financeTotals?.activeCreditTotal)} color="#fb7185" />
+              <BreakdownRow label="Kart Harcaması" value={money(financeTotals?.cardTotal)} color="#fb7185" />
+              <BreakdownRow label="Diğer Giderler" value={money(financeTotals?.otherTotal)} color="#fb7185" />
+            </div>
+          </div>
+
+          {/* Gider / gelir oranı */}
+          <div style={{ marginTop: 16 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", color: "#cbd5e1", fontSize: 12, marginBottom: 6 }}>
+              <span>Giderin gelire oranı</span>
+              <strong style={{ color: expenseRatio > 100 ? "#fca5a5" : expenseRatio > 75 ? "#fbbf24" : "#86efac" }}>{pct(expenseRatio)}</strong>
+            </div>
+            <div style={{ height: 10, borderRadius: 999, background: "rgba(255,255,255,.10)", overflow: "hidden" }}>
+              <div style={{ width: `${Math.min(100, expenseRatio)}%`, height: "100%", background: expenseRatio > 100 ? "linear-gradient(90deg,#f87171,#ef4444)" : "linear-gradient(90deg,#60a5fa,#a78bfa)" }} />
+            </div>
+          </div>
+
           <button type="button" className="tabButton" style={{ marginTop: 16 }} onClick={() => onNavigate?.("finance")}>Gelir / Gider'e git →</button>
         </div>
 
@@ -263,6 +296,24 @@ export default function OverviewDashboard({ userId, financeTotals, investmentTot
         </div>
       </div>
     </section>
+  );
+}
+
+const detailHeadStyle = {
+  color: "#cbd5e1",
+  fontSize: 11,
+  fontWeight: 800,
+  letterSpacing: ".04em",
+  textTransform: "uppercase",
+  marginBottom: 8,
+};
+
+function BreakdownRow({ label, value, color }) {
+  return (
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, padding: "6px 0", borderBottom: "1px solid rgba(255,255,255,.06)" }}>
+      <span style={{ color: "#94a3b8", fontSize: 12.5, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{label}</span>
+      <strong style={{ color, fontSize: 13, fontWeight: 700, whiteSpace: "nowrap" }}>{value}</strong>
+    </div>
   );
 }
 
