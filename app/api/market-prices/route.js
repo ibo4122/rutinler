@@ -329,205 +329,73 @@ async function getCryptoPayload(portfolioSymbols = []) {
   };
 }
 
-async function getYahooQuotes(symbols, type) {
-  // Yahoo /v7/finance/quote artık auth (crumb) istiyor → 401. Auth gerektirmeyen
-  // spark endpoint'i ile toplu fiyat çekiyoruz (meta içinde fiyat/değişim/hacim var).
-  const clean = [...new Set(symbols.filter(Boolean))];
-  if (!clean.length) return [];
+// Hisse senetleri: TradingView scanner API'si (ücretsiz, auth yok, Node/Vercel uyumlu)
+// tüm BIST ve ABD evrenini tek istekte verir: sembol, ad, fiyat, günlük değişim %,
+// hacim ve piyasa değeri (piyasa değerine göre sıralı). Eski Yahoo/Twelve + sabit
+// sembol listeleri kaldırıldı (kapsam dardı ve Yahoo auth/limit sorunları vardı).
+async function getTradingViewStocks(market, limit) {
+  const data = await safeJson(`https://scanner.tradingview.com/${market}/scan`, {
+    method: "POST",
+    headers: { "content-type": "application/json", "user-agent": "Mozilla/5.0" },
+    body: JSON.stringify({
+      columns: ["name", "description", "close", "change", "volume", "market_cap_basic"],
+      filter: [{ left: "type", operation: "in_range", right: ["stock", "dr"] }],
+      sort: { sortBy: "market_cap_basic", sortOrder: "desc" },
+      range: [0, limit],
+    }),
+  });
 
-  const rows = [];
+  const rows = Array.isArray(data?.data) ? data.data : [];
+  const currency = market === "turkey" ? "TRY" : "USD";
+  const marketLabel = market === "turkey" ? "BIST" : "ABD";
 
-  // Spark tek istekte ~20 sembolle sınırlı (fazlası 400) ve ardışık yoğun
-  // çağrılarda rate-limit uygulayabiliyor. Bu yüzden 20'lik bloklar halinde,
-  // sıralı, kısa gecikme ve birkaç denemeli (retry) çekiyoruz.
-  for (let i = 0; i < clean.length; i += 20) {
-    const chunk = clean.slice(i, i + 20);
-    const url = `https://query1.finance.yahoo.com/v7/finance/spark?symbols=${encodeURIComponent(
-      chunk.join(",")
-    )}&interval=1d&range=1d`;
-
-    let data = null;
-    for (let attempt = 0; attempt < 3; attempt++) {
-      data = await safeJson(url);
-      if (data?.spark?.result) break;
-      await sleep(500 * (attempt + 1));
-    }
-
-    const result = data?.spark?.result || [];
-
-    result.forEach((entry) => {
-      const meta = entry?.response?.[0]?.meta || {};
-      const price = numberOrZero(meta.regularMarketPrice);
-      const prev = numberOrZero(meta.chartPreviousClose || meta.previousClose);
-      const symbol = String(meta.symbol || entry.symbol || "").replace(".IS", "");
-
-      if (!symbol || price <= 0) return;
-
-      rows.push({
+  return rows
+    .map((row) => {
+      const d = row.d || [];
+      const symbol = normalizeSymbol(d[0] || String(row.s || "").split(":").pop());
+      const price = numberOrZero(d[2]);
+      if (!symbol) return null;
+      return {
         symbol,
-        rawSymbol: meta.symbol || entry.symbol,
-        name: symbol,
+        name: d[1] || d[0] || symbol,
         price,
-        change: prev > 0 ? price - prev : 0,
-        changePercent: prev > 0 ? ((price - prev) / prev) * 100 : 0,
-        volume: Number(meta.regularMarketVolume || 0),
-        currency: meta.currency || (type === "TR" ? "TRY" : "USD"),
-        market: type === "TR" ? "BIST" : "ABD",
-        source: "Yahoo Finance",
-      });
-    });
-
-    await sleep(250);
-  }
-
-  return rows.filter((row) => row.symbol && row.price > 0);
-}
-
-async function getTwelveQuotes(symbols, type, apiKey) {
-  if (!apiKey) return [];
-
-  const clean = [...new Set(symbols.filter(Boolean))].slice(0, 80);
-  const rows = [];
-
-  for (const symbol of clean) {
-    const params = new URLSearchParams({ symbol, apikey: apiKey });
-    if (type === "TR") params.set("exchange", "BIST");
-
-    const data = await safeJson(`https://api.twelvedata.com/quote?${params.toString()}`);
-    const price = numberOrZero(data?.close || data?.price);
-
-    if (data?.symbol || price > 0) {
-      rows.push({
-        symbol: normalizeSymbol(data?.symbol || symbol).replace(/\.IS$/, ""),
-        rawSymbol: data?.symbol || symbol,
-        name: data?.name || symbol,
-        price,
-        change: Number(data?.change || 0),
-        changePercent: Number(data?.percent_change || 0),
-        volume: Number(data?.volume || 0),
-        currency: data?.currency || (type === "TR" ? "TRY" : "USD"),
-        market: type === "TR" ? "BIST" : "ABD",
-        source: "Twelve Data Quote",
-      });
-    }
-  }
-
-  return rows;
-}
-
-const bistUniverse = [
-  "A1CAP", "ACSEL", "ADEL", "AEFES", "AGESA", "AGHOL", "AGROT", "AHGAZ", "AKBNK",
-  "AKCNS", "AKENR", "AKFGY", "AKFYE", "AKGRT", "AKSA", "AKSEN", "ALARK", "ALBRK",
-  "ALCAR", "ALCTL", "ALFAS", "ALKIM", "ANHYT", "ANSGR", "ARCLK", "ARDYZ", "ASELS",
-  "ASTOR", "ASUZU", "ATAKP", "AYDEM", "AYEN", "AYGAZ", "BAGFS", "BANVT", "BERA",
-  "BEYAZ", "BIMAS", "BIOEN", "BIZIM", "BRSAN", "BRYAT", "BSOKE", "BTCIM", "BUCIM",
-  "CANTE", "CCOLA", "CIMSA", "CLEBI", "CWENE", "DOAS", "DOHOL", "ECILC", "ECZYT",
-  "EFOR", "EGEEN", "EKGYO", "ENERY", "ENJSA", "ENKAI", "EREGL", "EUPWR", "FROTO",
-  "GARAN", "GENIL", "GESAN", "GOLTS", "GOZDE", "GUBRF", "HALKB", "HEKTS", "ISCTR",
-  "ISDMR", "ISMEN", "KARSN", "KCAER", "KCHOL", "KONTR", "KORDS", "KOZAA", "KOZAL",
-  "KRDMD", "MAVI", "MGROS", "MIATK", "ODAS", "OYAKC", "PETKM", "PGSUS", "SAHOL",
-  "SASA", "SISE", "SMRTG", "SOKM", "TAVHL", "TCELL", "THYAO", "TKFEN", "TOASO",
-  "TSKB", "TTKOM", "TTRAK", "TUPRS", "ULKER", "VAKBN", "VESBE", "VESTL", "YKBNK",
-  "ZOREN"
-];
-
-const usUniverse = [
-  "AAPL", "MSFT", "NVDA", "GOOGL", "GOOG", "AMZN", "META", "TSLA", "AVGO", "AMD",
-  "NFLX", "ORCL", "CRM", "ADBE", "INTC", "QCOM", "CSCO", "IBM", "JPM", "BAC",
-  "WFC", "GS", "MS", "C", "V", "MA", "PYPL", "AXP", "KO", "PEP", "MCD", "NKE",
-  "DIS", "WMT", "COST", "HD", "LOW", "TGT", "SBUX", "PFE", "MRK", "JNJ", "UNH",
-  "ABBV", "LLY", "TMO", "ABT", "XOM", "CVX", "COP", "BA", "CAT", "GE", "MMM",
-  "DE", "LMT", "RTX", "SPY", "QQQ", "VOO", "VTI", "DIA", "IWM", "ARKK", "PLTR",
-  "SNOW", "UBER", "SHOP", "SQ", "COIN", "MSTR", "RIVN", "LCID", "NIO", "BABA",
-  "TSM", "ASML", "SONY", "TM"
-];
-
-function mergeStocks(base, priced) {
-  const map = new Map(priced.map((item) => [normalizeSymbol(item.symbol), item]));
-
-  const merged = base.map((item) => {
-    const found = map.get(normalizeSymbol(item.symbol));
-    return found
-      ? {
-          ...item,
-          ...found,
-          source: found.source || item.source || "Fiyat",
-          portfolio: item.portfolio || found.portfolio,
-        }
-      : item;
-  });
-
-  priced.forEach((item) => {
-    if (!merged.some((row) => normalizeSymbol(row.symbol) === normalizeSymbol(item.symbol))) {
-      merged.push(item);
-    }
-  });
-
-  return merged;
+        changePercent: Number(d[3] || 0),
+        volume: Number(d[4] || 0),
+        marketCap: Number(d[5] || 0),
+        currency,
+        market: marketLabel,
+        source: "TradingView",
+      };
+    })
+    .filter(Boolean);
 }
 
 async function getStockPayload(extra = {}) {
-  const apiKey = process.env.TWELVE_DATA_API_KEY || "";
+  const portfolioTr = (extra.trStocks || []).map(normalizeSymbol);
+  const portfolioUs = (extra.usStocks || []).map(normalizeSymbol);
 
-  const portfolioTr = extra.trStocks || [];
-  const portfolioUs = extra.usStocks || [];
-
-  const trSymbols = [...new Set([...bistUniverse, ...portfolioTr])];
-  const usSymbols = [...new Set([...usUniverse, ...portfolioUs])];
-
-  // Yahoo'yu sıralı çağırıyoruz; TR ve US bloklarını aynı anda çekmek
-  // rate-limit ihtimalini artırıyor. Twelve (varsa) portföyle sınırlı ve küçük.
-  const yahooTr = await getYahooQuotes(trSymbols.map((s) => `${s}.IS`), "TR");
-  const yahooUs = await getYahooQuotes(usSymbols, "US");
-  const [twelveTr, twelveUs] = await Promise.all([
-    getTwelveQuotes(portfolioTr, "TR", apiKey),
-    getTwelveQuotes(portfolioUs, "US", apiKey),
+  // TR'nin tamamı ~610 sembol → 700 hepsini kapsar. ABD'de piyasa değerine göre
+  // en büyük ~1500 (retail portföydeki tüm popüler hisseleri içerir).
+  const [trRows, usRows] = await Promise.all([
+    getTradingViewStocks("turkey", 700),
+    getTradingViewStocks("america", 1500),
   ]);
 
-  const trPrices = mergeStocks(yahooTr, twelveTr);
-  const usPrices = mergeStocks(yahooUs, twelveUs);
+  const sortPortfolioFirst = (rows, portfolioSet) =>
+    rows
+      .map((r) => ({ ...r, portfolio: portfolioSet.includes(r.symbol) }))
+      .sort(
+        (a, b) =>
+          Number(b.portfolio || false) - Number(a.portfolio || false) ||
+          (b.marketCap || 0) - (a.marketCap || 0)
+      );
 
-  const trBase = trSymbols.map((s) => ({
-    symbol: s,
-    name: s,
-    currency: "TRY",
-    market: "BIST",
-    price: 0,
-    changePercent: 0,
-    volume: 0,
-    source: portfolioTr.includes(s) ? "Portföy / Fiyat bekleniyor" : "BIST sembol listesi",
-    portfolio: portfolioTr.includes(s),
-  }));
-
-  const usBase = usSymbols.map((s) => ({
-    symbol: s,
-    name: s,
-    currency: "USD",
-    market: "ABD",
-    price: 0,
-    changePercent: 0,
-    volume: 0,
-    source: portfolioUs.includes(s) ? "Portföy / Fiyat bekleniyor" : "ABD sembol listesi",
-    portfolio: portfolioUs.includes(s),
-  }));
-
-  const turkishStocks = mergeStocks(trBase, trPrices).sort(
-    (a, b) =>
-      Number(b.portfolio || false) - Number(a.portfolio || false) ||
-      Number(b.price || 0) - Number(a.price || 0)
-  );
-
-  const usStocks = mergeStocks(usBase, usPrices).sort(
-    (a, b) =>
-      Number(b.portfolio || false) - Number(a.portfolio || false) ||
-      Number(b.price || 0) - Number(a.price || 0)
-  );
+  const turkishStocks = sortPortfolioFirst(trRows, portfolioTr);
+  const usStocks = sortPortfolioFirst(usRows, portfolioUs);
 
   const prices = {};
-
-  [...trPrices, ...usPrices].forEach((row) => {
-    const symbol = normalizeSymbol(row.symbol).replace(/\.IS$/, "");
-    if (symbol && row.price > 0) prices[symbol] = row.price;
+  [...trRows, ...usRows].forEach((row) => {
+    if (row.symbol && row.price > 0) prices[row.symbol] = row.price;
   });
 
   return { turkishStocks, usStocks, prices };
