@@ -588,23 +588,53 @@ async function getHangikrediFundOne(symbol) {
   };
 }
 
-async function getFundPayload(fundSymbols = []) {
-  const clean = [...new Set((fundSymbols || []).map(normalizeSymbol).filter(Boolean))];
+// Gezilebilir "Fonlar" listesi için popüler/likit TEFAS fon kodları (hangikredi'de
+// doğrulandı). TEFAS açık uçlu fonlar borsada işlem görmediği için TradingView'de yok;
+// toplu açık fiyat API'si de yok. Portföydeki fonlar bu evrene eklenir ve hepsi
+// hangikredi'den eş zamanlı (paralel) çekilir.
+const FUND_UNIVERSE = [
+  "TTE", "MAC", "IPB", "GAF", "TGR", "NNF", "AFT", "AFA", "DBB", "GBV",
+  "IIH", "AAK", "OKT", "YAS", "AES", "TCD", "DPK", "TFF", "IJP", "FYO",
+  "GTL", "HVT", "YKT", "TPL", "GPB", "DLY", "FPK", "DVT", "IST", "TMG",
+  "KLU", "OPI", "AGC", "TI2", "NRG", "AFV", "MPK", "GHS", "YHS", "AKE",
+  "TBV", "YZG", "GTZ",
+];
 
-  const rows = [];
-  for (const symbol of clean.slice(0, 40)) {
-    const item = await getHangikrediFundOne(symbol);
-    if (item) rows.push(item);
-    await sleep(120);
-  }
+async function fetchPool(items, concurrency, worker) {
+  const out = [];
+  let index = 0;
+  await Promise.all(
+    Array.from({ length: Math.min(concurrency, items.length) }, async () => {
+      while (index < items.length) {
+        const current = items[index++];
+        const res = await worker(current);
+        if (res) out.push(res);
+      }
+    })
+  );
+  return out;
+}
+
+async function getFundPayload(fundSymbols = []) {
+  const portfolio = new Set((fundSymbols || []).map(normalizeSymbol).filter(Boolean));
+  const all = [...new Set([...portfolio, ...FUND_UNIVERSE])];
+
+  const rows = await fetchPool(all, 8, getHangikrediFundOne);
+
+  // Portföy fonları her zaman görünür; evren fonları yalnızca fiyatı geldiyse listede dursun.
+  const visible = rows
+    .filter((row) => portfolio.has(row.symbol) || row.price > 0)
+    .map((row) => ({ ...row, portfolio: portfolio.has(row.symbol) }));
 
   const prices = {};
-  rows.forEach((row) => {
+  visible.forEach((row) => {
     if (row.symbol && row.price > 0) prices[row.symbol] = row.price;
   });
 
   return {
-    funds: rows.sort((a, b) => Number(b.portfolio || false) - Number(a.portfolio || false)),
+    funds: visible.sort(
+      (a, b) => Number(b.portfolio || false) - Number(a.portfolio || false) || (b.price || 0) - (a.price || 0)
+    ),
     prices,
   };
 }

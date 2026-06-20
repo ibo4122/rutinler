@@ -4,16 +4,29 @@ import { useEffect, useMemo, useState } from "react";
 import { pct } from "../lib/format";
 import { assetValueTry } from "../lib/assets";
 
-function trMoney(value, currency = "TRY") {
+function trMoney(value, currency = "TRY", maxDigits) {
   const number = Number(value || 0);
+  // Fon birim payı / küçük fiyatlar < 1 TL olabilir; 0 ondalıkla "₺0" görünmesin diye
+  // küçük değerlerde otomatik daha fazla ondalık kullan.
+  const abs = Math.abs(number);
+  const digits =
+    maxDigits != null
+      ? maxDigits
+      : currency !== "TRY"
+        ? 2
+        : abs > 0 && abs < 1
+          ? 4
+          : abs < 100
+            ? 2
+            : 0;
   try {
     return new Intl.NumberFormat("tr-TR", {
       style: "currency",
       currency,
-      maximumFractionDigits: currency === "TRY" ? 0 : 2,
+      maximumFractionDigits: digits,
     }).format(number);
   } catch {
-    return `${new Intl.NumberFormat("tr-TR", { maximumFractionDigits: 2 }).format(number)} ${currency}`;
+    return `${new Intl.NumberFormat("tr-TR", { maximumFractionDigits: digits }).format(number)} ${currency}`;
   }
 }
 
