@@ -1,3 +1,5 @@
+import { createClient } from "@supabase/supabase-js";
+
 export const dynamic = "force-dynamic";
 
 // Not modülü AI eylemleri — Google Gemini (ücretsiz kota) üzerinden tek çağrı.
@@ -16,6 +18,38 @@ const SYSTEM =
   "Sen bir öğrenme asistanısın. Kullanıcının ders/eğitim notları üzerinde çalışıyorsun. Net, düzenli, öğrenmeye yardımcı ve sade yanıtlar ver. Gereksiz giriş cümleleri kullanma; doğrudan sonucu üret.";
 
 const MODEL = "gemini-2.5-flash";
+
+const AI_DAILY_LIMIT = 50; // kullanıcı başına günlük AI isteği
+const BURST_WINDOW_MS = 20_000; // 20 sn penceresi
+const BURST_MAX = 8; // pencere içinde en fazla istek (ani spam koruması)
+
+// Sıcak instance içinde basit ani-istek (burst) sayacı — token/IP bazlı.
+const burstHits = new Map();
+function burstLimited(key) {
+  const now = Date.now();
+  const hits = (burstHits.get(key) || []).filter((t) => now - t < BURST_WINDOW_MS);
+  hits.push(now);
+  burstHits.set(key, hits);
+  return hits.length > BURST_MAX;
+}
+
+// Kullanıcının JWT'siyle bağlanıp atomik günlük kotayı tüketir (RLS ile kendi satırı).
+async function consumeQuota(token) {
+  if (!token) return { allowed: false, reason: "auth" };
+  try {
+    const supa = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+      { global: { headers: { Authorization: `Bearer ${token}` } }, auth: { persistSession: false } }
+    );
+    const { data, error } = await supa.rpc("consume_quota", { p_feature: "notes_ai", p_limit: AI_DAILY_LIMIT });
+    if (error) return { allowed: true, soft: true }; // kota altyapısı patlarsa kullanıcıyı engelleme
+    const row = Array.isArray(data) ? data[0] : data;
+    return { allowed: !!row?.allowed, used: row?.used, lim: row?.lim };
+  } catch {
+    return { allowed: true, soft: true };
+  }
+}
 
 export async function POST(request) {
   let body = {};
@@ -39,6 +73,21 @@ export async function POST(request) {
     userPrompt = PROMPTS[action];
     if (!userPrompt) return Response.json({ error: "Geçersiz AI işlemi." }, { status: 400 });
     if (!text) return Response.json({ error: "Not içeriği boş — önce bir şeyler yaz." }, { status: 400 });
+  }
+
+  // Kötüye kullanım + maliyet koruması: ani-istek (burst) + günlük kota.
+  // Yalnızca geçerli (doğrulamadan geçmiş) isteklerde tüketilir.
+  const authHeader = request.headers.get("authorization") || "";
+  const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";
+  if (burstLimited(token || "anon")) {
+    return Response.json({ error: "Çok hızlı gidiyorsun, birkaç saniye sonra tekrar dene." }, { status: 429 });
+  }
+  const quota = await consumeQuota(token);
+  if (!quota.allowed) {
+    if (quota.reason === "auth") {
+      return Response.json({ error: "Oturum doğrulanamadı, sayfayı yenileyip tekrar dene." }, { status: 401 });
+    }
+    return Response.json({ error: `Günlük AI limitine ulaştın (${quota.lim}/gün). Yarın tekrar dene.` }, { status: 429 });
   }
 
   const key = process.env.GEMINI_API_KEY;

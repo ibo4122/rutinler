@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import NoteEditor from "./NoteEditor";
 import {
   fetchCategories, fetchNotes, createCategory, updateCategory, deleteCategory,
-  createNote, updateNote, deleteNote, isMissingTableError, uploadAttachment, refreshContentMedia,
+  createNote, updateNote, deleteNote, isMissingTableError, uploadAttachment, refreshContentMedia, authHeaders,
 } from "../../lib/notesApi";
 
 const ICONS = ["📁", "📘", "📗", "📙", "📕", "💻", "🗄️", "📊", "💰", "💼", "🧠", "🌐", "🔤", "⚙️", "🎯", "📐"];
@@ -169,7 +169,7 @@ export default function NotesModule({ userId }) {
     try {
       const res = await fetch("/api/notes-ai", {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers: { "content-type": "application/json", ...(await authHeaders()) },
         body: JSON.stringify({ action, text }),
       });
       const data = await res.json().catch(() => ({}));
@@ -186,7 +186,7 @@ export default function NotesModule({ userId }) {
     try {
       const res = await fetch("/api/notes-ai", {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers: { "content-type": "application/json", ...(await authHeaders()) },
         body: JSON.stringify({ action: "ask", question, text: ai.noteText }),
       });
       const data = await res.json().catch(() => ({}));
