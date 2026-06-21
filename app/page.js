@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
 import BesProjectionPanel from "../components/BesProjectionPanel";
 import RoutinePlanner from "../components/RoutinePlanner";
@@ -39,6 +39,21 @@ const emptyExpense = { title: "", category: "", amount: "", note: "" };
 const emptyCredit = { title: "", monthlyPayment: "", installmentText: "", remainingDebt: "", paymentStartDate: "" };
 const emptyAssetForm = { title: "", quantity: "", buyPrice: "", currentPrice: "", currency: "TRY", goldType: "GRAM", note: "" };
 const emptyInvestments = { bes: [], locked: [], gold: [], crypto: [], stocks: [], forex: [], funds: [] };
+
+// Sekmeler veri-tabanlı: kullanıcı sürükleyerek sırasını değiştirebilir (localStorage'da saklanır).
+const DEFAULT_TABS = [
+  { id: "overview", label: "Genel Bakış" },
+  { id: "finance", label: "Gelir / Gider" },
+  { id: "investments", label: "Yatırımlar" },
+  { id: "goals", label: "Hedeflerim" },
+  { id: "routines", label: "Haftalık Rutin" },
+  { id: "notes", label: "Notlar" },
+];
+const TAB_IDS = DEFAULT_TABS.map((t) => t.id);
+function mergeTabOrder(saved) {
+  const known = Array.isArray(saved) ? saved.filter((id) => TAB_IDS.includes(id)) : [];
+  return [...known, ...TAB_IDS.filter((id) => !known.includes(id))];
+}
 
 function onlyDigits(value) {
   return String(value || "").replace(/[^\d]/g, "");
@@ -189,6 +204,8 @@ export default function HomePage() {
   const [besProjectionTotal, setBesProjectionTotal] = useState(0);
   const [showPnl, setShowPnl] = useState(false);
   const [hideMoney, setHideMoney] = useState(false);
+  const [tabOrder, setTabOrder] = useState(TAB_IDS);
+  const dragTabId = useRef(null);
 
   useEffect(() => {
     try {
@@ -196,8 +213,24 @@ export default function HomePage() {
       if (rememberedEmail) setEmail(rememberedEmail);
       if (window.localStorage.getItem("finance-show-pnl") === "1") setShowPnl(true);
       if (window.localStorage.getItem("finance-hide-money") === "1") setHideMoney(true);
+      const savedOrder = window.localStorage.getItem("finance-tab-order");
+      if (savedOrder) setTabOrder(mergeTabOrder(JSON.parse(savedOrder)));
     } catch {}
   }, []);
+
+  const reorderTabs = (fromId, toId) => {
+    if (!fromId || fromId === toId) return;
+    setTabOrder((order) => {
+      const next = [...order];
+      const from = next.indexOf(fromId);
+      const to = next.indexOf(toId);
+      if (from < 0 || to < 0) return order;
+      next.splice(from, 1);
+      next.splice(to, 0, fromId);
+      try { window.localStorage.setItem("finance-tab-order", JSON.stringify(next)); } catch {}
+      return next;
+    });
+  };
 
   const toggleShowPnl = () =>
     setShowPnl((value) => {
@@ -612,11 +645,26 @@ export default function HomePage() {
         </header>
 
         <div className="tabBar">
-          <button type="button" className={activeTab === "overview" ? "tabButton active" : "tabButton"} onClick={() => setActiveTab("overview")}>Genel Bakış</button>
-          <button type="button" className={activeTab === "finance" ? "tabButton active" : "tabButton"} onClick={() => setActiveTab("finance")}>Gelir / Gider</button>
-          <button type="button" className={activeTab === "investments" ? "tabButton active" : "tabButton"} onClick={() => setActiveTab("investments")}>Yatırımlar</button>
-          <button type="button" className={activeTab === "routines" ? "tabButton active" : "tabButton"} onClick={() => setActiveTab("routines")}>Haftalık Rutin</button>
-          <button type="button" className={activeTab === "notes" ? "tabButton active" : "tabButton"} onClick={() => setActiveTab("notes")}>Notlar</button>
+          {tabOrder.map((id) => {
+            const tab = DEFAULT_TABS.find((t) => t.id === id);
+            if (!tab) return null;
+            return (
+              <button
+                key={id}
+                type="button"
+                draggable
+                onDragStart={() => { dragTabId.current = id; }}
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={(e) => { e.preventDefault(); reorderTabs(dragTabId.current, id); dragTabId.current = null; }}
+                onDragEnd={() => { dragTabId.current = null; }}
+                className={activeTab === id ? "tabButton active" : "tabButton"}
+                onClick={() => setActiveTab(id)}
+                title="Sürükleyerek sırasını değiştir"
+              >
+                {tab.label}
+              </button>
+            );
+          })}
         </div>
 
         {dataLoading ? <section className="panelCard"><div className="emptyState"><strong>Veriler yükleniyor...</strong></div></section> : null}
@@ -627,7 +675,9 @@ export default function HomePage() {
 
         {activeTab === "investments" ? <InvestmentsTab investmentTotals={investmentTotals} investmentOpen={investmentOpen} setInvestmentOpen={setInvestmentOpen} goldOpen={goldOpen} setGoldOpen={setGoldOpen} goldForm={goldForm} updateGoldForm={updateGoldForm} addOrUpdateGold={addOrUpdateGold} editingGoldId={editingGoldId} resetGoldForm={resetGoldForm} startEditGold={startEditGold} cryptoOpen={cryptoOpen} setCryptoOpen={setCryptoOpen} cryptoForm={cryptoForm} updateCryptoForm={updateCryptoForm} addOrUpdateCrypto={addOrUpdateCrypto} editingCryptoId={editingCryptoId} resetCryptoForm={resetCryptoForm} startEditCrypto={startEditCrypto} stockOpen={stockOpen} setStockOpen={setStockOpen} stockForm={stockForm} updateStockForm={updateStockForm} addOrUpdateStock={addOrUpdateStock} editingStockId={editingStockId} resetStockForm={resetStockForm} startEditStock={startEditStock} fundOpen={fundOpen} setFundOpen={setFundOpen} fundForm={fundForm} updateFundForm={updateFundForm} addOrUpdateFund={addOrUpdateFund} editingFundId={editingFundId} resetFundForm={resetFundForm} startEditFund={startEditFund} forexOpen={forexOpen} setForexOpen={setForexOpen} forexForm={forexForm} updateForexForm={updateForexForm} addOrUpdateForex={addOrUpdateForex} editingForexId={editingForexId} resetForexForm={resetForexForm} startEditForex={startEditForex} investments={investments} setInvestments={setInvestments} setBesProjectionTotal={setBesProjectionTotal} marketData={marketData} setMarketData={setMarketData} showPnl={showPnl} toggleShowPnl={toggleShowPnl} /> : null}
 
-        {activeTab === "routines" ? <RoutinePlanner routines={routines} setRoutines={setRoutines} /> : null}
+        {activeTab === "goals" ? <RoutinePlanner routines={routines} setRoutines={setRoutines} mode="goals" /> : null}
+
+        {activeTab === "routines" ? <RoutinePlanner routines={routines} setRoutines={setRoutines} mode="routines" /> : null}
 
         {activeTab === "notes" ? <NotesModule userId={session.user.id} /> : null}
       </div>

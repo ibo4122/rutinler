@@ -136,7 +136,7 @@ function Select({ value, onChange, options, style }) {
   return <select value={value} onChange={(event) => onChange(event.target.value)} style={{ ...inputStyle, ...style }}>{options.map((option) => <option key={option.value} value={option.value} style={{ color: "#0f172a", background: "#ffffff" }}>{option.label}</option>)}</select>;
 }
 
-export default function RoutinePlanner({ routines, setRoutines }) {
+export default function RoutinePlanner({ routines, setRoutines, mode = "routines" }) {
   const data = Array.isArray(routines) ? routines : [];
   const tasks = data.filter((item) => item?.recordType !== "goal").map(normalizeTask);
   const goals = data.filter((item) => item?.recordType === "goal").map(normalizeGoal);
@@ -260,6 +260,25 @@ export default function RoutinePlanner({ routines, setRoutines }) {
 
   const calendarOpacity = selectedYearIsPast ? .66 : selectedMonthIsPast ? .82 : 1;
 
+  const goalsPanel = (
+    <Panel title="Hedeflerim" open={openPanels.goals} onToggle={() => togglePanel("goals")} gradient="linear-gradient(145deg, rgba(49,46,129,.88), rgba(8,47,73,.82), rgba(15,23,42,.88))">
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 12, marginBottom: 14 }}>
+        <Field label="Hedef"><input style={inputStyle} value={goalForm.title} onChange={(event) => setGoalForm((current) => ({ ...current, title: event.target.value }))} placeholder="SQL, Saz, İngilizce" /></Field>
+        <Field label="İlerleme %"><input style={inputStyle} type="number" min="0" max="100" value={goalForm.progress} onChange={(event) => setGoalForm((current) => ({ ...current, progress: event.target.value }))} /></Field>
+        <Field label="Renk"><Select value={goalForm.color} onChange={(value) => setGoalForm((current) => ({ ...current, color: value }))} options={GOAL_COLORS.map((item) => ({ value: item.value, label: item.label }))} /></Field>
+        <Field label="Not"><input style={inputStyle} value={goalForm.note} onChange={(event) => setGoalForm((current) => ({ ...current, note: event.target.value }))} placeholder="Opsiyonel" /></Field>
+        <button type="button" style={primaryButton("linear-gradient(135deg,#c4b5fd,#67e8f9,#fef08a)")} onClick={addGoal}>Hedef Ekle</button>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 12 }}>
+        {goals.length === 0 ? <Empty text="Henüz hedef yok." /> : goals.map((goal) => <GoalCard key={goal.id} goal={goal} editId={editGoalId} edit={editGoal} setEdit={setEditGoal} onEdit={startGoalEdit} onSave={saveGoalEdit} onCancel={() => setEditGoalId(null)} onDelete={deleteItem} />)}
+      </div>
+    </Panel>
+  );
+
+  if (mode === "goals") {
+    return <section style={{ display: "grid", gap: 22 }}>{goalsPanel}</section>;
+  }
+
   return (
     <>
       <section style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) 360px", gap: 22, alignItems: "start" }}>
@@ -277,19 +296,6 @@ export default function RoutinePlanner({ routines, setRoutines }) {
               <Stat label="Tamamlandı" value={doneCount} color="#22c55e" />
               <Stat label="Devam Ediyor" value={pendingCount} color="#60a5fa" />
               <Stat label="Tamamlanamadı" value={failedCount} color="#ef4444" />
-            </div>
-          </Panel>
-
-          <Panel title="Hedeflerim" open={openPanels.goals} onToggle={() => togglePanel("goals")} gradient="linear-gradient(145deg, rgba(49,46,129,.88), rgba(8,47,73,.82), rgba(15,23,42,.88))">
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 12, marginBottom: 14 }}>
-              <Field label="Hedef"><input style={inputStyle} value={goalForm.title} onChange={(event) => setGoalForm((current) => ({ ...current, title: event.target.value }))} placeholder="SQL, Saz, İngilizce" /></Field>
-              <Field label="İlerleme %"><input style={inputStyle} type="number" min="0" max="100" value={goalForm.progress} onChange={(event) => setGoalForm((current) => ({ ...current, progress: event.target.value }))} /></Field>
-              <Field label="Renk"><Select value={goalForm.color} onChange={(value) => setGoalForm((current) => ({ ...current, color: value }))} options={GOAL_COLORS.map((item) => ({ value: item.value, label: item.label }))} /></Field>
-              <Field label="Not"><input style={inputStyle} value={goalForm.note} onChange={(event) => setGoalForm((current) => ({ ...current, note: event.target.value }))} placeholder="Opsiyonel" /></Field>
-              <button type="button" style={primaryButton("linear-gradient(135deg,#c4b5fd,#67e8f9,#fef08a)")} onClick={addGoal}>Hedef Ekle</button>
-            </div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 12 }}>
-              {goals.length === 0 ? <Empty text="Henüz hedef yok." /> : goals.map((goal) => <GoalCard key={goal.id} goal={goal} editId={editGoalId} edit={editGoal} setEdit={setEditGoal} onEdit={startGoalEdit} onSave={saveGoalEdit} onCancel={() => setEditGoalId(null)} onDelete={deleteItem} />)}
             </div>
           </Panel>
 
