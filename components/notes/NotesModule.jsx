@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import NoteEditor from "./NoteEditor";
 import {
   fetchCategories, fetchNotes, createCategory, updateCategory, deleteCategory,
-  createNote, updateNote, deleteNote, isMissingTableError, uploadAttachment,
+  createNote, updateNote, deleteNote, isMissingTableError, uploadAttachment, refreshContentMedia,
 } from "../../lib/notesApi";
 
 const ICONS = ["📁", "📘", "📗", "📙", "📕", "💻", "🗄️", "📊", "💰", "💼", "🧠", "🌐", "🔤", "⚙️", "🎯", "📐"];
@@ -286,7 +286,7 @@ export default function NotesModule({ userId }) {
                 <button className="ghostBtn danger" onClick={() => removeNote(selectedNote)}>Sil</button>
               </div>
             </div>
-            <NoteEditor ref={editorRef} noteId={selectedNote.id} content={selectedNote.content} onChange={onContentChange} uploadFile={handleUpload} onAiAction={handleAiAction} />
+            <NoteEditor ref={editorRef} noteId={selectedNote.id} content={selectedNote.content} onChange={onContentChange} uploadFile={handleUpload} onAiAction={handleAiAction} refreshMedia={refreshContentMedia} />
           </div>
         ) : (
           <div className="notesEmpty">

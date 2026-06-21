@@ -24,7 +24,7 @@ const AI_ACTIONS = [
 
 const COLORS = ["#f8fafc", "#fb7185", "#fbbf24", "#34d399", "#60a5fa", "#a78bfa", "#22d3ee"];
 
-const NoteEditor = forwardRef(function NoteEditor({ noteId, content, onChange, onAiAction, uploadFile }, ref) {
+const NoteEditor = forwardRef(function NoteEditor({ noteId, content, onChange, onAiAction, uploadFile, refreshMedia }, ref) {
   const [aiOpen, setAiOpen] = useState(false);
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef(null);
@@ -49,11 +49,20 @@ const NoteEditor = forwardRef(function NoteEditor({ noteId, content, onChange, o
     onUpdate: ({ editor }) => onChange?.(editor.getJSON()),
   });
 
-  // Not değiştiğinde editör içeriğini yükle (Tiptap içeriği prop değişiminde otomatik güncellemiyor)
+  // Not değiştiğinde editör içeriğini yükle (Tiptap içeriği prop değişiminde otomatik
+  // güncellemiyor). Private bucket'taki görseller/dosyalar için imzalı URL'ler süreli
+  // olduğundan, içeriği göstermeden önce medya bağlantılarını tazeleriz.
   useEffect(() => {
     if (!editor) return;
-    const next = content && Object.keys(content || {}).length ? content : "";
-    editor.commands.setContent(next, false);
+    let cancelled = false;
+    (async () => {
+      let next = content && Object.keys(content || {}).length ? content : "";
+      if (next && refreshMedia) {
+        try { next = await refreshMedia(next); } catch {}
+      }
+      if (!cancelled) editor.commands.setContent(next, false);
+    })();
+    return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [noteId, editor]);
 
