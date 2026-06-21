@@ -3,8 +3,6 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
-import { Underline } from "@tiptap/extension-underline";
-import { Link } from "@tiptap/extension-link";
 import { Placeholder } from "@tiptap/extension-placeholder";
 import { TextStyle, Color } from "@tiptap/extension-text-style";
 import { Table, TableRow, TableCell, TableHeader } from "@tiptap/extension-table";
@@ -33,9 +31,9 @@ const NoteEditor = forwardRef(function NoteEditor({ noteId, content, onChange, o
   const editor = useEditor({
     immediatelyRender: false,
     extensions: [
-      StarterKit,
-      Underline,
-      Link.configure({ openOnClick: false, HTMLAttributes: { rel: "noopener noreferrer" } }),
+      // StarterKit (Tiptap v3) underline + link'i zaten içeriyor. Ayrı eklemek yerine
+      // dahili link'i yapılandırıyoruz (duplicate extension uyarısı giderildi).
+      StarterKit.configure({ link: { openOnClick: false, HTMLAttributes: { rel: "noopener noreferrer" } } }),
       Placeholder.configure({ placeholder: "Yazmaya başla… başlık, liste, kod bloğu, tablo ekleyebilirsin." }),
       TextStyle,
       Color,
@@ -60,7 +58,10 @@ const NoteEditor = forwardRef(function NoteEditor({ noteId, content, onChange, o
       if (next && refreshMedia) {
         try { next = await refreshMedia(next); } catch {}
       }
-      if (!cancelled) editor.commands.setContent(next, false);
+      // Tiptap v3: ikinci arg { emitUpdate } objesidir (v2'deki boolean değil).
+      // emitUpdate:false → içerik yüklenirken onUpdate/onChange tetiklenmez
+      // (render sırasında parent setState "setState in render" uyarısını önler).
+      if (!cancelled) editor.commands.setContent(next, { emitUpdate: false });
     })();
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
