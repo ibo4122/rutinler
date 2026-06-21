@@ -6,6 +6,7 @@ import BesProjectionPanel from "../components/BesProjectionPanel";
 import RoutinePlanner from "../components/RoutinePlanner";
 import OverviewDashboard from "../components/OverviewDashboard";
 import NotesModule from "../components/notes/NotesModule";
+import FinancialGoals from "../components/FinancialGoals";
 import { money, formatCurrency, setMoneyHidden } from "../lib/format";
 import { assetValueTry, assetCostTry } from "../lib/assets";
 import { SummaryCard, Panel, MiniPanel, InputBox, SelectBox, EmptyState } from "../components/ui";
@@ -39,12 +40,14 @@ const emptyExpense = { title: "", category: "", amount: "", note: "" };
 const emptyCredit = { title: "", monthlyPayment: "", installmentText: "", remainingDebt: "", paymentStartDate: "" };
 const emptyAssetForm = { title: "", quantity: "", buyPrice: "", currentPrice: "", currency: "TRY", goldType: "GRAM", note: "" };
 const emptyInvestments = { bes: [], locked: [], gold: [], crypto: [], stocks: [], forex: [], funds: [] };
+const emptyFinancialGoals = { categories: [], goals: [], assets: [], debts: [] };
 
 // Sekmeler veri-tabanlı: kullanıcı sürükleyerek sırasını değiştirebilir (localStorage'da saklanır).
 const DEFAULT_TABS = [
   { id: "overview", label: "Genel Bakış" },
   { id: "finance", label: "Gelir / Gider" },
   { id: "investments", label: "Yatırımlar" },
+  { id: "fingoals", label: "Finansal Hedefler" },
   { id: "goals", label: "Hedeflerim" },
   { id: "routines", label: "Haftalık Rutin" },
   { id: "notes", label: "Notlar" },
@@ -101,6 +104,7 @@ function normalizeFinanceData(data) {
       otherExpenses: [],
       investments: emptyInvestments,
       routines: [],
+      financialGoals: emptyFinancialGoals,
     };
   }
 
@@ -123,6 +127,12 @@ function normalizeFinanceData(data) {
       funds: Array.isArray(data.investments?.funds) ? data.investments.funds.map((item) => normalizeAsset(item, "TRY")) : [],
     },
     routines: Array.isArray(data.routines) ? data.routines : [],
+    financialGoals: {
+      categories: Array.isArray(data.financialGoals?.categories) ? data.financialGoals.categories : [],
+      goals: Array.isArray(data.financialGoals?.goals) ? data.financialGoals.goals : [],
+      assets: Array.isArray(data.financialGoals?.assets) ? data.financialGoals.assets : [],
+      debts: Array.isArray(data.financialGoals?.debts) ? data.financialGoals.debts : [],
+    },
   };
 }
 
@@ -179,6 +189,7 @@ export default function HomePage() {
   const [cardExpenses, setCardExpenses] = useState([]);
   const [otherExpenses, setOtherExpenses] = useState([]);
   const [investments, setInvestments] = useState(emptyInvestments);
+  const [financialGoals, setFinancialGoals] = useState(emptyFinancialGoals);
   const [routines, setRoutines] = useState([]);
   const [marketData, setMarketData] = useState(null);
 
@@ -283,9 +294,9 @@ export default function HomePage() {
     if (!session?.user || !financeLoaded) return;
     const timer = setTimeout(saveFinanceData, 650);
     return () => clearTimeout(timer);
-  }, [income, extraIncomes, credits, cardExpenses, otherExpenses, investments, routines, session, financeLoaded]);
+  }, [income, extraIncomes, credits, cardExpenses, otherExpenses, investments, routines, financialGoals, session, financeLoaded]);
 
-  const currentPayload = () => ({ income, extraIncomes, credits, cardExpenses, otherExpenses, investments, routines });
+  const currentPayload = () => ({ income, extraIncomes, credits, cardExpenses, otherExpenses, investments, routines, financialGoals });
 
   const loadFinanceData = async (userId) => {
     setDataLoading(true);
@@ -321,6 +332,7 @@ export default function HomePage() {
     setOtherExpenses(normalized.otherExpenses);
     setInvestments(normalized.investments);
     setRoutines(normalized.routines || []);
+    setFinancialGoals(normalized.financialGoals || emptyFinancialGoals);
     setFinanceLoaded(true);
     setDataLoading(false);
   };
@@ -674,6 +686,8 @@ export default function HomePage() {
         {activeTab === "finance" ? <FinanceTab financeTotals={financeTotals} income={income} updateIncome={updateIncome} incomeOpen={incomeOpen} setIncomeOpen={setIncomeOpen} extraIncomeOpen={extraIncomeOpen} setExtraIncomeOpen={setExtraIncomeOpen} extraIncomeForm={extraIncomeForm} updateExtraIncomeForm={updateExtraIncomeForm} addOrUpdateExtraIncome={addOrUpdateExtraIncome} editingExtraIncomeId={editingExtraIncomeId} resetExtraIncomeForm={resetExtraIncomeForm} extraIncomes={extraIncomes} startEditExtraIncome={startEditExtraIncome} setExtraIncomes={setExtraIncomes} expensesOpen={expensesOpen} setExpensesOpen={setExpensesOpen} creditsOpen={creditsOpen} setCreditsOpen={setCreditsOpen} creditForm={creditForm} updateCreditForm={updateCreditForm} addOrUpdateCredit={addOrUpdateCredit} editingCreditId={editingCreditId} resetCreditForm={resetCreditForm} credits={credits} parseInstallment={parseInstallment} isCreditActive={isCreditActive} startEditCredit={startEditCredit} setCredits={setCredits} cardsOpen={cardsOpen} setCardsOpen={setCardsOpen} cardForm={cardForm} updateCardForm={updateCardForm} addOrUpdateSimpleExpense={addOrUpdateSimpleExpense} editingCardId={editingCardId} resetCardForm={resetCardForm} cardExpenses={cardExpenses} startEditCard={startEditCard} setCardExpenses={setCardExpenses} othersOpen={othersOpen} setOthersOpen={setOthersOpen} otherForm={otherForm} updateOtherForm={updateOtherForm} editingOtherId={editingOtherId} resetOtherForm={resetOtherForm} otherExpenses={otherExpenses} startEditOther={startEditOther} setOtherExpenses={setOtherExpenses} /> : null}
 
         {activeTab === "investments" ? <InvestmentsTab investmentTotals={investmentTotals} investmentOpen={investmentOpen} setInvestmentOpen={setInvestmentOpen} goldOpen={goldOpen} setGoldOpen={setGoldOpen} goldForm={goldForm} updateGoldForm={updateGoldForm} addOrUpdateGold={addOrUpdateGold} editingGoldId={editingGoldId} resetGoldForm={resetGoldForm} startEditGold={startEditGold} cryptoOpen={cryptoOpen} setCryptoOpen={setCryptoOpen} cryptoForm={cryptoForm} updateCryptoForm={updateCryptoForm} addOrUpdateCrypto={addOrUpdateCrypto} editingCryptoId={editingCryptoId} resetCryptoForm={resetCryptoForm} startEditCrypto={startEditCrypto} stockOpen={stockOpen} setStockOpen={setStockOpen} stockForm={stockForm} updateStockForm={updateStockForm} addOrUpdateStock={addOrUpdateStock} editingStockId={editingStockId} resetStockForm={resetStockForm} startEditStock={startEditStock} fundOpen={fundOpen} setFundOpen={setFundOpen} fundForm={fundForm} updateFundForm={updateFundForm} addOrUpdateFund={addOrUpdateFund} editingFundId={editingFundId} resetFundForm={resetFundForm} startEditFund={startEditFund} forexOpen={forexOpen} setForexOpen={setForexOpen} forexForm={forexForm} updateForexForm={updateForexForm} addOrUpdateForex={addOrUpdateForex} editingForexId={editingForexId} resetForexForm={resetForexForm} startEditForex={startEditForex} investments={investments} setInvestments={setInvestments} setBesProjectionTotal={setBesProjectionTotal} marketData={marketData} setMarketData={setMarketData} showPnl={showPnl} toggleShowPnl={toggleShowPnl} /> : null}
+
+        {activeTab === "fingoals" ? <FinancialGoals data={financialGoals} setData={setFinancialGoals} financeTotals={financeTotals} investmentTotals={investmentTotals} monthlyBalance={financeTotals.balance} /> : null}
 
         {activeTab === "goals" ? <RoutinePlanner routines={routines} setRoutines={setRoutines} mode="goals" /> : null}
 
