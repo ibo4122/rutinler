@@ -6,7 +6,7 @@ import BesProjectionPanel from "../components/BesProjectionPanel";
 import RoutinePlanner from "../components/RoutinePlanner";
 import OverviewDashboard from "../components/OverviewDashboard";
 import NotesModule from "../components/notes/NotesModule";
-import { money, formatCurrency } from "../lib/format";
+import { money, formatCurrency, setMoneyHidden } from "../lib/format";
 import { assetValueTry, assetCostTry } from "../lib/assets";
 import { SummaryCard, Panel, MiniPanel, InputBox, SelectBox, EmptyState } from "../components/ui";
 import LiveMarketUpdater from "../components/LiveMarketUpdater";
@@ -188,12 +188,14 @@ export default function HomePage() {
   const [editingForexId, setEditingForexId] = useState(null);
   const [besProjectionTotal, setBesProjectionTotal] = useState(0);
   const [showPnl, setShowPnl] = useState(false);
+  const [hideMoney, setHideMoney] = useState(false);
 
   useEffect(() => {
     try {
       const rememberedEmail = window.localStorage.getItem("remembered-finance-email");
       if (rememberedEmail) setEmail(rememberedEmail);
       if (window.localStorage.getItem("finance-show-pnl") === "1") setShowPnl(true);
+      if (window.localStorage.getItem("finance-hide-money") === "1") setHideMoney(true);
     } catch {}
   }, []);
 
@@ -205,6 +207,19 @@ export default function HomePage() {
       } catch {}
       return next;
     });
+
+  const toggleHideMoney = () =>
+    setHideMoney((value) => {
+      const next = !value;
+      try {
+        window.localStorage.setItem("finance-hide-money", next ? "1" : "0");
+      } catch {}
+      return next;
+    });
+
+  // Gizlilik modunu, çocuk bileşenler render olmadan ÖNCE (render gövdesinde) ayarla ki
+  // tüm money()/formatCurrency() çağrıları aynı render'da senkron maskelensin.
+  setMoneyHidden(hideMoney);
 
   useEffect(() => {
     if (!supabase) {
@@ -583,7 +598,17 @@ export default function HomePage() {
             <div className="topBadge">Kişisel Finans Yönetimi</div>
             <p className="saveStatus" style={saveError ? { color: "#fca5a5" } : undefined}>{saving ? "Kaydediliyor..." : saveError ? `⚠️ ${saveError}` : "Tüm değişiklikler kaydedildi"}</p>
           </div>
-          <button type="button" className="secondaryButton" onClick={handleLogout}>Çıkış Yap</button>
+          <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+            <button
+              type="button"
+              className="secondaryButton"
+              onClick={toggleHideMoney}
+              title={hideMoney ? "Tutarları göster" : "Tutarları gizle"}
+            >
+              {hideMoney ? "🙈 Tutarlar gizli" : "👁 Tutarları gizle"}
+            </button>
+            <button type="button" className="secondaryButton" onClick={handleLogout}>Çıkış Yap</button>
+          </div>
         </header>
 
         <div className="tabBar">

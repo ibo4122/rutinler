@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { pct } from "../lib/format";
+import { pct, money } from "../lib/format";
 import { assetValueTry } from "../lib/assets";
 
 function trMoney(value, currency = "TRY", maxDigits) {
@@ -182,7 +182,7 @@ export default function MarketUniversePanel({ investments, investmentTotals, mar
               <div style={{ width: 230, height: 230, borderRadius: "50%", margin: "20px auto", background: pieGradient(distribution), boxShadow: "0 22px 45px rgba(0,0,0,.35)", display: "grid", placeItems: "center" }}>
                 <div style={{ width: 118, height: 118, borderRadius: "50%", background: "rgba(15,23,42,.92)", border: "1px solid rgba(255,255,255,.16)", display: "grid", placeItems: "center", textAlign: "center", color: "#fff", fontWeight: 900 }}>
                   <span style={{ display: "block", fontSize: 11, color: "#cbd5e1" }}>Toplam</span>
-                  {trMoney(totalDistribution)}
+                  {money(totalDistribution)}
                 </div>
               </div>
               <div style={{ display: "grid", gap: 8 }}>
