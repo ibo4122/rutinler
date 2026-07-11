@@ -1,16 +1,18 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { money } from "../lib/format";
 
-const defaultYearlyInputs = [
-  { year: 2025, monthlyContribution: "5000", fundReturn: "30", stateReturn: "20" },
-  { year: 2026, monthlyContribution: "6500", fundReturn: "30", stateReturn: "20" },
-  { year: 2027, monthlyContribution: "10000", fundReturn: "30", stateReturn: "20" },
-  { year: 2028, monthlyContribution: "15000", fundReturn: "30", stateReturn: "20" },
-  { year: 2029, monthlyContribution: "20000", fundReturn: "30", stateReturn: "20" },
-  { year: 2030, monthlyContribution: "25000", fundReturn: "30", stateReturn: "20" },
-];
+// Nötr varsayılanlar: yeni kullanıcı SIFIR değerlerle başlar (kişisel veri gömülü değil).
+// Getiri oranları (%30/%20) yalnızca genel modelleme varsayımıdır.
+const CURRENT_YEAR = new Date().getFullYear();
+const defaultYearlyInputs = Array.from({ length: 6 }, (_, i) => ({
+  year: CURRENT_YEAR + i,
+  monthlyContribution: "0",
+  fundReturn: "30",
+  stateReturn: "20",
+}));
+const todayIso = () => new Date().toISOString().slice(0, 10);
 
 function numberValue(value) {
   return Number(String(value || "").replace(/\./g, "").replace(",", ".").replace(/[^\d.]/g, "")) || 0;
@@ -46,24 +48,52 @@ function PanelBlock({ title, subtitle, open, onToggle, color = "purple", childre
   );
 }
 
-export default function BesProjectionPanel({ onTotalChange }) {
+export default function BesProjectionPanel({ onTotalChange, settings, onSettingsChange }) {
   const [mainOpen, setMainOpen] = useState(false);
   const [inputsOpen, setInputsOpen] = useState(false);
   const [yearlyOpen, setYearlyOpen] = useState(false);
   const [summaryOpen, setSummaryOpen] = useState(false);
   const [tableOpen, setTableOpen] = useState(false);
 
-  const [currentMonthInput, setCurrentMonthInput] = useState("15");
-  const [startDate, setStartDate] = useState("2025-01-07");
+  const [currentMonthInput, setCurrentMonthInput] = useState("0");
+  const [startDate, setStartDate] = useState(todayIso());
   const [totalMonths, setTotalMonths] = useState("72");
   const [vestingMonth, setVestingMonth] = useState("72");
   const [stateContributionRate, setStateContributionRate] = useState("30");
   const [vestingRate, setVestingRate] = useState("35");
   const [actualPrincipalPaid, setActualPrincipalPaid] = useState("");
-  const [actualMainFundReturn, setActualMainFundReturn] = useState("25000");
-  const [actualStateContribution, setActualStateContribution] = useState("21300");
-  const [actualStateFundReturn, setActualStateFundReturn] = useState("5300");
+  const [actualMainFundReturn, setActualMainFundReturn] = useState("0");
+  const [actualStateContribution, setActualStateContribution] = useState("0");
+  const [actualStateFundReturn, setActualStateFundReturn] = useState("0");
   const [yearlyInputs, setYearlyInputs] = useState(defaultYearlyInputs);
+
+  // Kayıtlı BES ayarlarını (kullanıcının bulut verisi) bir kez yükle; sonraki her
+  // değişikliği üst bileşene bildir (mevcut autosave altyapısı buluta yazar).
+  const hydratedRef = useRef(false);
+  useEffect(() => {
+    if (hydratedRef.current || !settings || typeof settings !== "object") return;
+    hydratedRef.current = true;
+    if (settings.currentMonthInput != null) setCurrentMonthInput(String(settings.currentMonthInput));
+    if (settings.startDate) setStartDate(settings.startDate);
+    if (settings.totalMonths != null) setTotalMonths(String(settings.totalMonths));
+    if (settings.vestingMonth != null) setVestingMonth(String(settings.vestingMonth));
+    if (settings.stateContributionRate != null) setStateContributionRate(String(settings.stateContributionRate));
+    if (settings.vestingRate != null) setVestingRate(String(settings.vestingRate));
+    if (settings.actualPrincipalPaid != null) setActualPrincipalPaid(String(settings.actualPrincipalPaid));
+    if (settings.actualMainFundReturn != null) setActualMainFundReturn(String(settings.actualMainFundReturn));
+    if (settings.actualStateContribution != null) setActualStateContribution(String(settings.actualStateContribution));
+    if (settings.actualStateFundReturn != null) setActualStateFundReturn(String(settings.actualStateFundReturn));
+    if (Array.isArray(settings.yearlyInputs) && settings.yearlyInputs.length) setYearlyInputs(settings.yearlyInputs);
+  }, [settings]);
+
+  useEffect(() => {
+    if (!hydratedRef.current) return; // kayıtlı veri yüklenmeden (hydrate olmadan) hiç yazma
+    onSettingsChange?.({
+      currentMonthInput, startDate, totalMonths, vestingMonth, stateContributionRate, vestingRate,
+      actualPrincipalPaid, actualMainFundReturn, actualStateContribution, actualStateFundReturn, yearlyInputs,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentMonthInput, startDate, totalMonths, vestingMonth, stateContributionRate, vestingRate, actualPrincipalPaid, actualMainFundReturn, actualStateContribution, actualStateFundReturn, yearlyInputs]);
 
   const projection = useMemo(() => {
     const modelTotalMonths = Math.max(1, numberValue(totalMonths));

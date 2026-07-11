@@ -24,3 +24,10 @@ yarn-error.log*
 .DS_Store
 *.pem
 .vercel
+
+# yerel dashboard yardimcilari (trading botu icin, repo disi)
+dashboard.log
+dashboard_launcher.vbs
+ensure_dashboard.bat
+run_dashboard.bat
+.claude/
