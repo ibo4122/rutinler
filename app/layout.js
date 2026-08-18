@@ -12,8 +12,8 @@ export const metadata = {
     type: "website",
     locale: "tr_TR",
   },
-  // Kişisel uygulama (giriş arkasında kendi verin). Herkese açık ürün olunca açılabilir.
-  robots: { index: false, follow: false },
+  // Herkese açık ürün: arama motorları indeksleyebilir.
+  robots: { index: true, follow: true },
 };
 
 export const viewport = {
