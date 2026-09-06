@@ -30,4 +30,7 @@ dashboard.log
 dashboard_launcher.vbs
 ensure_dashboard.bat
 run_dashboard.bat
-.claude/
+
+# Claude Code: yerel oturum/ayar dosyalari haric tutulur, paylasilan skill'ler tutulur
+.claude/*
+!.claude/skills/
