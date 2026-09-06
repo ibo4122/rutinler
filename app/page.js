@@ -9,6 +9,8 @@ import NotesModule from "../components/notes/NotesModule";
 import FinancialGoals from "../components/FinancialGoals";
 import AdminPanel from "../components/AdminPanel";
 import Onboarding from "../components/Onboarding";
+import PreferencesModal from "../components/PreferencesModal";
+import { DEFAULT_PREFERENCES, normalizePreferences, isTabEnabled, isInvEnabled } from "../lib/preferences";
 import { money, formatCurrency, setMoneyHidden } from "../lib/format";
 import { assetValueTry, assetCostTry } from "../lib/assets";
 import { SummaryCard, Panel, MiniPanel, InputBox, SelectBox, EmptyState } from "../components/ui";
@@ -112,6 +114,7 @@ function normalizeFinanceData(data) {
       financialGoals: emptyFinancialGoals,
       besSettings: null,
       onboardingDone: false,
+      preferences: DEFAULT_PREFERENCES,
     };
   }
 
@@ -142,6 +145,7 @@ function normalizeFinanceData(data) {
     },
     besSettings: data.besSettings && typeof data.besSettings === "object" ? data.besSettings : null,
     onboardingDone: data.onboardingDone === true,
+    preferences: normalizePreferences(data.preferences),
   };
 }
 
@@ -235,6 +239,8 @@ export default function HomePage() {
   const [besSettings, setBesSettings] = useState(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [onboardingDone, setOnboardingDone] = useState(true); // yuklenene kadar gosterme
+  const [preferences, setPreferences] = useState(DEFAULT_PREFERENCES);
+  const [prefsOpen, setPrefsOpen] = useState(false);
   const [verifiedNotice, setVerifiedNotice] = useState("");   // "hesabin dogrulandi" bildirimi
   const [processingVerify, setProcessingVerify] = useState(false);
   const verifyCallbackRef = useRef(false); // dogrulama baglantisindan mi gelindi?
@@ -401,9 +407,9 @@ export default function HomePage() {
     if (!session?.user || !financeLoaded) return;
     const timer = setTimeout(saveFinanceData, 650);
     return () => clearTimeout(timer);
-  }, [income, extraIncomes, credits, cardExpenses, otherExpenses, investments, routines, financialGoals, besSettings, onboardingDone, session, financeLoaded]);
+  }, [income, extraIncomes, credits, cardExpenses, otherExpenses, investments, routines, financialGoals, besSettings, onboardingDone, preferences, session, financeLoaded]);
 
-  const currentPayload = () => ({ income, extraIncomes, credits, cardExpenses, otherExpenses, investments, routines, financialGoals, besSettings, onboardingDone });
+  const currentPayload = () => ({ income, extraIncomes, credits, cardExpenses, otherExpenses, investments, routines, financialGoals, besSettings, onboardingDone, preferences });
 
   const loadFinanceData = async (userId) => {
     setDataLoading(true);
@@ -450,6 +456,7 @@ export default function HomePage() {
     // hasCloudData bir || zinciri oldugundan ilk dolu degeri (orn. maas metnini)
     // dondurebiliyor; bayragi mutlaka boolean olarak sakla.
     setOnboardingDone(normalized.onboardingDone || Boolean(hasCloudData));
+    setPreferences(normalized.preferences || DEFAULT_PREFERENCES);
     setFinanceLoaded(true);
     setDataLoading(false);
   };
@@ -792,6 +799,7 @@ export default function HomePage() {
             >
               {hideMoney ? "🙈 Tutarlar gizli" : "👁 Tutarları gizle"}
             </button>
+            <button type="button" className="secondaryButton" onClick={() => setPrefsOpen(true)} title="Kullanacağın bölümleri seç">⚙️ Kişiselleştir</button>
             <button type="button" className="secondaryButton" onClick={handleLogout}>Çıkış Yap</button>
           </div>
         </header>
@@ -802,6 +810,7 @@ export default function HomePage() {
             if (!tab) return null;
             if (id === "admin" && !isAdmin) return null; // Yönetim sadece adminlere
             if (id === "trading" && process.env.NODE_ENV !== "development") return null; // Trading yerel veri kaynağına bağlı; prod'da gizli
+            if (!isTabEnabled(preferences, id)) return null; // kullanıcının kapattığı bölüm
             return (
               <button
                 key={id}
@@ -827,7 +836,7 @@ export default function HomePage() {
 
         {activeTab === "finance" ? <FinanceTab financeTotals={financeTotals} income={income} updateIncome={updateIncome} incomeOpen={incomeOpen} setIncomeOpen={setIncomeOpen} extraIncomeOpen={extraIncomeOpen} setExtraIncomeOpen={setExtraIncomeOpen} extraIncomeForm={extraIncomeForm} updateExtraIncomeForm={updateExtraIncomeForm} addOrUpdateExtraIncome={addOrUpdateExtraIncome} editingExtraIncomeId={editingExtraIncomeId} resetExtraIncomeForm={resetExtraIncomeForm} extraIncomes={extraIncomes} startEditExtraIncome={startEditExtraIncome} setExtraIncomes={setExtraIncomes} expensesOpen={expensesOpen} setExpensesOpen={setExpensesOpen} creditsOpen={creditsOpen} setCreditsOpen={setCreditsOpen} creditForm={creditForm} updateCreditForm={updateCreditForm} addOrUpdateCredit={addOrUpdateCredit} editingCreditId={editingCreditId} resetCreditForm={resetCreditForm} credits={credits} parseInstallment={parseInstallment} isCreditActive={isCreditActive} startEditCredit={startEditCredit} setCredits={setCredits} cardsOpen={cardsOpen} setCardsOpen={setCardsOpen} cardForm={cardForm} updateCardForm={updateCardForm} addOrUpdateSimpleExpense={addOrUpdateSimpleExpense} editingCardId={editingCardId} resetCardForm={resetCardForm} cardExpenses={cardExpenses} startEditCard={startEditCard} setCardExpenses={setCardExpenses} othersOpen={othersOpen} setOthersOpen={setOthersOpen} otherForm={otherForm} updateOtherForm={updateOtherForm} editingOtherId={editingOtherId} resetOtherForm={resetOtherForm} otherExpenses={otherExpenses} startEditOther={startEditOther} setOtherExpenses={setOtherExpenses} /> : null}
 
-        {activeTab === "investments" ? <InvestmentsTab investmentTotals={investmentTotals} investmentOpen={investmentOpen} setInvestmentOpen={setInvestmentOpen} goldOpen={goldOpen} setGoldOpen={setGoldOpen} goldForm={goldForm} updateGoldForm={updateGoldForm} addOrUpdateGold={addOrUpdateGold} editingGoldId={editingGoldId} resetGoldForm={resetGoldForm} startEditGold={startEditGold} cryptoOpen={cryptoOpen} setCryptoOpen={setCryptoOpen} cryptoForm={cryptoForm} updateCryptoForm={updateCryptoForm} addOrUpdateCrypto={addOrUpdateCrypto} editingCryptoId={editingCryptoId} resetCryptoForm={resetCryptoForm} startEditCrypto={startEditCrypto} stockOpen={stockOpen} setStockOpen={setStockOpen} stockForm={stockForm} updateStockForm={updateStockForm} addOrUpdateStock={addOrUpdateStock} editingStockId={editingStockId} resetStockForm={resetStockForm} startEditStock={startEditStock} fundOpen={fundOpen} setFundOpen={setFundOpen} fundForm={fundForm} updateFundForm={updateFundForm} addOrUpdateFund={addOrUpdateFund} editingFundId={editingFundId} resetFundForm={resetFundForm} startEditFund={startEditFund} forexOpen={forexOpen} setForexOpen={setForexOpen} forexForm={forexForm} updateForexForm={updateForexForm} addOrUpdateForex={addOrUpdateForex} editingForexId={editingForexId} resetForexForm={resetForexForm} startEditForex={startEditForex} investments={investments} setInvestments={setInvestments} setBesProjectionTotal={setBesProjectionTotal} besSettings={besSettings} setBesSettings={setBesSettings} marketData={marketData} setMarketData={setMarketData} showPnl={showPnl} toggleShowPnl={toggleShowPnl} /> : null}
+        {activeTab === "investments" ? <InvestmentsTab investmentTotals={investmentTotals} investmentOpen={investmentOpen} setInvestmentOpen={setInvestmentOpen} goldOpen={goldOpen} setGoldOpen={setGoldOpen} goldForm={goldForm} updateGoldForm={updateGoldForm} addOrUpdateGold={addOrUpdateGold} editingGoldId={editingGoldId} resetGoldForm={resetGoldForm} startEditGold={startEditGold} cryptoOpen={cryptoOpen} setCryptoOpen={setCryptoOpen} cryptoForm={cryptoForm} updateCryptoForm={updateCryptoForm} addOrUpdateCrypto={addOrUpdateCrypto} editingCryptoId={editingCryptoId} resetCryptoForm={resetCryptoForm} startEditCrypto={startEditCrypto} stockOpen={stockOpen} setStockOpen={setStockOpen} stockForm={stockForm} updateStockForm={updateStockForm} addOrUpdateStock={addOrUpdateStock} editingStockId={editingStockId} resetStockForm={resetStockForm} startEditStock={startEditStock} fundOpen={fundOpen} setFundOpen={setFundOpen} fundForm={fundForm} updateFundForm={updateFundForm} addOrUpdateFund={addOrUpdateFund} editingFundId={editingFundId} resetFundForm={resetFundForm} startEditFund={startEditFund} forexOpen={forexOpen} setForexOpen={setForexOpen} forexForm={forexForm} updateForexForm={updateForexForm} addOrUpdateForex={addOrUpdateForex} editingForexId={editingForexId} resetForexForm={resetForexForm} startEditForex={startEditForex} investments={investments} setInvestments={setInvestments} setBesProjectionTotal={setBesProjectionTotal} besSettings={besSettings} setBesSettings={setBesSettings} marketData={marketData} setMarketData={setMarketData} showPnl={showPnl} toggleShowPnl={toggleShowPnl} prefs={preferences} /> : null}
 
         {activeTab === "fingoals" ? <FinancialGoals data={financialGoals} setData={setFinancialGoals} financeTotals={financeTotals} investmentTotals={investmentTotals} monthlyBalance={financeTotals.balance} /> : null}
 
@@ -839,12 +848,26 @@ export default function HomePage() {
 
         {activeTab === "admin" && isAdmin ? <AdminPanel currentUserId={session.user.id} /> : null}
 
+        {prefsOpen ? (
+          <PreferencesModal
+            prefs={preferences}
+            onClose={() => setPrefsOpen(false)}
+            onSave={(yeni) => {
+              setPreferences(yeni);
+              setPrefsOpen(false);
+              // Kapatılan bir sekmede kalındıysa Genel Bakış'a dön
+              if (!isTabEnabled(yeni, activeTab)) setActiveTab("overview");
+            }}
+          />
+        ) : null}
+
         {financeLoaded && !onboardingDone ? (
           <Onboarding
             fullName={session.user.user_metadata?.full_name || ""}
-            onFinish={({ salary, mealAllowance }) => {
+            onFinish={({ salary, mealAllowance, preferences: secilen }) => {
               if (salary) setIncome((current) => ({ ...current, salary: formatNumberInput(salary) }));
               if (mealAllowance) setIncome((current) => ({ ...current, mealAllowance: formatNumberInput(mealAllowance) }));
+              if (secilen) setPreferences(normalizePreferences(secilen));
               setOnboardingDone(true);
               setActiveTab("overview");
             }}
@@ -924,7 +947,7 @@ function FinanceTab(p) {
 }
 
 function InvestmentsTab(p) {
-  return <><div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "10px", flexWrap: "wrap", marginBottom: "12px" }}><button type="button" className="secondaryButton" onClick={p.toggleShowPnl}>{p.showPnl ? "Kâr / Zarar: Açık (gizle)" : "Kâr / Zarar: Kapalı (göster)"}</button><LiveMarketUpdater investments={p.investments} setInvestments={p.setInvestments} onMarketData={p.setMarketData} /></div><section className="summaryGrid investmentSummaryGrid"><SummaryCard tone="green" title="Toplam Portföy" value={money(p.investmentTotals.totalInvestment)} detail="BES + altın/metaller + hisse + kripto + fon + döviz" /><SummaryCard tone="purple" title="Blokajlı / Uzun Vadeli" value={money(p.investmentTotals.blockedTotal)} detail="BES projeksiyon toplamı" /><SummaryCard tone="blue" title="Likide Edilebilir" value={money(p.investmentTotals.availableInvestment)} detail="BES hariç kullanılabilir varlıklar" />{p.showPnl ? <SummaryCard tone={p.investmentTotals.totalPnl >= 0 ? "green" : "red"} title="Kar / Zarar" value={money(p.investmentTotals.totalPnl)} detail={`TL bazlı oran: %${p.investmentTotals.totalPnlRate.toFixed(2)}`} /> : null}</section><BesProjectionPanel onTotalChange={p.setBesProjectionTotal} settings={p.besSettings} onSettingsChange={p.setBesSettings} /><MarketUniversePanel investments={p.investments} investmentTotals={p.investmentTotals} marketData={p.marketData} onReload={p.setMarketData} /><Panel title="Portföy Kayıtlarım" subtitle="Yeni veri girdiğinde Fiyat Güncelle ile sistem sembol eşleşmesi yapıp fiyatını bulmaya çalışır." totalLabel="BES Hariç Toplam" total={money(p.investmentTotals.availableInvestment)} open={p.investmentOpen} onToggle={() => p.setInvestmentOpen((value) => !value)}><MiniPanel title="Altın / Gümüş / Metal" totalLabel="Metal Değeri" total={money(p.investmentTotals.goldValue)} color="orange" open={p.goldOpen} onToggle={() => p.setGoldOpen((value) => !value)}><AssetForm form={p.goldForm} onChange={p.updateGoldForm} buttonText={p.editingGoldId ? "Metali Güncelle" : "Metal Ekle"} onAdd={p.addOrUpdateGold} nameLabel="Metal Adı" namePlaceholder="Örn: Gram Altın / Gümüş" showGoldType />{p.editingGoldId ? <button type="button" className="deleteButton" onClick={p.resetGoldForm}>Düzenlemeyi İptal Et</button> : null}<AssetList showPnl={p.showPnl} items={p.investments.gold} onEdit={p.startEditGold} onDelete={(id) => p.setInvestments((current) => ({ ...current, gold: current.gold.filter((item) => item.id !== id) }))} /></MiniPanel><MiniPanel title="Hisse Yatırımı" totalLabel="Hisse Değeri" total={money(p.investmentTotals.stockValue)} color="mint" open={p.stockOpen} onToggle={() => p.setStockOpen((value) => !value)}><AssetForm form={p.stockForm} onChange={p.updateStockForm} buttonText={p.editingStockId ? "Hisseyi Güncelle" : "Hisse Ekle"} onAdd={p.addOrUpdateStock} nameLabel="Hisse / Sembol" namePlaceholder="Örn: THYAO / AAPL" /><p className="sectionDescription">BIST için THYAO, ASELS gibi; ABD için AAPL, NVDA gibi sembol gir. ABD hisselerinde para birimini USD seç.</p>{p.editingStockId ? <button type="button" className="deleteButton" onClick={p.resetStockForm}>Düzenlemeyi İptal Et</button> : null}<AssetList showPnl={p.showPnl} items={p.investments.stocks} onEdit={p.startEditStock} onDelete={(id) => p.setInvestments((current) => ({ ...current, stocks: current.stocks.filter((item) => item.id !== id) }))} /></MiniPanel><MiniPanel title="Fon Yatırımı (TEFAS)" totalLabel="Fon Değeri" total={money(p.investmentTotals.fundValue)} color="blue" open={p.fundOpen} onToggle={() => p.setFundOpen((value) => !value)}><AssetForm form={p.fundForm} onChange={p.updateFundForm} buttonText={p.editingFundId ? "Fonu Güncelle" : "Fon Ekle"} onAdd={p.addOrUpdateFund} nameLabel="Fon Kodu" namePlaceholder="Örn: AFT / TTE / NNF" hideCurrency /><p className="sectionDescription">TEFAS fon kodunu yaz (örn: AFT). Fiyat Güncelle ile son birim pay fiyatı otomatik çekilir.</p>{p.editingFundId ? <button type="button" className="deleteButton" onClick={p.resetFundForm}>Düzenlemeyi İptal Et</button> : null}<AssetList showPnl={p.showPnl} items={p.investments.funds} onEdit={p.startEditFund} onDelete={(id) => p.setInvestments((current) => ({ ...current, funds: current.funds.filter((item) => item.id !== id) }))} /></MiniPanel><MiniPanel title="Kripto Yatırımı" totalLabel="Kripto Değeri" total={money(p.investmentTotals.cryptoValue)} color="rose" open={p.cryptoOpen} onToggle={() => p.setCryptoOpen((value) => !value)}><AssetForm form={p.cryptoForm} onChange={p.updateCryptoForm} buttonText={p.editingCryptoId ? "Kriptoyu Güncelle" : "Kripto Ekle"} onAdd={p.addOrUpdateCrypto} nameLabel="Coin / Token" namePlaceholder="Örn: BTC / SOL" /><p className="sectionDescription">Coin sembolünü yazman yeterli. Sistem CoinGecko/Binance verisiyle fiyatı eşleştirmeye çalışır.</p>{p.editingCryptoId ? <button type="button" className="deleteButton" onClick={p.resetCryptoForm}>Düzenlemeyi İptal Et</button> : null}<AssetList showPnl={p.showPnl} items={p.investments.crypto} onEdit={p.startEditCrypto} onDelete={(id) => p.setInvestments((current) => ({ ...current, crypto: current.crypto.filter((item) => item.id !== id) }))} /></MiniPanel><MiniPanel title="Döviz / Nakit" totalLabel="Döviz Değeri" total={money(p.investmentTotals.forexValue)} color="purple" open={p.forexOpen} onToggle={() => p.setForexOpen((value) => !value)}><AssetForm form={p.forexForm} onChange={p.updateForexForm} buttonText={p.editingForexId ? "Dövizi Güncelle" : "Döviz Ekle"} onAdd={p.addOrUpdateForex} nameLabel="Döviz / Parite" namePlaceholder="Örn: USD Nakit / EUR" />{p.editingForexId ? <button type="button" className="deleteButton" onClick={p.resetForexForm}>Düzenlemeyi İptal Et</button> : null}<AssetList showPnl={p.showPnl} items={p.investments.forex} onEdit={p.startEditForex} onDelete={(id) => p.setInvestments((current) => ({ ...current, forex: current.forex.filter((item) => item.id !== id) }))} /></MiniPanel></Panel></>;
+  return <><div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "10px", flexWrap: "wrap", marginBottom: "12px" }}><button type="button" className="secondaryButton" onClick={p.toggleShowPnl}>{p.showPnl ? "Kâr / Zarar: Açık (gizle)" : "Kâr / Zarar: Kapalı (göster)"}</button><LiveMarketUpdater investments={p.investments} setInvestments={p.setInvestments} onMarketData={p.setMarketData} /></div><section className="summaryGrid investmentSummaryGrid"><SummaryCard tone="green" title="Toplam Portföy" value={money(p.investmentTotals.totalInvestment)} detail="BES + altın/metaller + hisse + kripto + fon + döviz" /><SummaryCard tone="purple" title="Blokajlı / Uzun Vadeli" value={money(p.investmentTotals.blockedTotal)} detail="BES projeksiyon toplamı" /><SummaryCard tone="blue" title="Likide Edilebilir" value={money(p.investmentTotals.availableInvestment)} detail="BES hariç kullanılabilir varlıklar" />{p.showPnl ? <SummaryCard tone={p.investmentTotals.totalPnl >= 0 ? "green" : "red"} title="Kar / Zarar" value={money(p.investmentTotals.totalPnl)} detail={`TL bazlı oran: %${p.investmentTotals.totalPnlRate.toFixed(2)}`} /> : null}</section>{isInvEnabled(p.prefs, "bes") ? <BesProjectionPanel onTotalChange={p.setBesProjectionTotal} settings={p.besSettings} onSettingsChange={p.setBesSettings} /> : null}{isInvEnabled(p.prefs, "market") ? <MarketUniversePanel investments={p.investments} investmentTotals={p.investmentTotals} marketData={p.marketData} onReload={p.setMarketData} /> : null}<Panel title="Portföy Kayıtlarım" subtitle="Yeni veri girdiğinde Fiyat Güncelle ile sistem sembol eşleşmesi yapıp fiyatını bulmaya çalışır." totalLabel="BES Hariç Toplam" total={money(p.investmentTotals.availableInvestment)} open={p.investmentOpen} onToggle={() => p.setInvestmentOpen((value) => !value)}>{isInvEnabled(p.prefs, "gold") ? <MiniPanel title="Altın / Gümüş / Metal" totalLabel="Metal Değeri" total={money(p.investmentTotals.goldValue)} color="orange" open={p.goldOpen} onToggle={() => p.setGoldOpen((value) => !value)}><AssetForm form={p.goldForm} onChange={p.updateGoldForm} buttonText={p.editingGoldId ? "Metali Güncelle" : "Metal Ekle"} onAdd={p.addOrUpdateGold} nameLabel="Metal Adı" namePlaceholder="Örn: Gram Altın / Gümüş" showGoldType />{p.editingGoldId ? <button type="button" className="deleteButton" onClick={p.resetGoldForm}>Düzenlemeyi İptal Et</button> : null}<AssetList showPnl={p.showPnl} items={p.investments.gold} onEdit={p.startEditGold} onDelete={(id) => p.setInvestments((current) => ({ ...current, gold: current.gold.filter((item) => item.id !== id) }))} /></MiniPanel> : null}{isInvEnabled(p.prefs, "stocks") ? <MiniPanel title="Hisse Yatırımı" totalLabel="Hisse Değeri" total={money(p.investmentTotals.stockValue)} color="mint" open={p.stockOpen} onToggle={() => p.setStockOpen((value) => !value)}><AssetForm form={p.stockForm} onChange={p.updateStockForm} buttonText={p.editingStockId ? "Hisseyi Güncelle" : "Hisse Ekle"} onAdd={p.addOrUpdateStock} nameLabel="Hisse / Sembol" namePlaceholder="Örn: THYAO / AAPL" /><p className="sectionDescription">BIST için THYAO, ASELS gibi; ABD için AAPL, NVDA gibi sembol gir. ABD hisselerinde para birimini USD seç.</p>{p.editingStockId ? <button type="button" className="deleteButton" onClick={p.resetStockForm}>Düzenlemeyi İptal Et</button> : null}<AssetList showPnl={p.showPnl} items={p.investments.stocks} onEdit={p.startEditStock} onDelete={(id) => p.setInvestments((current) => ({ ...current, stocks: current.stocks.filter((item) => item.id !== id) }))} /></MiniPanel> : null}{isInvEnabled(p.prefs, "funds") ? <MiniPanel title="Fon Yatırımı (TEFAS)" totalLabel="Fon Değeri" total={money(p.investmentTotals.fundValue)} color="blue" open={p.fundOpen} onToggle={() => p.setFundOpen((value) => !value)}><AssetForm form={p.fundForm} onChange={p.updateFundForm} buttonText={p.editingFundId ? "Fonu Güncelle" : "Fon Ekle"} onAdd={p.addOrUpdateFund} nameLabel="Fon Kodu" namePlaceholder="Örn: AFT / TTE / NNF" hideCurrency /><p className="sectionDescription">TEFAS fon kodunu yaz (örn: AFT). Fiyat Güncelle ile son birim pay fiyatı otomatik çekilir.</p>{p.editingFundId ? <button type="button" className="deleteButton" onClick={p.resetFundForm}>Düzenlemeyi İptal Et</button> : null}<AssetList showPnl={p.showPnl} items={p.investments.funds} onEdit={p.startEditFund} onDelete={(id) => p.setInvestments((current) => ({ ...current, funds: current.funds.filter((item) => item.id !== id) }))} /></MiniPanel> : null}{isInvEnabled(p.prefs, "crypto") ? <MiniPanel title="Kripto Yatırımı" totalLabel="Kripto Değeri" total={money(p.investmentTotals.cryptoValue)} color="rose" open={p.cryptoOpen} onToggle={() => p.setCryptoOpen((value) => !value)}><AssetForm form={p.cryptoForm} onChange={p.updateCryptoForm} buttonText={p.editingCryptoId ? "Kriptoyu Güncelle" : "Kripto Ekle"} onAdd={p.addOrUpdateCrypto} nameLabel="Coin / Token" namePlaceholder="Örn: BTC / SOL" /><p className="sectionDescription">Coin sembolünü yazman yeterli. Sistem CoinGecko/Binance verisiyle fiyatı eşleştirmeye çalışır.</p>{p.editingCryptoId ? <button type="button" className="deleteButton" onClick={p.resetCryptoForm}>Düzenlemeyi İptal Et</button> : null}<AssetList showPnl={p.showPnl} items={p.investments.crypto} onEdit={p.startEditCrypto} onDelete={(id) => p.setInvestments((current) => ({ ...current, crypto: current.crypto.filter((item) => item.id !== id) }))} /></MiniPanel> : null}{isInvEnabled(p.prefs, "forex") ? <MiniPanel title="Döviz / Nakit" totalLabel="Döviz Değeri" total={money(p.investmentTotals.forexValue)} color="purple" open={p.forexOpen} onToggle={() => p.setForexOpen((value) => !value)}><AssetForm form={p.forexForm} onChange={p.updateForexForm} buttonText={p.editingForexId ? "Dövizi Güncelle" : "Döviz Ekle"} onAdd={p.addOrUpdateForex} nameLabel="Döviz / Parite" namePlaceholder="Örn: USD Nakit / EUR" />{p.editingForexId ? <button type="button" className="deleteButton" onClick={p.resetForexForm}>Düzenlemeyi İptal Et</button> : null}<AssetList showPnl={p.showPnl} items={p.investments.forex} onEdit={p.startEditForex} onDelete={(id) => p.setInvestments((current) => ({ ...current, forex: current.forex.filter((item) => item.id !== id) }))} /></MiniPanel> : null}</Panel></>;
 }
 
 function sortAssetRecords(items, sortMode) {

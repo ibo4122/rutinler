@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import ModulePicker from "./ModulePicker";
+import { DEFAULT_PREFERENCES } from "../lib/preferences";
 
 // Yeni kullanici karsilama akisi: ilk giriste bir kez gosterilir. Amac, bos ekran
 // yerine kisiyi karsilamak, ne yapabilecegini anlatmak ve tum hesaplarin dayandigi
@@ -56,17 +58,19 @@ export default function Onboarding({ fullName, onFinish }) {
   const [step, setStep] = useState(0);
   const [salary, setSalary] = useState("");
   const [meal, setMeal] = useState("");
+  const [prefs, setPrefs] = useState(DEFAULT_PREFERENCES);
 
   const firstName = String(fullName || "").trim().split(" ")[0] || "";
+  const financeAcik = prefs?.tabs?.finance !== false;
 
-  const finish = () => onFinish?.({ salary: salary.trim(), mealAllowance: meal.trim() });
+  const finish = () => onFinish?.({ salary: salary.trim(), mealAllowance: meal.trim(), preferences: prefs });
 
   return (
     <div style={overlay}>
       <div style={card}>
         {/* Adım göstergesi */}
         <div style={{ display: "flex", gap: 6, marginBottom: 22 }}>
-          {[0, 1, 2].map((i) => (
+          {[0, 1, 2, 3].map((i) => (
             <span
               key={i}
               style={{
@@ -99,6 +103,18 @@ export default function Onboarding({ fullName, onFinish }) {
             </div>
           </>
         ) : step === 1 ? (
+          <>
+            <div style={{ fontSize: 36, marginBottom: 10 }}>🧩</div>
+            <h2 style={{ margin: "0 0 8px", fontSize: 24, fontWeight: 900 }}>Neleri kullanacaksın?</h2>
+            <p style={{ color: "#cbd5e1", fontSize: 14, lineHeight: 1.6, margin: "0 0 20px" }}>
+              Kullanmayacağın bölümleri kapat — panelin sade kalsın. Örneğin BES'in yoksa
+              ya da fon almıyorsan onları şimdi kapatabilirsin. <strong>Her şeyi sonradan değiştirebilirsin.</strong>
+            </p>
+            <div style={{ maxHeight: "46vh", overflowY: "auto", paddingRight: 4 }}>
+              <ModulePicker prefs={prefs} onChange={setPrefs} compact />
+            </div>
+          </>
+        ) : step === 2 ? (
           <>
             <div style={{ fontSize: 36, marginBottom: 10 }}>💰</div>
             <h2 style={{ margin: "0 0 8px", fontSize: 24, fontWeight: 900 }}>Aylık gelirin</h2>
@@ -151,14 +167,16 @@ export default function Onboarding({ fullName, onFinish }) {
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, marginTop: 26 }}>
           <button type="button" onClick={finish}
                   style={{ background: "none", border: "none", color: "#94a3b8", fontSize: 13, cursor: "pointer", padding: "8px 4px" }}>
-            {step === 2 ? "" : "Atla"}
+            {step === 3 ? "" : "Atla"}
           </button>
           <div style={{ display: "flex", gap: 10 }}>
             {step > 0 ? (
-              <button type="button" className="secondaryButton" onClick={() => setStep((s) => s - 1)}>Geri</button>
+              <button type="button" className="secondaryButton"
+                      onClick={() => setStep((s) => (s === 3 && !financeAcik ? 1 : s - 1))}>Geri</button>
             ) : null}
-            {step < 2 ? (
-              <button type="button" className="premiumButton" onClick={() => setStep((s) => s + 1)}>Devam</button>
+            {step < 3 ? (
+              <button type="button" className="premiumButton"
+                      onClick={() => setStep((s) => (s === 1 && !financeAcik ? 3 : s + 1))}>Devam</button>
             ) : (
               <button type="button" className="premiumButton" onClick={finish}>Panele Git</button>
             )}
