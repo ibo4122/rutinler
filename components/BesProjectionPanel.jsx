@@ -5,16 +5,17 @@ import { money } from "../lib/format";
 
 // ---------------------------------------------------------------------------
 // BES kurallari (2026)
-//  - Devlet katkisi: odenen katki payinin %20'si (01.01.2026'dan itibaren; onceden %30)
+//  - Devlet katkisi: odenen katki payinin %20'si (01.01.2026'da %30'dan dusuruldu)
 //  - Yillik ust sinir: 396.360 TL katkiya karsilik en fazla 79.272 TL devlet katkisi
-//  - Hak edis (sistemde kalma suresine gore devlet katkisinin ne kadarini alirsin):
-//      <3 yil %0 | 3-6 yil %15 | 6-10 yil %35 | 10+ yil %60 | 10 yil + 56 yas %100
-//  - Stopaj: yalnizca GETIRI uzerinden. 10 yildan once cikis %15, 10 yil (emekli degil)
-//    %10, emeklilik %5. Anaparadan kesinti yapilmaz.
+//  - Devlet katkisi da fonlarda degerlendirilir; kendi getirisi olur.
+//  - Hak edis, devlet katkisi VE GETIRILERI uzerinden hesaplanir:
+//      <3 yil %0 | 3 yil %15 | 6 yil %35 | 10 yil %60 | 10 yil + 56 yas %100
+//  - Stopaj yalnizca GETIRI uzerinden alinir (anaparadan kesinti yok):
+//      10 yil oncesi %15 | 10 yil %10 | emeklilik %5
 // ---------------------------------------------------------------------------
 const STATE_RATE = 0.20;
-const ANNUAL_STATE_CAP = 79272;      // 2026 yillik devlet katkisi ust siniri
-const ANNUAL_CONTRIB_CAP = 396360;   // bu sinira karsilik gelen yillik katki payi
+const ANNUAL_STATE_CAP = 79272;
+const ANNUAL_CONTRIB_CAP = 396360;
 
 const EXIT_OPTIONS = [
   { years: 3, vest: 0.15, tax: 0.15, label: "3. yıl" },
@@ -29,7 +30,7 @@ const num = (v) => {
 };
 const todayIso = () => new Date().toISOString().slice(0, 10);
 
-// Aylik odemeli birikimin gelecek degeri (donem sonu odemeli anuite)
+// Aylik odemeli birikimin gelecek degeri
 function futureValue(payment, monthlyRate, months) {
   if (months <= 0 || payment <= 0) return 0;
   if (monthlyRate === 0) return payment * months;
@@ -42,54 +43,65 @@ function monthsBetween(fromIso, to = new Date()) {
   return Math.max(0, (to.getFullYear() - from.getFullYear()) * 12 + (to.getMonth() - from.getMonth()));
 }
 
-// Yillik ust sinir dikkate alinarak aylik devlet katkisi
+// Yillik ust siniri dikkate alan aylik devlet katkisi
 function monthlyStateContribution(monthlyContribution) {
-  const yearly = monthlyContribution * 12;
-  const capped = Math.min(yearly, ANNUAL_CONTRIB_CAP);
+  const capped = Math.min(monthlyContribution * 12, ANNUAL_CONTRIB_CAP);
   return (capped * STATE_RATE) / 12;
 }
 
-function project({ startDate, monthly, ownBalance, stateBalance, annualReturn, exitYears }) {
+function project(inp) {
+  const { startDate, monthly, ownPrincipal, ownReturn, statePrincipal, stateReturn, annualReturn, exitYears } = inp;
+
   const elapsed = monthsBetween(startDate);
   const exitMonths = exitYears * 12;
   const remaining = Math.max(0, exitMonths - elapsed);
   const i = Math.pow(1 + annualReturn / 100, 1 / 12) - 1;
+  const growth = Math.pow(1 + i, remaining);
   const monthlyState = monthlyStateContribution(monthly);
 
-  // Bugunku bakiyeler: kullanici girdiyse onu kullan, girmediyse plana gore tahmin et
-  const ownNow = ownBalance > 0 ? ownBalance : futureValue(monthly, i, elapsed);
-  const stateNow = stateBalance > 0 ? stateBalance : futureValue(monthlyState, i, elapsed);
+  // --- BUGUN (BES ekstrendeki 4 kalem) ---
+  const ownNow = ownPrincipal + ownReturn;     // kendi hesabin: anapara + fon getirisi
+  const stateNow = statePrincipal + stateReturn; // devlet katkisi hesabi: anapara + fon getirisi
 
-  // Cikisa kadar: mevcut bakiye buyur + yeni katkilar birikir
-  const growth = Math.pow(1 + i, remaining);
-  const ownAtExit = ownNow * growth + futureValue(monthly, i, remaining);
-  const stateAtExit = stateNow * growth + futureValue(monthlyState, i, remaining);
+  // --- CIKIS ANINDA ---
+  // Mevcut bakiyeler buyur + yeni katkilar birikir
+  const ownFromExisting = ownNow * growth;
+  const ownFromNew = futureValue(monthly, i, remaining);
+  const ownAtExit = ownFromExisting + ownFromNew;
 
-  // Anapara (stopaj matrahi icin): toplam odenen katki payi ve devlet katkisi anaparasi
-  const paidPrincipal = monthly * exitMonths;
-  const statePrincipal = monthlyState * exitMonths;
+  const stateFromExisting = stateNow * growth;
+  const stateFromNew = futureValue(monthlyState, i, remaining);
+  const stateAtExit = stateFromExisting + stateFromNew;
+
+  // Anaparalar (stopaj matrahi icin gerekli)
+  const paidPrincipalTotal = ownPrincipal + monthly * remaining;
+  const statePrincipalTotal = statePrincipal + monthlyState * remaining;
 
   const option = EXIT_OPTIONS.find((o) => o.years === exitYears) || EXIT_OPTIONS[1];
+
+  // Hak edis: devlet katkisi VE GETIRILERI uzerinden
   const vestedState = stateAtExit * option.vest;
-  const vestedStatePrincipal = statePrincipal * option.vest;
+  const vestedStatePrincipal = statePrincipalTotal * option.vest;
+  const lostState = stateAtExit - vestedState;
 
   const gross = ownAtExit + vestedState;
-  const gain = Math.max(0, gross - paidPrincipal - vestedStatePrincipal);
+  const gain = Math.max(0, gross - paidPrincipalTotal - vestedStatePrincipal);
   const tax = gain * option.tax;
   const net = gross - tax;
 
-  // Bugun itibariyle hak edilen (panel basligi ve portfoy toplami icin)
+  // Bugun itibariyle hak edilen deger (portfoy toplamina yazilir)
   const elapsedYears = elapsed / 12;
   const currentVest = elapsedYears >= 10 ? 0.6 : elapsedYears >= 6 ? 0.35 : elapsedYears >= 3 ? 0.15 : 0;
   const currentTotal = ownNow + stateNow * currentVest;
 
   return {
-    elapsed, remaining, exitMonths, option,
+    elapsed, remaining, exitMonths, option, growth, monthlyState,
     ownNow, stateNow, currentVest, currentTotal,
-    ownAtExit, stateAtExit, vestedState, gross, gain, tax, net,
-    paidPrincipal, statePrincipal,
-    lostState: stateAtExit - vestedState,
-    progress: Math.min(100, (elapsed / exitMonths) * 100),
+    ownFromExisting, ownFromNew, ownAtExit,
+    stateFromExisting, stateFromNew, stateAtExit,
+    paidPrincipalTotal, statePrincipalTotal,
+    vestedState, lostState, gross, gain, tax, net,
+    progress: exitMonths > 0 ? Math.min(100, (elapsed / exitMonths) * 100) : 0,
     exitDate: (() => { const d = new Date(startDate); return Number.isNaN(d.getTime()) ? null : new Date(d.setMonth(d.getMonth() + exitMonths)); })(),
   };
 }
@@ -110,16 +122,29 @@ function Field({ label, hint, children }) {
   );
 }
 
+function Grup({ baslik, aciklama, children }) {
+  return (
+    <div style={{ border: "1px solid rgba(255,255,255,.12)", borderRadius: 18, padding: 16, background: "rgba(2,6,23,.35)", marginBottom: 14 }}>
+      <div style={{ color: "#fff", fontWeight: 800, fontSize: 14, marginBottom: 2 }}>{baslik}</div>
+      {aciklama ? <div style={{ color: "#94a3b8", fontSize: 11.5, marginBottom: 12 }}>{aciklama}</div> : null}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(165px, 1fr))", gap: 12 }}>{children}</div>
+    </div>
+  );
+}
+
 export default function BesProjectionPanel({ onTotalChange, settings, onSettingsChange }) {
   const [open, setOpen] = useState(false);
   const [startDate, setStartDate] = useState(todayIso());
   const [monthly, setMonthly] = useState("0");
-  const [ownBalance, setOwnBalance] = useState("");
-  const [stateBalance, setStateBalance] = useState("");
   const [annualReturn, setAnnualReturn] = useState("30");
   const [exitYears, setExitYears] = useState(6);
+  // BES ekstrendeki 4 kalem
+  const [ownPrincipal, setOwnPrincipal] = useState("");
+  const [ownReturn, setOwnReturn] = useState("");
+  const [statePrincipal, setStatePrincipal] = useState("");
+  const [stateReturn, setStateReturn] = useState("");
 
-  // Kayitli ayarlari bir kez yukle (eski surumun alanlarindan da tasi).
+  // Kayitli ayarlari bir kez yukle (eski surumlerin alan adlarindan da tasi)
   const hydratedRef = useRef(false);
   useEffect(() => {
     if (hydratedRef.current || !settings || typeof settings !== "object") return;
@@ -128,30 +153,38 @@ export default function BesProjectionPanel({ onTotalChange, settings, onSettings
     if (s.startDate) setStartDate(s.startDate);
     if (s.monthlyContribution != null) setMonthly(String(s.monthlyContribution));
     else if (Array.isArray(s.yearlyInputs) && s.yearlyInputs[0]?.monthlyContribution) setMonthly(String(s.yearlyInputs[0].monthlyContribution));
-    if (s.ownBalance != null) setOwnBalance(String(s.ownBalance));
-    else if (s.actualPrincipalPaid || s.actualMainFundReturn) setOwnBalance(String(num(s.actualPrincipalPaid) + num(s.actualMainFundReturn) || ""));
-    if (s.stateBalance != null) setStateBalance(String(s.stateBalance));
-    else if (s.actualStateContribution || s.actualStateFundReturn) setStateBalance(String(num(s.actualStateContribution) + num(s.actualStateFundReturn) || ""));
     if (s.annualReturn != null) setAnnualReturn(String(s.annualReturn));
     if (s.exitYears != null) setExitYears(Number(s.exitYears) || 6);
+
+    // 4 kalem: once yeni adlar, sonra eski panelin adlari, sonra ara surum
+    setOwnPrincipal(String(s.ownPrincipal ?? s.actualPrincipalPaid ?? s.ownBalance ?? ""));
+    setOwnReturn(String(s.ownReturn ?? s.actualMainFundReturn ?? ""));
+    setStatePrincipal(String(s.statePrincipal ?? s.actualStateContribution ?? s.stateBalance ?? ""));
+    setStateReturn(String(s.stateReturn ?? s.actualStateFundReturn ?? ""));
   }, [settings]);
 
   useEffect(() => {
     if (!hydratedRef.current) return;
-    onSettingsChange?.({ startDate, monthlyContribution: monthly, ownBalance, stateBalance, annualReturn, exitYears });
+    onSettingsChange?.({
+      startDate, monthlyContribution: monthly, annualReturn, exitYears,
+      ownPrincipal, ownReturn, statePrincipal, stateReturn,
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [startDate, monthly, ownBalance, stateBalance, annualReturn, exitYears]);
+  }, [startDate, monthly, annualReturn, exitYears, ownPrincipal, ownReturn, statePrincipal, stateReturn]);
 
-  const p = useMemo(() => project({
-    startDate, monthly: num(monthly), ownBalance: num(ownBalance),
-    stateBalance: num(stateBalance), annualReturn: num(annualReturn) || 0, exitYears,
-  }), [startDate, monthly, ownBalance, stateBalance, annualReturn, exitYears]);
+  const girdi = useMemo(() => ({
+    startDate, monthly: num(monthly), annualReturn: num(annualReturn) || 0, exitYears,
+    ownPrincipal: num(ownPrincipal), ownReturn: num(ownReturn),
+    statePrincipal: num(statePrincipal), stateReturn: num(stateReturn),
+  }), [startDate, monthly, annualReturn, exitYears, ownPrincipal, ownReturn, statePrincipal, stateReturn]);
 
+  const p = useMemo(() => project(girdi), [girdi]);
   useEffect(() => { onTotalChange?.(Number(p.currentTotal || 0)); }, [onTotalChange, p.currentTotal]);
 
-  const karsilastirma = useMemo(() => EXIT_OPTIONS.map((o) =>
-    ({ ...o, sonuc: project({ startDate, monthly: num(monthly), ownBalance: num(ownBalance), stateBalance: num(stateBalance), annualReturn: num(annualReturn) || 0, exitYears: o.years }) })
-  ), [startDate, monthly, ownBalance, stateBalance, annualReturn]);
+  const karsilastirma = useMemo(
+    () => EXIT_OPTIONS.map((o) => ({ ...o, sonuc: project({ ...girdi, exitYears: o.years }) })),
+    [girdi]
+  );
 
   return (
     <section className="panelCard besProjectionPanel">
@@ -169,19 +202,12 @@ export default function BesProjectionPanel({ onTotalChange, settings, onSettings
 
       {open ? (
         <div className="panelBody">
-          {/* Girisler */}
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(165px, 1fr))", gap: 12, marginBottom: 18 }}>
+          <Grup baslik="Planın" aciklama="Bundan sonrası için varsayımların.">
             <Field label="BES Başlangıç Tarihi">
               <input style={inputStyle} type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
             </Field>
             <Field label="Aylık Katkı Payı (₺)">
-              <input style={inputStyle} inputMode="decimal" value={monthly} placeholder="Örn: 5.000" onChange={(e) => setMonthly(e.target.value)} />
-            </Field>
-            <Field label="Mevcut Birikimin (₺)" hint="Boş bırakırsan plana göre tahmin edilir">
-              <input style={inputStyle} inputMode="decimal" value={ownBalance} placeholder="Hesabındaki tutar" onChange={(e) => setOwnBalance(e.target.value)} />
-            </Field>
-            <Field label="Devlet Katkısı Hesabın (₺)" hint="Boş bırakırsan %20'den hesaplanır">
-              <input style={inputStyle} inputMode="decimal" value={stateBalance} placeholder="Devlet katkısı tutarı" onChange={(e) => setStateBalance(e.target.value)} />
+              <input style={inputStyle} inputMode="decimal" value={monthly} placeholder="Örn: 14.000" onChange={(e) => setMonthly(e.target.value)} />
             </Field>
             <Field label="Yıllık Getiri Beklentin (%)" hint="Fonlarının ortalama yıllık kazancı">
               <input style={inputStyle} inputMode="decimal" value={annualReturn} onChange={(e) => setAnnualReturn(e.target.value)} />
@@ -191,7 +217,22 @@ export default function BesProjectionPanel({ onTotalChange, settings, onSettings
                 {EXIT_OPTIONS.map((o) => <option key={o.years} value={o.years}>{o.label} — devlet katkısının %{Math.round(o.vest * 100)}'i</option>)}
               </select>
             </Field>
-          </div>
+          </Grup>
+
+          <Grup baslik="Bugünkü Durumun" aciklama="Bu 4 rakamı BES ekstrenden/uygulamandan aynen kopyalayabilirsin.">
+            <Field label="Ödediğin Katkı Payı (anapara)">
+              <input style={inputStyle} inputMode="decimal" value={ownPrincipal} placeholder="0" onChange={(e) => setOwnPrincipal(e.target.value)} />
+            </Field>
+            <Field label="Fon Getirin" hint="Kendi birikiminin kazancı">
+              <input style={inputStyle} inputMode="decimal" value={ownReturn} placeholder="0" onChange={(e) => setOwnReturn(e.target.value)} />
+            </Field>
+            <Field label="Devlet Katkısı (anapara)">
+              <input style={inputStyle} inputMode="decimal" value={statePrincipal} placeholder="0" onChange={(e) => setStatePrincipal(e.target.value)} />
+            </Field>
+            <Field label="Devlet Katkısı Fon Getirisi" hint="Devlet katkısı da fonlarda değerlenir">
+              <input style={inputStyle} inputMode="decimal" value={stateReturn} placeholder="0" onChange={(e) => setStateReturn(e.target.value)} />
+            </Field>
+          </Grup>
 
           {/* Ilerleme */}
           <div style={{ border: "1px solid rgba(255,255,255,.12)", borderRadius: 16, padding: "14px 16px", background: "rgba(2,6,23,.4)", marginBottom: 16 }}>
@@ -204,23 +245,55 @@ export default function BesProjectionPanel({ onTotalChange, settings, onSettings
             </div>
           </div>
 
-          {/* Sonuc: cikista eline gececek */}
+          {/* Sonuc */}
           <div style={{ border: "1px solid rgba(34,197,94,.35)", borderRadius: 20, padding: 20, background: "linear-gradient(150deg, rgba(34,197,94,.16), rgba(15,23,42,.6))", marginBottom: 16 }}>
             <div style={{ color: "#cbd5e1", fontSize: 12, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".04em" }}>
               {p.option.label}nda elinize geçecek NET
             </div>
             <div style={{ color: "#86efac", fontSize: "clamp(28px, 5vw, 42px)", fontWeight: 900, margin: "6px 0 4px", lineHeight: 1.1 }}>{money(p.net)}</div>
-            <div style={{ color: "#94a3b8", fontSize: 12 }}>Vergi ve hak ediş kesintileri düşülmüş hâli</div>
+            <div style={{ color: "#94a3b8", fontSize: 12 }}>Hak ediş ve vergi kesintileri düşülmüş hâli</div>
 
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(155px, 1fr))", gap: 10, marginTop: 16 }}>
-              <Kalem etiket="Kendi Birikimin" tutar={money(p.ownAtExit)} renk="#60a5fa" alt={`${money(p.paidPrincipal)} yatırdın`} />
-              <Kalem etiket={`Hak Edilen Devlet Katkısı (%${Math.round(p.option.vest * 100)})`} tutar={money(p.vestedState)} renk="#a78bfa" alt={`${money(p.stateAtExit)} birikenin payı`} />
+              <Kalem etiket="Kendi Birikimin" tutar={money(p.ownAtExit)} renk="#60a5fa" alt={`${money(p.paidPrincipalTotal)} anapara`} />
+              <Kalem etiket={`Hak Edilen Devlet Katkısı (%${Math.round(p.option.vest * 100)})`} tutar={money(p.vestedState)} renk="#a78bfa" alt={`Toplam ${money(p.stateAtExit)} birikir`} />
               <Kalem etiket="Brüt Toplam" tutar={money(p.gross)} renk="#e2e8f0" />
-              <Kalem etiket={`Stopaj (%${Math.round(p.option.tax * 100)})`} tutar={`− ${money(p.tax)}`} renk="#fb7185" alt="Sadece getiri üzerinden" />
+              <Kalem etiket={`Stopaj (%${Math.round(p.option.tax * 100)})`} tutar={`− ${money(p.tax)}`} renk="#fb7185" alt={`${money(p.gain)} getiri üzerinden`} />
             </div>
           </div>
 
-          {/* Cikis zamani karsilastirmasi */}
+          {/* Nasil hesaplaniyor */}
+          <details style={{ border: "1px solid rgba(255,255,255,.12)", borderRadius: 16, padding: "14px 16px", background: "rgba(2,6,23,.35)", marginBottom: 16 }}>
+            <summary style={{ cursor: "pointer", color: "#93c5fd", fontSize: 13, fontWeight: 700 }}>Nasıl hesaplanıyor? (adım adım)</summary>
+            <div style={{ marginTop: 12, display: "grid", gap: 10, color: "#cbd5e1", fontSize: 12.5, lineHeight: 1.6 }}>
+              <Adim n="1" baslik="Bugünkü birikimin büyür">
+                Kendi hesabın <strong>{money(p.ownNow)}</strong> ({money(num(ownPrincipal))} anapara + {money(num(ownReturn))} fon getirisi),
+                {" "}{p.remaining} ay boyunca %{num(annualReturn)}/yıl ile → <strong style={{ color: "#60a5fa" }}>{money(p.ownFromExisting)}</strong>
+              </Adim>
+              <Adim n="2" baslik="Yeni katkıların birikir">
+                Aylık {money(num(monthly))} × {p.remaining} ay, her biri kalan süre kadar büyür → <strong style={{ color: "#60a5fa" }}>{money(p.ownFromNew)}</strong>
+              </Adim>
+              <Adim n="3" baslik="Devlet katkısı hesabın">
+                Mevcut {money(p.stateNow)} büyür ({money(p.stateFromExisting)}) + yeni katkıların %20'si olan aylık {money(p.monthlyState)} birikir ({money(p.stateFromNew)})
+                {" "}→ toplam <strong style={{ color: "#a78bfa" }}>{money(p.stateAtExit)}</strong>
+              </Adim>
+              <Adim n="4" baslik={`${p.option.label}nda devlet katkısının %${Math.round(p.option.vest * 100)}'ini hak edersin`}>
+                {money(p.stateAtExit)} × %{Math.round(p.option.vest * 100)} = <strong style={{ color: "#a78bfa" }}>{money(p.vestedState)}</strong>
+                {p.lostState > 0 ? <> · kalan <strong style={{ color: "#fbbf24" }}>{money(p.lostState)}</strong> devlete geri döner</> : null}
+              </Adim>
+              <Adim n="5" baslik="Brüt toplam">
+                {money(p.ownAtExit)} + {money(p.vestedState)} = <strong>{money(p.gross)}</strong>
+              </Adim>
+              <Adim n="6" baslik={`Stopaj yalnızca getiriden (%${Math.round(p.option.tax * 100)})`}>
+                Getiri = {money(p.gross)} − {money(p.paidPrincipalTotal)} anapara − {money(p.statePrincipalTotal * p.option.vest)} devlet anaparası = <strong>{money(p.gain)}</strong>
+                {" "}→ vergi <strong style={{ color: "#fb7185" }}>{money(p.tax)}</strong>
+              </Adim>
+              <Adim n="7" baslik="Net eline geçen">
+                {money(p.gross)} − {money(p.tax)} = <strong style={{ color: "#86efac", fontSize: 14 }}>{money(p.net)}</strong>
+              </Adim>
+            </div>
+          </details>
+
+          {/* Karsilastirma */}
           <div style={{ border: "1px solid rgba(255,255,255,.12)", borderRadius: 18, padding: 16, background: "rgba(2,6,23,.35)" }}>
             <h3 style={{ margin: "0 0 4px", color: "#fff", fontSize: 16 }}>Ne zaman çıksam?</h3>
             <p className="sectionDescription" style={{ marginTop: 0 }}>Aynı katkıyla farklı çıkış zamanlarında eline geçecek net tutar.</p>
@@ -246,21 +319,29 @@ export default function BesProjectionPanel({ onTotalChange, settings, onSettings
                 </tbody>
               </table>
             </div>
-            {p.lostState > 0 ? (
-              <div style={{ marginTop: 12, color: "#fbbf24", fontSize: 12, lineHeight: 1.55 }}>
-                ⚠️ {p.option.label}nda çıkarsan devlet katkısının <strong>{money(p.lostState)}</strong> kadarını alamıyorsun. Daha uzun kalmak bu tutarı kazandırır.
-              </div>
-            ) : null}
           </div>
 
           <p className="sectionDescription" style={{ marginTop: 14, lineHeight: 1.6 }}>
             <strong>Kurallar (2026):</strong> Devlet katkısı ödediğin katkı payının %20'si (yılda en fazla {money(ANNUAL_STATE_CAP)}).
-            Hak ediş: 3 yıl %15 · 6 yıl %35 · 10 yıl %60 · emeklilik %100. Stopaj yalnızca <em>getiri</em> üzerinden alınır,
-            anaparandan kesinti yapılmaz. Bu hesap bir tahmindir; gerçek tutar fon performansına göre değişir.
+            Devlet katkısı da fonlarda değerlenir ve hak ediş <em>katkı + getirisi</em> üzerinden hesaplanır:
+            3 yıl %15 · 6 yıl %35 · 10 yıl %60 · emeklilik %100. Stopaj yalnızca <em>getiri</em> üzerinden alınır.
+            Bu bir tahmindir; gerçek tutar fon performansına göre değişir.
           </p>
         </div>
       ) : null}
     </section>
+  );
+}
+
+function Adim({ n, baslik, children }) {
+  return (
+    <div style={{ display: "flex", gap: 10 }}>
+      <span style={{ flex: "0 0 22px", height: 22, borderRadius: 999, background: "rgba(96,165,250,.22)", color: "#93c5fd", fontSize: 11, fontWeight: 900, display: "grid", placeItems: "center" }}>{n}</span>
+      <span style={{ minWidth: 0 }}>
+        <span style={{ display: "block", color: "#fff", fontWeight: 700, fontSize: 12.5 }}>{baslik}</span>
+        <span style={{ display: "block", marginTop: 2 }}>{children}</span>
+      </span>
+    </div>
   );
 }
 
