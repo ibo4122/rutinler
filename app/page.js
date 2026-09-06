@@ -222,6 +222,7 @@ export default function HomePage() {
   const [verifiedNotice, setVerifiedNotice] = useState("");   // "hesabin dogrulandi" bildirimi
   const [processingVerify, setProcessingVerify] = useState(false);
   const verifyCallbackRef = useRef(false); // dogrulama baglantisindan mi gelindi?
+  const verifyStartedRef = useRef(false);  // callback isleme bir kez baslasin
   const [routines, setRoutines] = useState([]);
   const [marketData, setMarketData] = useState(null);
 
@@ -319,6 +320,7 @@ export default function HomePage() {
   // kullanicinin kendi e-posta/sifresiyle giris yapmasi beklenir.
   useEffect(() => {
     if (typeof window === "undefined" || !supabase) return;
+    if (verifyStartedRef.current) return; // gelistirme modundaki ikinci calistirmayi atla
     const hash = window.location.hash || "";
     const search = window.location.search || "";
 
@@ -333,18 +335,21 @@ export default function HomePage() {
     if (!isVerifyCallback) return;
 
     verifyCallbackRef.current = true;
+    verifyStartedRef.current = true;
     setProcessingVerify(true);
     window.history.replaceState(null, "", window.location.pathname);
 
     // Oturum hic acilmazsa (ornegin baglanti suresi dolmus) ekranda takilma.
-    const fallback = setTimeout(() => {
+    // Not: temizlik (cleanup) ile iptal ETMIYORUZ — React'in gelistirme modundaki
+    // cift calistirmasi zamanlayiciyi oldurmesin; ikinci calisma zaten
+    // verifyStartedRef ile atlaniyor.
+    setTimeout(() => {
       if (!verifyCallbackRef.current) return;
       verifyCallbackRef.current = false;
       setAuthMode("login");
       setVerifiedNotice("✅ Hesabın doğrulandı. Artık e-posta adresin ve şifrenle giriş yapabilirsin.");
       setProcessingVerify(false);
     }, 5000);
-    return () => clearTimeout(fallback);
   }, []);
 
   // Dogrulama baglantisindan gelindi ve Supabase oturumu acti: otomatik girise
