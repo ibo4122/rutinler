@@ -153,6 +153,22 @@ function backupKeyFor(userId) {
   return `${LOCAL_BACKUP_KEY}:${userId}`;
 }
 
+// Supabase'in Ingilizce auth hatalarini anlasilir Turkce mesaja cevirir.
+function authErrorTr(message) {
+  const m = String(message || "");
+  if (/rate limit|too many requests/i.test(m))
+    return "Çok fazla e-posta gönderildi (saatlik sınır doldu). Yaklaşık 1 saat sonra tekrar dene ya da daha önce kayıt olduysan doğrudan giriş yap.";
+  if (/already registered|already exists|user already/i.test(m))
+    return "Bu e-posta adresiyle zaten bir hesap var. Giriş yapmayı ya da 'Şifremi unuttum'u dene.";
+  if (/password should be at least|weak password/i.test(m))
+    return "Şifre çok kısa. En az 6 karakter olmalı.";
+  if (/invalid email|unable to validate email/i.test(m))
+    return "Geçerli bir e-posta adresi gir.";
+  if (/signups not allowed|signup is disabled/i.test(m))
+    return "Şu anda yeni kayıt alınmıyor.";
+  return m; // bilinmeyen hatayi oldugu gibi goster
+}
+
 function getLocalBackup(userId) {
   if (!userId) return null;
   try {
@@ -462,12 +478,15 @@ export default function HomePage() {
     if (password !== passwordAgain) return setAuthMessage("Şifreler eşleşmiyor.");
 
     const cleanEmail = email.trim().toLowerCase();
-    const { error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email: cleanEmail,
       password,
       options: { data: { full_name: fullName.trim() }, emailRedirectTo: window.location.origin },
     });
-    if (error) return setAuthMessage(error.message);
+    if (error) return setAuthMessage(authErrorTr(error.message));
+
+    // E-posta dogrulama kapaliysa Supabase dogrudan oturum dondurur -> panele gec.
+    if (data?.session) return;
 
     setPendingEmail(cleanEmail);
     setAuthMode("verify");
@@ -495,7 +514,7 @@ export default function HomePage() {
     const targetEmail = pendingEmail || email.trim().toLowerCase();
     if (!targetEmail) return setAuthMessage("Önce e-posta adresini gir.");
     const { error } = await supabase.auth.resend({ type: "signup", email: targetEmail });
-    setAuthMessage(error ? error.message : "Yeni doğrulama kodu gönderildi.");
+    setAuthMessage(error ? authErrorTr(error.message) : "Doğrulama e-postası tekrar gönderildi. Gelen kutunu (ve spam klasörünü) kontrol et.");
   };
 
   const handleLogin = async () => {
@@ -524,7 +543,7 @@ export default function HomePage() {
   const handleForgotPassword = async () => {
     if (!email.trim()) return setAuthMessage("Şifre sıfırlama için e-posta adresini gir.");
     const { error } = await supabase.auth.resetPasswordForEmail(email.trim().toLowerCase(), { redirectTo: window.location.origin });
-    setAuthMessage(error ? error.message : "Şifre sıfırlama bağlantısı e-posta adresine gönderildi.");
+    setAuthMessage(error ? authErrorTr(error.message) : "Şifre sıfırlama bağlantısı e-posta adresine gönderildi.");
   };
 
   // Google (OAuth) ile giriş: Supabase yönlendirmeyi yapar, dönüşte onAuthStateChange oturumu yakalar.
