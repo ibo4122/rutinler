@@ -776,6 +776,21 @@ export default function HomePage() {
 
 function AuthView(props) {
   const { authMode, setAuthMode, fullName, setFullName, email, setEmail, password, setPassword, passwordAgain, setPasswordAgain, pendingEmail, verificationCode, setVerificationCode, rememberMe, setRememberMe, authMessage, handleLogin, handleRegister, handleVerifyCode, handleResendCode, handleForgotPassword, handleGoogleLogin } = props;
+
+  // Google butonu yalnizca saglayici Supabase'de GERCEKTEN acikken gosterilir.
+  // Aksi halde kullanici tiklayip hata aliyordu. Ayar acilinca buton kendiliginden gelir.
+  const [googleEnabled, setGoogleEnabled] = useState(false);
+  useEffect(() => {
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    if (!url || !key) return;
+    let alive = true;
+    fetch(`${url}/auth/v1/settings`, { headers: { apikey: key } })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (alive) setGoogleEnabled(!!d?.external?.google); })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, []);
   const googleButton = (
     <>
       <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "14px 0" }}>
@@ -802,7 +817,7 @@ function AuthView(props) {
         <h1 className="authTitle premiumAuthTitle">{authMode === "verify" ? "Kodu Gir" : authMode === "register" ? "Hesap Oluştur" : "Giriş Yap"}</h1>
         <p className="authText premiumAuthText">{authMode === "verify" ? `${pendingEmail} adresine gelen doğrulama kodunu gir.` : authMode === "register" ? "Ad soyad, e-posta ve şifre bilgilerini gir." : "E-posta ve şifreyle giriş yap."}</p>
         {authMode === "verify" ? <><label className="authInputBox fullAuthInput"><span>Doğrulama Kodu</span><input value={verificationCode} placeholder="Mailine gelen kod" onChange={(event) => setVerificationCode(event.target.value)} /></label>{authMessage ? <div className="authMessage">{authMessage}</div> : null}<div className="authButtons"><button type="button" className="premiumButton authPrimaryButton" onClick={handleVerifyCode}>Kodu Doğrula</button><button type="button" className="secondaryButton authSecondaryButton" onClick={handleResendCode}>Kodu Tekrar Gönder</button><button type="button" className="linkButton authBackButton" onClick={() => setAuthMode("login")}>Giriş ekranına dön</button></div></> : authMode === "register" ? <><div className="authFormGrid"><InputBox label="Ad Soyad" value={fullName} placeholder="Ad Soyad" onChange={setFullName} /><InputBox label="E-posta" type="email" value={email} placeholder="ornek@mail.com" onChange={setEmail} /><InputBox label="Şifre" type="password" value={password} placeholder="En az 6 karakter" onChange={setPassword} /><InputBox label="Şifre Tekrarı" type="password" value={passwordAgain} placeholder="Şifreyi tekrar gir" onChange={setPasswordAgain} /></div>{authMessage ? <div className="authMessage">{authMessage}</div> : null}<div className="authButtons"><button type="button" className="premiumButton authPrimaryButton" onClick={handleRegister}>Kaydı Oluştur</button><button type="button" className="secondaryButton authSecondaryButton" onClick={() => setAuthMode("login")}>Giriş Ekranına Dön</button></div></> : <><div className="authFormGrid"><InputBox label="E-posta" type="email" value={email} placeholder="ornek@mail.com" onChange={setEmail} /><InputBox label="Şifre" type="password" value={password} placeholder="Şifren" onChange={setPassword} /></div><div className="authOptionsRow"><label className="rememberBox"><input type="checkbox" checked={rememberMe} onChange={(event) => setRememberMe(event.target.checked)} /><span>Beni hatırla</span></label><button type="button" className="linkButton" onClick={handleForgotPassword}>Şifremi unuttum</button></div>{authMessage ? <div className="authMessage">{authMessage}</div> : null}<div className="authButtons"><button type="button" className="premiumButton authPrimaryButton" onClick={handleLogin}>Giriş Yap</button><button type="button" className="secondaryButton authSecondaryButton" onClick={() => setAuthMode("register")}>Hesap Oluştur</button></div></>}
-        {authMode !== "verify" ? googleButton : null}
+        {authMode !== "verify" && googleEnabled ? googleButton : null}
         <div className="authFooterNote">{authMode === "verify" ? "Mailine gelen kodu girdikten sonra hesabın doğrulanır." : authMode === "register" ? "Kayıt sonrası OTP doğrulama ekranına geçilir." : "İlk kez kullanıyorsan Hesap Oluştur butonuna bas."}</div>
       </section>
     </main>
