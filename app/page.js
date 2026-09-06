@@ -219,6 +219,8 @@ export default function HomePage() {
   const [besSettings, setBesSettings] = useState(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [onboardingDone, setOnboardingDone] = useState(true); // yuklenene kadar gosterme
+  const [verifiedNotice, setVerifiedNotice] = useState("");   // "e-postan dogrulandi" bildirimi
+  const [processingVerify, setProcessingVerify] = useState(false);
   const [routines, setRoutines] = useState([]);
   const [marketData, setMarketData] = useState(null);
 
@@ -309,6 +311,23 @@ export default function HomePage() {
     init();
     const { data } = supabase.auth.onAuthStateChange((_event, nextSession) => setSession(nextSession || null));
     return () => data.subscription.unsubscribe();
+  }, []);
+
+  // E-posta dogrulama baglantisindan gelindiginde Supabase otomatik oturum aciyor.
+  // Istenen davranis: otomatik giris YOK — sadece "dogrulandi" bilgisi verilip
+  // kullanicinin kendi e-posta/sifresiyle giris yapmasi beklenir.
+  useEffect(() => {
+    if (typeof window === "undefined" || !supabase) return;
+    const hash = window.location.hash || "";
+    if (!/type=(signup|email)/.test(hash)) return;
+
+    setProcessingVerify(true);
+    window.history.replaceState(null, "", window.location.pathname + window.location.search);
+    supabase.auth.signOut().finally(() => {
+      setAuthMode("login");
+      setVerifiedNotice("✅ E-posta adresin doğrulandı. Şimdi e-posta ve şifrenle giriş yapabilirsin.");
+      setProcessingVerify(false);
+    });
   }, []);
 
   useEffect(() => {
@@ -448,8 +467,17 @@ export default function HomePage() {
     if (!email.trim() || !password.trim()) return setAuthMessage("E-posta ve şifre gir.");
 
     const cleanEmail = email.trim().toLowerCase();
+    setVerifiedNotice("");
     const { error } = await supabase.auth.signInWithPassword({ email: cleanEmail, password });
-    if (error) return setAuthMessage("Giriş başarısız. E-posta doğrulanmamış olabilir veya şifre hatalı olabilir.");
+    if (error) {
+      // Dogrulanmamis hesaplar giremez; sebebi net soyle.
+      const notConfirmed = /confirm/i.test(error.message || "");
+      return setAuthMessage(
+        notConfirmed
+          ? "E-posta adresin henüz doğrulanmamış. Gelen kutundaki (ya da spam klasöründeki) doğrulama bağlantısına tıkla, sonra tekrar giriş yap."
+          : "E-posta veya şifre hatalı."
+      );
+    }
 
     try {
       if (rememberMe) window.localStorage.setItem("remembered-finance-email", cleanEmail);
@@ -689,8 +717,8 @@ export default function HomePage() {
   const addOrUpdateForex = () => addOrUpdateAsset("forex", forexForm, editingForexId, resetForexForm);
   const startEditForex = (item) => startEditAsset(item, setForexForm, setEditingForexId, setForexOpen);
 
-  if (authLoading) return <main className="financePage authPage"><section className="authCard premiumAuthCard"><h1 className="authTitle premiumAuthTitle">Yükleniyor...</h1></section></main>;
-  if (!session) return <AuthView authMode={authMode} setAuthMode={setAuthMode} fullName={fullName} setFullName={setFullName} email={email} setEmail={setEmail} password={password} setPassword={setPassword} passwordAgain={passwordAgain} setPasswordAgain={setPasswordAgain} pendingEmail={pendingEmail} verificationCode={verificationCode} setVerificationCode={setVerificationCode} rememberMe={rememberMe} setRememberMe={setRememberMe} authMessage={authMessage} handleLogin={handleLogin} handleRegister={handleRegister} handleVerifyCode={handleVerifyCode} handleResendCode={handleResendCode} handleForgotPassword={handleForgotPassword} handleGoogleLogin={handleGoogleLogin} />;
+  if (authLoading || processingVerify) return <main className="financePage authPage"><section className="authCard premiumAuthCard"><h1 className="authTitle premiumAuthTitle">{processingVerify ? "E-postan doğrulanıyor..." : "Yükleniyor..."}</h1></section></main>;
+  if (!session) return <AuthView authMode={authMode} setAuthMode={setAuthMode} fullName={fullName} setFullName={setFullName} email={email} setEmail={setEmail} password={password} setPassword={setPassword} passwordAgain={passwordAgain} setPasswordAgain={setPasswordAgain} pendingEmail={pendingEmail} verificationCode={verificationCode} setVerificationCode={setVerificationCode} rememberMe={rememberMe} setRememberMe={setRememberMe} authMessage={authMessage} handleLogin={handleLogin} handleRegister={handleRegister} handleVerifyCode={handleVerifyCode} handleResendCode={handleResendCode} handleForgotPassword={handleForgotPassword} handleGoogleLogin={handleGoogleLogin} verifiedNotice={verifiedNotice} />;
 
   return (
     <main className={activeTab === "notes" ? "financePage notesFull" : "financePage"}>
@@ -775,7 +803,7 @@ export default function HomePage() {
 }
 
 function AuthView(props) {
-  const { authMode, setAuthMode, fullName, setFullName, email, setEmail, password, setPassword, passwordAgain, setPasswordAgain, pendingEmail, verificationCode, setVerificationCode, rememberMe, setRememberMe, authMessage, handleLogin, handleRegister, handleVerifyCode, handleResendCode, handleForgotPassword, handleGoogleLogin } = props;
+  const { authMode, setAuthMode, fullName, setFullName, email, setEmail, password, setPassword, passwordAgain, setPasswordAgain, pendingEmail, verificationCode, setVerificationCode, rememberMe, setRememberMe, authMessage, handleLogin, handleRegister, handleVerifyCode, handleResendCode, handleForgotPassword, handleGoogleLogin, verifiedNotice } = props;
 
   // Google butonu yalnizca saglayici Supabase'de GERCEKTEN acikken gosterilir.
   // Aksi halde kullanici tiklayip hata aliyordu. Ayar acilinca buton kendiliginden gelir.
@@ -815,6 +843,11 @@ function AuthView(props) {
         <div className="authGlow authGlowTwo" />
         <div className="authBrandRow"><div className="authLogo">₺</div><div><div className="authBrandTitle">Kişisel Finans Yönetimi</div><div className="authBrandSub">{authMode === "verify" ? "E-posta doğrulama" : authMode === "register" ? "Yeni hesap oluştur" : "Güvenli kullanıcı paneli"}</div></div></div>
         <h1 className="authTitle premiumAuthTitle">{authMode === "verify" ? "E-postanı Doğrula" : authMode === "register" ? "Hesap Oluştur" : "Giriş Yap"}</h1>
+        {verifiedNotice && authMode === "login" ? (
+          <div style={{ border: "1px solid rgba(34,197,94,.45)", background: "rgba(34,197,94,.14)", color: "#bbf7d0", borderRadius: 14, padding: "13px 16px", fontSize: 13.5, lineHeight: 1.55, margin: "0 0 16px", fontWeight: 600 }}>
+            {verifiedNotice}
+          </div>
+        ) : null}
         <p className="authText premiumAuthText">{authMode === "verify" ? `${pendingEmail} adresine doğrulama bağlantısı gönderildi.` : authMode === "register" ? "Ad soyad, e-posta ve şifre bilgilerini gir." : "E-posta ve şifreyle giriş yap."}</p>
         {authMode === "verify" ? <><div style={{ border: "1px solid rgba(96,165,250,.35)", background: "rgba(96,165,250,.10)", borderRadius: 18, padding: "18px 20px", marginBottom: 16 }}><div style={{ fontSize: 30, marginBottom: 8 }}>📧</div><div style={{ color: "#fff", fontWeight: 800, fontSize: 16, marginBottom: 6 }}>Doğrulama bağlantısı gönderildi</div><div style={{ color: "#cbd5e1", fontSize: 13.5, lineHeight: 1.6 }}><strong style={{ color: "#93c5fd" }}>{pendingEmail}</strong> adresine bir e-posta gönderdik. İçindeki <strong>bağlantıya tıkla</strong> — hesabın doğrulanacak ve otomatik giriş yapacaksın.</div><div style={{ color: "#94a3b8", fontSize: 12, marginTop: 10, lineHeight: 1.5 }}>Gelen kutunda yoksa <strong>spam / gereksiz</strong> klasörüne bak. E-posta birkaç dakika gecikebilir.</div></div><details style={{ marginBottom: 12 }}><summary style={{ cursor: "pointer", color: "#94a3b8", fontSize: 12.5, padding: "6px 0" }}>E-postada bağlantı yerine kod geldiyse buraya tıkla</summary><label className="authInputBox fullAuthInput" style={{ marginTop: 10 }}><span>Doğrulama Kodu</span><input value={verificationCode} placeholder="Mailine gelen kod" onChange={(event) => setVerificationCode(event.target.value)} /></label><button type="button" className="premiumButton authPrimaryButton" style={{ marginTop: 10 }} onClick={handleVerifyCode}>Kodu Doğrula</button></details>{authMessage ? <div className="authMessage">{authMessage}</div> : null}<div className="authButtons"><button type="button" className="secondaryButton authSecondaryButton" onClick={handleResendCode}>E-postayı Tekrar Gönder</button><button type="button" className="linkButton authBackButton" onClick={() => setAuthMode("login")}>Giriş ekranına dön</button></div></> : authMode === "register" ? <><div className="authFormGrid"><InputBox label="Ad Soyad" value={fullName} placeholder="Ad Soyad" onChange={setFullName} /><InputBox label="E-posta" type="email" value={email} placeholder="ornek@mail.com" onChange={setEmail} /><InputBox label="Şifre" type="password" value={password} placeholder="En az 6 karakter" onChange={setPassword} /><InputBox label="Şifre Tekrarı" type="password" value={passwordAgain} placeholder="Şifreyi tekrar gir" onChange={setPasswordAgain} /></div>{authMessage ? <div className="authMessage">{authMessage}</div> : null}<div className="authButtons"><button type="button" className="premiumButton authPrimaryButton" onClick={handleRegister}>Kaydı Oluştur</button><button type="button" className="secondaryButton authSecondaryButton" onClick={() => setAuthMode("login")}>Giriş Ekranına Dön</button></div></> : <><div className="authFormGrid"><InputBox label="E-posta" type="email" value={email} placeholder="ornek@mail.com" onChange={setEmail} /><InputBox label="Şifre" type="password" value={password} placeholder="Şifren" onChange={setPassword} /></div><div className="authOptionsRow"><label className="rememberBox"><input type="checkbox" checked={rememberMe} onChange={(event) => setRememberMe(event.target.checked)} /><span>Beni hatırla</span></label><button type="button" className="linkButton" onClick={handleForgotPassword}>Şifremi unuttum</button></div>{authMessage ? <div className="authMessage">{authMessage}</div> : null}<div className="authButtons"><button type="button" className="premiumButton authPrimaryButton" onClick={handleLogin}>Giriş Yap</button><button type="button" className="secondaryButton authSecondaryButton" onClick={() => setAuthMode("register")}>Hesap Oluştur</button></div></>}
         {authMode !== "verify" && googleEnabled ? googleButton : null}
