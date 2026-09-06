@@ -8,6 +8,7 @@ import OverviewDashboard from "../components/OverviewDashboard";
 import NotesModule from "../components/notes/NotesModule";
 import FinancialGoals from "../components/FinancialGoals";
 import AdminPanel from "../components/AdminPanel";
+import Onboarding from "../components/Onboarding";
 import { money, formatCurrency, setMoneyHidden } from "../lib/format";
 import { assetValueTry, assetCostTry } from "../lib/assets";
 import { SummaryCard, Panel, MiniPanel, InputBox, SelectBox, EmptyState } from "../components/ui";
@@ -110,6 +111,7 @@ function normalizeFinanceData(data) {
       routines: [],
       financialGoals: emptyFinancialGoals,
       besSettings: null,
+      onboardingDone: false,
     };
   }
 
@@ -139,6 +141,7 @@ function normalizeFinanceData(data) {
       debts: Array.isArray(data.financialGoals?.debts) ? data.financialGoals.debts : [],
     },
     besSettings: data.besSettings && typeof data.besSettings === "object" ? data.besSettings : null,
+    onboardingDone: data.onboardingDone === true,
   };
 }
 
@@ -215,6 +218,7 @@ export default function HomePage() {
   const [financialGoals, setFinancialGoals] = useState(emptyFinancialGoals);
   const [besSettings, setBesSettings] = useState(null);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [onboardingDone, setOnboardingDone] = useState(true); // yuklenene kadar gosterme
   const [routines, setRoutines] = useState([]);
   const [marketData, setMarketData] = useState(null);
 
@@ -328,9 +332,9 @@ export default function HomePage() {
     if (!session?.user || !financeLoaded) return;
     const timer = setTimeout(saveFinanceData, 650);
     return () => clearTimeout(timer);
-  }, [income, extraIncomes, credits, cardExpenses, otherExpenses, investments, routines, financialGoals, besSettings, session, financeLoaded]);
+  }, [income, extraIncomes, credits, cardExpenses, otherExpenses, investments, routines, financialGoals, besSettings, onboardingDone, session, financeLoaded]);
 
-  const currentPayload = () => ({ income, extraIncomes, credits, cardExpenses, otherExpenses, investments, routines, financialGoals, besSettings });
+  const currentPayload = () => ({ income, extraIncomes, credits, cardExpenses, otherExpenses, investments, routines, financialGoals, besSettings, onboardingDone });
 
   const loadFinanceData = async (userId) => {
     setDataLoading(true);
@@ -373,6 +377,8 @@ export default function HomePage() {
     setRoutines(normalized.routines || []);
     setFinancialGoals(normalized.financialGoals || emptyFinancialGoals);
     setBesSettings(normalized.besSettings || {});
+    // Karsilama akisi: yalnizca hic tamamlanmamis VE verisi bos olan hesaplarda gosterilir.
+    setOnboardingDone(normalized.onboardingDone || hasCloudData);
     setFinanceLoaded(true);
     setDataLoading(false);
   };
@@ -749,6 +755,18 @@ export default function HomePage() {
         {activeTab === "notes" ? <NotesModule userId={session.user.id} /> : null}
 
         {activeTab === "admin" && isAdmin ? <AdminPanel currentUserId={session.user.id} /> : null}
+
+        {financeLoaded && !onboardingDone ? (
+          <Onboarding
+            fullName={session.user.user_metadata?.full_name || ""}
+            onFinish={({ salary, mealAllowance }) => {
+              if (salary) setIncome((current) => ({ ...current, salary: formatNumberInput(salary) }));
+              if (mealAllowance) setIncome((current) => ({ ...current, mealAllowance: formatNumberInput(mealAllowance) }));
+              setOnboardingDone(true);
+              setActiveTab("overview");
+            }}
+          />
+        ) : null}
 
         {activeTab === "trading" ? <ForwardTestPanel /> : null}
       </div>
