@@ -863,6 +863,9 @@ function AuthView(props) {
   // Google butonu yalnizca saglayici Supabase'de GERCEKTEN acikken gosterilir.
   // Aksi halde kullanici tiklayip hata aliyordu. Ayar acilinca buton kendiliginden gelir.
   const [googleEnabled, setGoogleEnabled] = useState(false);
+  // E-posta dogrulamasi zorunlu mu? (Supabase: mailer_autoconfirm true ise ZORUNLU DEGIL)
+  // Ayara gore ekran metinleri kendiliginden uyum saglar.
+  const [autoConfirm, setAutoConfirm] = useState(false);
   useEffect(() => {
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -870,7 +873,11 @@ function AuthView(props) {
     let alive = true;
     fetch(`${url}/auth/v1/settings`, { headers: { apikey: key } })
       .then((r) => (r.ok ? r.json() : null))
-      .then((d) => { if (alive) setGoogleEnabled(!!d?.external?.google); })
+      .then((d) => {
+        if (!alive || !d) return;
+        setGoogleEnabled(!!d?.external?.google);
+        setAutoConfirm(!!d?.mailer_autoconfirm);
+      })
       .catch(() => {});
     return () => { alive = false; };
   }, []);
@@ -903,10 +910,10 @@ function AuthView(props) {
             {verifiedNotice}
           </div>
         ) : null}
-        <p className="authText premiumAuthText">{authMode === "verify" ? `${pendingEmail} adresine doğrulama bağlantısı gönderildi.` : authMode === "register" ? "Ad soyad, e-posta ve şifre bilgilerini gir." : "E-posta ve şifreyle giriş yap."}</p>
+        <p className="authText premiumAuthText">{authMode === "verify" ? `${pendingEmail} adresine doğrulama bağlantısı gönderildi.` : authMode === "register" ? (autoConfirm ? "Ad soyad, e-posta ve şifre gir — hesabın hemen açılır." : "Ad soyad, e-posta ve şifre bilgilerini gir.") : "E-posta ve şifreyle giriş yap."}</p>
         {authMode === "verify" ? <><div style={{ border: "1px solid rgba(96,165,250,.35)", background: "rgba(96,165,250,.10)", borderRadius: 18, padding: "18px 20px", marginBottom: 16 }}><div style={{ fontSize: 30, marginBottom: 8 }}>📧</div><div style={{ color: "#fff", fontWeight: 800, fontSize: 16, marginBottom: 6 }}>Doğrulama bağlantısı gönderildi</div><div style={{ color: "#cbd5e1", fontSize: 13.5, lineHeight: 1.6 }}><strong style={{ color: "#93c5fd" }}>{pendingEmail}</strong> adresine bir e-posta gönderdik. İçindeki <strong>bağlantıya tıkla</strong> — hesabın doğrulanacak ve otomatik giriş yapacaksın.</div><div style={{ color: "#94a3b8", fontSize: 12, marginTop: 10, lineHeight: 1.5 }}>Gelen kutunda yoksa <strong>spam / gereksiz</strong> klasörüne bak. E-posta birkaç dakika gecikebilir.</div></div><details style={{ marginBottom: 12 }}><summary style={{ cursor: "pointer", color: "#94a3b8", fontSize: 12.5, padding: "6px 0" }}>E-postada bağlantı yerine kod geldiyse buraya tıkla</summary><label className="authInputBox fullAuthInput" style={{ marginTop: 10 }}><span>Doğrulama Kodu</span><input value={verificationCode} placeholder="Mailine gelen kod" onChange={(event) => setVerificationCode(event.target.value)} /></label><button type="button" className="premiumButton authPrimaryButton" style={{ marginTop: 10 }} onClick={handleVerifyCode}>Kodu Doğrula</button></details>{authMessage ? <div className="authMessage">{authMessage}</div> : null}<div className="authButtons"><button type="button" className="secondaryButton authSecondaryButton" onClick={handleResendCode}>E-postayı Tekrar Gönder</button><button type="button" className="linkButton authBackButton" onClick={() => setAuthMode("login")}>Giriş ekranına dön</button></div></> : authMode === "register" ? <><div className="authFormGrid"><InputBox label="Ad Soyad" value={fullName} placeholder="Ad Soyad" onChange={setFullName} /><InputBox label="E-posta" type="email" value={email} placeholder="ornek@mail.com" onChange={setEmail} /><InputBox label="Şifre" type="password" value={password} placeholder="En az 6 karakter" onChange={setPassword} /><InputBox label="Şifre Tekrarı" type="password" value={passwordAgain} placeholder="Şifreyi tekrar gir" onChange={setPasswordAgain} /></div>{authMessage ? <div className="authMessage">{authMessage}</div> : null}<div className="authButtons"><button type="button" className="premiumButton authPrimaryButton" onClick={handleRegister}>Kaydı Oluştur</button><button type="button" className="secondaryButton authSecondaryButton" onClick={() => setAuthMode("login")}>Giriş Ekranına Dön</button></div></> : <><div className="authFormGrid"><InputBox label="E-posta" type="email" value={email} placeholder="ornek@mail.com" onChange={setEmail} /><InputBox label="Şifre" type="password" value={password} placeholder="Şifren" onChange={setPassword} /></div><div className="authOptionsRow"><label className="rememberBox"><input type="checkbox" checked={rememberMe} onChange={(event) => setRememberMe(event.target.checked)} /><span>Beni hatırla</span></label><button type="button" className="linkButton" onClick={handleForgotPassword}>Şifremi unuttum</button></div>{authMessage ? <div className="authMessage">{authMessage}</div> : null}<div className="authButtons"><button type="button" className="premiumButton authPrimaryButton" onClick={handleLogin}>Giriş Yap</button><button type="button" className="secondaryButton authSecondaryButton" onClick={() => setAuthMode("register")}>Hesap Oluştur</button></div></>}
         {authMode !== "verify" && googleEnabled ? googleButton : null}
-        <div className="authFooterNote">{authMode === "verify" ? "Bağlantıya tıkladıktan sonra hesabın doğrulanır ve otomatik giriş yaparsın." : authMode === "register" ? "Kayıt sonrası e-postana doğrulama bağlantısı gönderilir." : "İlk kez kullanıyorsan Hesap Oluştur butonuna bas."}</div>
+        <div className="authFooterNote">{authMode === "verify" ? "Bağlantıya tıkladıktan sonra hesabın doğrulanır; ardından e-posta ve şifrenle giriş yaparsın." : authMode === "register" ? (autoConfirm ? "Kaydı tamamladığın anda panele girersin." : "Kayıt sonrası e-postana doğrulama bağlantısı gönderilir.") : "İlk kez kullanıyorsan Hesap Oluştur butonuna bas."}</div>
       </section>
     </main>
   );
