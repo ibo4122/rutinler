@@ -397,7 +397,6 @@ function Blok({ no, baslik, aciklama, children, renk = "#93c5fd", zemin = "rgba(
 }
 
 function KonutKarti({ goal, c, onChange, onDelete, likit, aylikGelir }) {
-  const [masrafAcik, setMasrafAcik] = useState(false);
   const ay = aylikKalan(goal.targetDate);
   const aylikBirikim = c.gap > 0 && ay && ay > 0 ? c.gap / ay : null;
   const yuk = aylikGelir > 0 ? (c.taksit / aylikGelir) * 100 : null;
@@ -565,7 +564,6 @@ function KonutKarti({ goal, c, onChange, onDelete, likit, aylikGelir }) {
 }
 
 function AracKarti({ goal, c, onChange, onDelete, likit, aylikGelir }) {
-  const [masrafAcik, setMasrafAcik] = useState(false);
   const ayKalan = aylikKalan(goal.targetDate);
   const aylikBirikim = c.gap > 0 && ayKalan && ayKalan > 0 ? c.gap / ayKalan : null;
   // Araçta ödenebilirlik TAKSİT değil, TOPLAM aylık araç gideri üzerinden ölçülür.
@@ -597,25 +595,36 @@ function AracKarti({ goal, c, onChange, onDelete, likit, aylikGelir }) {
         </div>
       </div>
 
-      <Blok renk="#fcd34d" zemin="rgba(245,158,11,.22)" no="1" baslik="Almak istediğin araç" aciklama="Yakıt tipi ve durumu, kredi limitini ve değer kaybını belirler.">
+      {/* ARAÇ KÜNYESİ — galeri etiketi gibi tek şerit */}
+      <div style={{
+        border: "1px solid rgba(245,158,11,.3)", borderRadius: 16, padding: "13px 15px",
+        background: "linear-gradient(120deg, rgba(245,158,11,.14), rgba(2,6,23,.5))",
+        display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 12, alignItems: "end",
+      }}>
+        <div style={{ gridColumn: "1 / -1", color: "#fcd34d", fontSize: 11, fontWeight: 900, textTransform: "uppercase", letterSpacing: ".05em" }}>
+          🏷️ Araç Künyesi
+        </div>
         <Alan label="Aracın Fiyatı (₺)">
           <input style={inputStyle} inputMode="decimal" value={goal.price || ""} placeholder="Örn: 1.450.000" onChange={(e) => onChange("price", e.target.value)} />
         </Alan>
-        <Alan label="Yakıt Tipi" hint="Elektrikliye daha yüksek kredi limiti var">
+        <Alan label="Yakıt Tipi" hint="Elektrikliye daha yüksek kredi limiti">
           <select style={inputStyle} value={goal.fuel || "ice"} onChange={(e) => onChange("fuel", e.target.value)}>
             <option value="ice">Benzin / Dizel / Hibrit</option>
             <option value="ev">Elektrikli</option>
           </select>
         </Alan>
-        <Alan label="Durumu" hint="Sıfır araç ilk yıl daha hızlı değer kaybeder">
+        <Alan label="Durumu" hint="Sıfır ilk yıl daha hızlı değer kaybeder">
           <select style={inputStyle} value={goal.condition || "new"} onChange={(e) => onChange("condition", e.target.value)}>
             <option value="new">Sıfır</option>
             <option value="used">İkinci El</option>
           </select>
         </Alan>
-      </Blok>
+        <Alan label="Aylık Yakıt + Bakım (₺)" hint="Otopark, lastik, servis dâhil">
+          <input style={inputStyle} inputMode="decimal" value={goal.monthlyRun || ""} placeholder="0" onChange={(e) => onChange("monthlyRun", e.target.value)} />
+        </Alan>
+      </div>
 
-      <Blok renk="#fcd34d" zemin="rgba(245,158,11,.22)" no="2" baslik="Elindeki kaynaklar">
+      <Blok renk="#fcd34d" zemin="rgba(245,158,11,.22)" no="1" baslik="Elindeki kaynaklar">
         <Alan
           label="Nakit / Birikim (₺)"
           hint="Peşinat için ayırabileceğin tutar"
@@ -636,7 +645,7 @@ function AracKarti({ goal, c, onChange, onDelete, likit, aylikGelir }) {
         </Alan>
       </Blok>
 
-      <Blok renk="#fcd34d" zemin="rgba(245,158,11,.22)" no="3" baslik="Taşıt kredisi" aciklama="Kredi kullanmayacaksan boş bırak.">
+      <Blok renk="#fcd34d" zemin="rgba(245,158,11,.22)" no="2" baslik="Taşıt kredisi" aciklama="Kredi kullanmayacaksan boş bırak.">
         <Alan
           label="Kredi Tutarı (₺)"
           hint={c.price > 0
@@ -652,9 +661,6 @@ function AracKarti({ goal, c, onChange, onDelete, likit, aylikGelir }) {
         </Alan>
         <Alan label="Aylık Faiz (%)" hint="Taşıt kredisi ~%3–4">
           <input style={inputStyle} inputMode="decimal" value={goal.loanRate || ""} placeholder="3,25" onChange={(e) => onChange("loanRate", e.target.value)} />
-        </Alan>
-        <Alan label="Aylık Yakıt + Bakım (₺)" hint="Otopark, lastik, servis dâhil tahminin">
-          <input style={inputStyle} inputMode="decimal" value={goal.monthlyRun || ""} placeholder="0" onChange={(e) => onChange("monthlyRun", e.target.value)} />
         </Alan>
       </Blok>
 
@@ -786,204 +792,203 @@ function AracKarti({ goal, c, onChange, onDelete, likit, aylikGelir }) {
   );
 }
 
+// Evlilik ekranı bilinçli olarak diğerlerinden FARKLI kurgulanmıştır:
+// blok blok form yerine, düğün planlamacılarının kullandığı gibi tek bir
+// DÜZENLENEBİLİR ÇİZELGE. Her satır bir bütçe kalemi; tutarı satırın içinde
+// değiştirirsin, payı ve çubuğu anında güncellenir.
+function CizelgeInput({ value, onChange, placeholder, genislik = 118 }) {
+  return (
+    <input
+      style={{
+        width: genislik, boxSizing: "border-box", textAlign: "right",
+        border: "1px solid rgba(255,255,255,.16)", background: "rgba(2,6,23,.55)",
+        color: "#f8fafc", borderRadius: 9, padding: "6px 9px", outline: "none", fontSize: 12.5,
+      }}
+      inputMode="decimal" value={value || ""} placeholder={placeholder}
+      onChange={(e) => onChange(e.target.value)}
+    />
+  );
+}
+
+function CizelgeSatir({ ad, not, sagUst, children, pay, payRenk = "#f472b6", kalin, vurgu }) {
+  return (
+    <tr style={{ borderBottom: "1px solid rgba(255,255,255,.06)", background: vurgu ? "rgba(244,114,182,.10)" : "transparent" }}>
+      <td style={{ padding: "9px 10px", minWidth: 0 }}>
+        <span style={{ display: "block", color: vurgu ? "#fff" : "#e2e8f0", fontWeight: kalin ? 800 : 600, fontSize: 12.5 }}>{ad}</span>
+        {not ? <span style={{ display: "block", color: "#64748b", fontSize: 10, marginTop: 1 }}>{not}</span> : null}
+      </td>
+      <td style={{ padding: "9px 10px", textAlign: "right", whiteSpace: "nowrap" }}>{children}</td>
+      <td style={{ padding: "9px 10px", textAlign: "right", whiteSpace: "nowrap", width: 108 }}>
+        {pay === null || pay === undefined ? (
+          sagUst || null
+        ) : (
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+            <span style={{ width: 40, height: 6, borderRadius: 999, background: "rgba(255,255,255,.12)", overflow: "hidden", display: "inline-block" }}>
+              <span style={{ display: "block", width: `${Math.min(100, pay)}%`, height: "100%", background: `linear-gradient(90deg, ${payRenk}, #a78bfa)` }} />
+            </span>
+            <span style={{ minWidth: 32, textAlign: "right", color: "#cbd5e1", fontSize: 11.5 }}>%{pay.toFixed(0)}</span>
+          </span>
+        )}
+      </td>
+    </tr>
+  );
+}
+
 function EvlilikKarti({ goal, c, onChange, onApplyPreset, onDelete, likit, aylikKalanPara }) {
-  const [dokumAcik, setDokumAcik] = useState(false);
   const ayKalan = aylikKalan(goal.targetDate);
   const aylikBirikim = c.gap > 0 && ayKalan && ayKalan > 0 ? c.gap / ayKalan : null;
+  const pay = (v) => (c.target > 0 ? (v / c.target) * 100 : 0);
 
   const uyarilar = [];
   if (c.takiKarsilama > 60)
     uyarilar.push(`Beklenen takı, bütçenin %${c.takiKarsilama.toFixed(0)} kadarını karşılıyor. Gelen takı davetli profiline göre değişir ve garanti değildir; planı buna fazla yaslama.`);
   if (aylikBirikim && aylikKalanPara > 0 && aylikBirikim > aylikKalanPara)
     uyarilar.push(`Ayda ${money(aylikBirikim)} biriktirmen gerekiyor ama aylık kalanın ${money(aylikKalanPara)}. Tarihi ilerletmen ya da bütçeyi küçültmen gerekebilir.`);
-  if (c.davetli > 0 && c.kisiBasiToplam > 0 && num(goal.perGuest) === 0)
-    uyarilar.push("Kişi başı menü tutarını girmezsen salon + yemek maliyeti hesaba katılmaz.");
 
   const tamam = c.gap <= 0;
+  const th = { padding: "7px 10px", color: "#f9a8d4", fontSize: 10.5, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".04em", borderBottom: "1px solid rgba(244,114,182,.28)" };
 
   return (
-    <article style={{ ...card, display: "grid", gap: 13 }}>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 11, alignItems: "end" }}>
-        <Alan label="💍 Hedef Adı">
-          <input style={inputStyle} value={goal.name || ""} placeholder="Örn: Evlilik Hedefi" onChange={(e) => onChange("name", e.target.value)} />
-        </Alan>
-        <Alan label="Düğün Tarihi">
+    <article style={{
+      border: "1px solid rgba(244,114,182,.3)", borderRadius: 20, padding: 18,
+      background: "linear-gradient(160deg, rgba(76,29,63,.42), rgba(15,23,42,.8))",
+      display: "grid", gap: 13,
+    }}>
+      {/* Künye şeridi */}
+      <div style={{ display: "flex", gap: 11, alignItems: "flex-end", flexWrap: "wrap" }}>
+        <label style={{ flex: "1 1 190px" }}>
+          <span style={{ display: "block", color: "#f9a8d4", fontSize: 11, fontWeight: 800, marginBottom: 5 }}>💍 HEDEF ADI</span>
+          <input style={inputStyle} value={goal.name || ""} placeholder="Evlilik Hedefi" onChange={(e) => onChange("name", e.target.value)} />
+        </label>
+        <label style={{ flex: "0 1 175px" }}>
+          <span style={{ display: "block", color: "#f9a8d4", fontSize: 11, fontWeight: 800, marginBottom: 5 }}>DÜĞÜN TARİHİ</span>
           <input style={inputStyle} type="date" value={goal.targetDate || ""} onChange={(e) => onChange("targetDate", e.target.value)} />
-        </Alan>
-        <div style={{ justifySelf: "end" }}>
-          <button type="button" className="deleteButton" onClick={onDelete}>Sil</button>
-        </div>
-      </div>
-
-      {/* Ölçek ön ayarı — sıfırdan doldurmak yerine tek tıkla başla */}
-      <div style={{ border: "1px solid rgba(255,255,255,.10)", borderRadius: 14, padding: "11px 13px", background: "rgba(2,6,23,.34)" }}>
-        <div style={{ color: "#cbd5e1", fontSize: 11.5, fontWeight: 700, marginBottom: 8 }}>
-          Hızlı başlangıç — düğün ölçeğini seç, rakamlar dolsun (sonra düzenleyebilirsin)
-        </div>
-        <div style={{ display: "flex", gap: 7, flexWrap: "wrap" }}>
+        </label>
+        <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
           {Object.entries(EVLILIK_OLCEK).map(([k, v]) => (
-            <button key={k} type="button" onClick={() => onApplyPreset(v)}
-              style={{ border: "1px solid rgba(148,163,184,.3)", background: "rgba(2,6,23,.5)", color: "#e2e8f0", borderRadius: 10, padding: "7px 13px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+            <button key={k} type="button" onClick={() => onApplyPreset(v)} title="Bu ölçeğin 2026 ortalamalarıyla doldur"
+              style={{ border: "1px solid rgba(244,114,182,.36)", background: "rgba(244,114,182,.12)", color: "#fbcfe8", borderRadius: 9, padding: "8px 12px", fontSize: 11.5, fontWeight: 800, cursor: "pointer" }}>
               {v.label}
             </button>
           ))}
         </div>
+        <button type="button" className="deleteButton" onClick={onDelete}>Sil</button>
       </div>
 
-      <Blok renk="#f9a8d4" zemin="rgba(244,114,182,.22)" no="1" baslik="Düğün organizasyonu" aciklama="Salon + yemek, davetli sayısı × kişi başı menüden hesaplanır.">
-        <Alan label="Davetli Sayısı">
-          <input style={inputStyle} inputMode="decimal" value={goal.guests || ""} placeholder="200" onChange={(e) => onChange("guests", e.target.value)} />
-        </Alan>
-        <Alan label="Kişi Başı Menü (₺)" hint="2026'da 2.500–6.000 ₺ aralığı">
-          <input style={inputStyle} inputMode="decimal" value={goal.perGuest || ""} placeholder="2.500" onChange={(e) => onChange("perGuest", e.target.value)} />
-        </Alan>
-        <Alan label="Gelinlik + Damatlık (₺)" hint="Hazır 15.000 ₺'den, özel dikim 80.000 ₺'ye kadar">
-          <input style={inputStyle} inputMode="decimal" value={goal.attire || ""} placeholder="100.000" onChange={(e) => onChange("attire", e.target.value)} />
-        </Alan>
-        <Alan label="Organizasyon (₺)" hint="Fotoğraf/video, orkestra, kuaför, davetiye, nikah">
-          <input style={inputStyle} inputMode="decimal" value={goal.organization || ""} placeholder="150.000" onChange={(e) => onChange("organization", e.target.value)} />
-        </Alan>
-      </Blok>
+      {/* ÇİZELGE — gider */}
+      <div style={{ border: "1px solid rgba(244,114,182,.22)", borderRadius: 16, background: "rgba(2,6,23,.45)", overflow: "hidden" }}>
+        <div style={{ padding: "11px 13px", borderBottom: "1px solid rgba(244,114,182,.2)", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+          <span style={{ color: "#fff", fontWeight: 900, fontSize: 13.5 }}>📋 Düğün Bütçe Çizelgesi</span>
+          <span style={{ color: "#f9a8d4", fontSize: 11.5, fontWeight: 700 }}>Tutarları satır içinde değiştir</span>
+        </div>
+        <div style={{ overflowX: "auto" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 430 }}>
+            <thead><tr><th style={{ ...th, textAlign: "left" }}>Kalem</th><th style={{ ...th, textAlign: "right" }}>Tutar</th><th style={{ ...th, textAlign: "right" }}>Pay</th></tr></thead>
+            <tbody>
+              <CizelgeSatir ad="Salon + yemek" not={`${c.davetli || 0} davetli × kişi başı menü`} pay={pay(c.kalemler.salonYemek)}>
+                <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
+                  <CizelgeInput value={goal.guests} onChange={(v) => onChange("guests", v)} placeholder="200" genislik={62} />
+                  <span style={{ color: "#64748b", fontSize: 12 }}>×</span>
+                  <CizelgeInput value={goal.perGuest} onChange={(v) => onChange("perGuest", v)} placeholder="2.500" genislik={82} />
+                </span>
+                <span style={{ display: "block", color: "#f9a8d4", fontSize: 11.5, fontWeight: 700, marginTop: 3 }}>{money(c.kalemler.salonYemek)}</span>
+              </CizelgeSatir>
+              <CizelgeSatir ad="Gelinlik + damatlık" not="Hazır 15.000 ₺'den, özel dikim 80.000 ₺'ye" pay={pay(c.kalemler.attire)}>
+                <CizelgeInput value={goal.attire} onChange={(v) => onChange("attire", v)} placeholder="100.000" />
+              </CizelgeSatir>
+              <CizelgeSatir ad="Organizasyon" not="Fotoğraf, orkestra, kuaför, davetiye, nikah" pay={pay(c.kalemler.organization)}>
+                <CizelgeInput value={goal.organization} onChange={(v) => onChange("organization", v)} placeholder="150.000" />
+              </CizelgeSatir>
+              <CizelgeSatir ad="Takı / altın" not="Alyans, set, bilezik — sizin aldığınız" pay={pay(c.kalemler.jewelry)}>
+                <CizelgeInput value={goal.jewelry} onChange={(v) => onChange("jewelry", v)} placeholder="550.000" />
+              </CizelgeSatir>
+              <CizelgeSatir ad="Ev kurma" not="Mobilya + beyaz eşya + çeyiz" pay={pay(c.kalemler.homeSetup)}>
+                <CizelgeInput value={goal.homeSetup} onChange={(v) => onChange("homeSetup", v)} placeholder="750.000" />
+              </CizelgeSatir>
+              <CizelgeSatir ad="Balayı" not="Uçak, konaklama, harcama dâhil" pay={pay(c.kalemler.honeymoon)}>
+                <CizelgeInput value={goal.honeymoon} onChange={(v) => onChange("honeymoon", v)} placeholder="150.000" />
+              </CizelgeSatir>
+              <CizelgeSatir ad="TOPLAM MALİYET" kalin vurgu pay={c.target > 0 ? 100 : 0}
+                not={c.davetli > 0 ? `Davetli başına ${money(c.kisiBasiToplam)}` : null}>
+                <strong style={{ color: "#fff", fontSize: 14 }}>{money(c.target)}</strong>
+              </CizelgeSatir>
+            </tbody>
+          </table>
+        </div>
+      </div>
 
-      <Blok renk="#f9a8d4" zemin="rgba(244,114,182,.22)" no="2" baslik="Takı ve ev kurma" aciklama="Evlilik bütçesinin en büyük iki kalemi genelde burasıdır.">
-        <Alan label="Alınacak Takı / Altın (₺)" hint="Alyans, set, bilezik — sizin aldığınız">
-          <input style={inputStyle} inputMode="decimal" value={goal.jewelry || ""} placeholder="550.000" onChange={(e) => onChange("jewelry", e.target.value)} />
-        </Alan>
-        <Alan label="Ev Kurma (₺)" hint="Mobilya + beyaz eşya + çeyiz">
-          <input style={inputStyle} inputMode="decimal" value={goal.homeSetup || ""} placeholder="750.000" onChange={(e) => onChange("homeSetup", e.target.value)} />
-        </Alan>
-      </Blok>
-
-      <Blok renk="#f9a8d4" zemin="rgba(244,114,182,.22)" no="3" baslik="Balayı">
-        <Alan label="Balayı Bütçesi (₺)" hint="Uçak, konaklama, harcama dâhil">
-          <input style={inputStyle} inputMode="decimal" value={goal.honeymoon || ""} placeholder="150.000" onChange={(e) => onChange("honeymoon", e.target.value)} />
-        </Alan>
-      </Blok>
-
-      <Blok renk="#f9a8d4" zemin="rgba(244,114,182,.22)" no="4" baslik="Kaynaklar" aciklama="Düğünde gelen takı ve para bütçenin önemli bir kısmını karşılar.">
-        <Alan
-          label="Nakit / Birikim (₺)"
-          aksiyon={likit > 0 ? (
+      {/* ÇİZELGE — kaynak */}
+      <div style={{ border: "1px solid rgba(167,139,250,.24)", borderRadius: 16, background: "rgba(2,6,23,.45)", overflow: "hidden" }}>
+        <div style={{ padding: "11px 13px", borderBottom: "1px solid rgba(167,139,250,.2)", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+          <span style={{ color: "#fff", fontWeight: 900, fontSize: 13.5 }}>💐 Kaynaklar</span>
+          {likit > 0 ? (
             <button type="button" onClick={() => onChange("cash", String(Math.round(likit)))}
-              style={{ background: "none", border: "none", color: "#60a5fa", fontSize: 10.5, fontWeight: 700, cursor: "pointer", padding: 0 }}>
+              style={{ background: "none", border: "none", color: "#c4b5fd", fontSize: 11, fontWeight: 700, cursor: "pointer", padding: 0 }}>
               Portföyümden al ({money(likit)})
             </button>
           ) : null}
-        >
-          <input style={inputStyle} inputMode="decimal" value={goal.cash || ""} placeholder="0" onChange={(e) => onChange("cash", e.target.value)} />
-        </Alan>
-        <Alan label="Beklenen Takı + Para (₺)" hint="Düğünde takılacağını tahmin ettiğin altın ve para">
-          <input style={inputStyle} inputMode="decimal" value={goal.expectedGifts || ""} placeholder="0" onChange={(e) => onChange("expectedGifts", e.target.value)} />
-        </Alan>
-        <Alan label="Aile Katkısı (₺)" hint="İki taraftan gelecek destek">
-          <input style={inputStyle} inputMode="decimal" value={goal.familyHelp || ""} placeholder="0" onChange={(e) => onChange("familyHelp", e.target.value)} />
-        </Alan>
-      </Blok>
+        </div>
+        <div style={{ overflowX: "auto" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 430 }}>
+            <thead><tr>
+              <th style={{ ...th, color: "#c4b5fd", borderBottomColor: "rgba(167,139,250,.28)", textAlign: "left" }}>Kaynak</th>
+              <th style={{ ...th, color: "#c4b5fd", borderBottomColor: "rgba(167,139,250,.28)", textAlign: "right" }}>Tutar</th>
+              <th style={{ ...th, color: "#c4b5fd", borderBottomColor: "rgba(167,139,250,.28)", textAlign: "right" }}>Karşılama</th>
+            </tr></thead>
+            <tbody>
+              <CizelgeSatir ad="Nakit / birikim" pay={pay(c.cash)} payRenk="#a78bfa">
+                <CizelgeInput value={goal.cash} onChange={(v) => onChange("cash", v)} placeholder="0" />
+              </CizelgeSatir>
+              <CizelgeSatir ad="Beklenen takı + para" not="Düğünde takılacağını tahmin ettiğin altın ve para"
+                pay={c.takiKarsilama} payRenk={c.takiKarsilama > 60 ? "#fbbf24" : "#a78bfa"}>
+                <CizelgeInput value={goal.expectedGifts} onChange={(v) => onChange("expectedGifts", v)} placeholder="0" />
+              </CizelgeSatir>
+              <CizelgeSatir ad="Aile katkısı" not="İki taraftan gelecek destek" pay={pay(c.family)} payRenk="#a78bfa">
+                <CizelgeInput value={goal.familyHelp} onChange={(v) => onChange("familyHelp", v)} placeholder="0" />
+              </CizelgeSatir>
+              <CizelgeSatir ad="TOPLAM KAYNAK" kalin vurgu pay={c.percent} payRenk="#a78bfa">
+                <strong style={{ color: "#fff", fontSize: 14 }}>{money(c.resources)}</strong>
+              </CizelgeSatir>
+            </tbody>
+          </table>
+        </div>
+      </div>
 
-      {/* SONUÇ */}
+      {/* SONUÇ — kompakt şerit */}
       <div style={{
-        border: `1px solid ${tamam ? "rgba(34,197,94,.4)" : "rgba(244,114,182,.4)"}`,
-        borderRadius: 18, padding: 17,
-        background: tamam
-          ? "linear-gradient(150deg, rgba(34,197,94,.15), rgba(15,23,42,.6))"
-          : "linear-gradient(150deg, rgba(244,114,182,.14), rgba(15,23,42,.6))",
+        display: "flex", alignItems: "center", justifyContent: "space-between", gap: 14, flexWrap: "wrap",
+        border: `1px solid ${tamam ? "rgba(34,197,94,.4)" : "rgba(244,114,182,.42)"}`, borderRadius: 16, padding: "14px 17px",
+        background: tamam ? "linear-gradient(120deg, rgba(34,197,94,.16), rgba(15,23,42,.5))" : "linear-gradient(120deg, rgba(244,114,182,.16), rgba(15,23,42,.5))",
       }}>
-        <div style={{ color: "#cbd5e1", fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".04em" }}>
-          {tamam ? "Bütçen yeterli" : "Eksik kaynak"}
-        </div>
-        <div style={{ color: tamam ? "#86efac" : "#f9a8d4", fontSize: "clamp(26px, 4.5vw, 38px)", fontWeight: 900, lineHeight: 1.1, margin: "5px 0 3px" }}>
-          {tamam ? `+${money(Math.abs(c.gap))}` : money(c.gap)}
-        </div>
-        <div style={{ color: "#94a3b8", fontSize: 11.5 }}>
-          {tamam ? "Kaynakların toplam evlilik maliyetini karşılıyor." : "Düğüne kadar bulman gereken tutar."}
-        </div>
-
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 9, marginTop: 14 }}>
-          <Kutu etiket="Toplam Evlilik Maliyeti" deger={money(c.target)} renk="#e2e8f0" alt="Düğün + takı + ev + balayı" />
-          <Kutu etiket="Kaynakların" deger={money(c.resources)} renk="#60a5fa" alt="Nakit + takı + aile" />
-          {c.gifts > 0 ? (
-            <Kutu etiket="Takı Karşılama Oranı" deger={`%${c.takiKarsilama.toFixed(0)}`}
-              renk={c.takiKarsilama > 60 ? "#fbbf24" : "#34d399"} alt="Bütçenin gelen takıyla karşılanan kısmı" />
-          ) : null}
-          {c.davetli > 0 ? (
-            <Kutu etiket="Davetli Başına Maliyet" deger={money(c.kisiBasiToplam)} renk="#a78bfa" alt={`${c.davetli} kişi üzerinden`} />
-          ) : null}
-          {aylikBirikim ? (
-            <Kutu etiket="Aylık Biriktirmelisin" deger={money(aylikBirikim)} renk="#fbbf24" alt={`${ayKalan} ay içinde yetişmek için`} />
-          ) : null}
-        </div>
-
-        <div style={{ marginTop: 13 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", color: "#94a3b8", fontSize: 11, marginBottom: 5 }}>
-            <span>Karşılanan</span><strong style={{ color: "#fff" }}>%{c.percent.toFixed(1)}</strong>
+        <div>
+          <div style={{ color: "#cbd5e1", fontSize: 10.5, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".04em" }}>
+            {tamam ? "Bütçen yeterli" : "Eksik kaynak"}
           </div>
-          <div style={{ height: 9, borderRadius: 999, background: "rgba(255,255,255,.10)", overflow: "hidden" }}>
-            <div style={{ width: `${c.percent}%`, height: "100%", background: tamam ? "linear-gradient(90deg,#34d399,#22c55e)" : "linear-gradient(90deg,#f472b6,#a78bfa)" }} />
+          <div style={{ color: tamam ? "#86efac" : "#f9a8d4", fontSize: "clamp(24px, 4vw, 34px)", fontWeight: 900, lineHeight: 1.15 }}>
+            {tamam ? `+${money(Math.abs(c.gap))}` : money(c.gap)}
           </div>
         </div>
-
-        {/* Düğün bütçe çizelgesi: hangi kalem bütçeyi yiyor? */}
-        {c.target > 0 ? (
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 11, marginTop: 14 }}>
-            <TabloKutu baslik="Bütçe dağılımı" ikon="📊">
-              <Tablo
-                renk="#f9a8d4"
-                basliklar={["Kalem", "Tutar", "Pay"]}
-                not="Ön ayar rakamları 2026 piyasa ortalamalarıdır; şehir ve mekâna göre önemli ölçüde değişir."
-                satirlar={[
-                  ["Salon + yemek", c.kalemler.salonYemek, c.davetli > 0 ? `${c.davetli} kişi × ${money(num(goal.perGuest))}` : null],
-                  ["Gelinlik + damatlık", c.kalemler.attire, null],
-                  ["Organizasyon", c.kalemler.organization, "Fotoğraf, orkestra, kuaför, davetiye, nikah"],
-                  ["Takı / altın", c.kalemler.jewelry, null],
-                  ["Ev kurma", c.kalemler.homeSetup, "Mobilya + beyaz eşya + çeyiz"],
-                  ["Balayı", c.kalemler.honeymoon, null],
-                ]
-                  .filter(([, tutar]) => tutar > 0)
-                  .sort((a, b) => b[1] - a[1])
-                  .map(([ad, tutar, not]) => {
-                    const pay = (tutar / c.target) * 100;
-                    return {
-                      hucreler: [ad, money(tutar), (
-                        <span style={{ display: "inline-flex", alignItems: "center", gap: 6, justifyContent: "flex-end" }}>
-                          <span style={{ width: 44, height: 6, borderRadius: 999, background: "rgba(255,255,255,.12)", overflow: "hidden", display: "inline-block" }}>
-                            <span style={{ display: "block", width: `${pay}%`, height: "100%", background: "linear-gradient(90deg,#f472b6,#a78bfa)" }} />
-                          </span>
-                          <span style={{ minWidth: 30, textAlign: "right" }}>%{pay.toFixed(0)}</span>
-                        </span>
-                      )],
-                      not,
-                    };
-                  })
-                  .concat([{ hucreler: ["TOPLAM", money(c.target), "%100"], kalin: true, vurgu: true }])}
-              />
-            </TabloKutu>
-
-            <TabloKutu baslik="Kaynak dengesi" ikon="💐">
-              <Tablo
-                renk="#c4b5fd"
-                basliklar={["Kaynak", "Tutar", "Pay"]}
-                not={c.gifts > 0 ? "Düğünde gelen takı ve para tahminidir; davetli sayısı ve profiline göre değişir." : null}
-                satirlar={[
-                  { hucreler: ["Nakit / birikim", money(c.cash), c.target > 0 ? `%${((c.cash / c.target) * 100).toFixed(0)}` : "—"] },
-                  { hucreler: ["Beklenen takı + para", money(c.gifts), `%${c.takiKarsilama.toFixed(0)}`], renk: c.takiKarsilama > 60 ? "#fbbf24" : undefined },
-                  { hucreler: ["Aile katkısı", money(c.family), c.target > 0 ? `%${((c.family / c.target) * 100).toFixed(0)}` : "—"] },
-                  { hucreler: ["TOPLAM KAYNAK", money(c.resources), `%${c.percent.toFixed(0)}`], kalin: true, vurgu: true },
-                  { hucreler: [c.gap > 0 ? "Eksik" : "Fazla", money(Math.abs(c.gap)), ""], kalin: true, renk: c.gap > 0 ? "#fbbf24" : "#86efac" },
-                ]}
-              />
-            </TabloKutu>
+        {aylikBirikim ? (
+          <div style={{ textAlign: "right" }}>
+            <div style={{ color: "#94a3b8", fontSize: 10.5, fontWeight: 700, textTransform: "uppercase" }}>Aylık biriktirmelisin</div>
+            <div style={{ color: "#fbbf24", fontSize: 19, fontWeight: 900 }}>{money(aylikBirikim)}</div>
+            <div style={{ color: "#64748b", fontSize: 10.5 }}>{ayKalan} ay kaldı</div>
           </div>
         ) : null}
+      </div>
 
-        {uyarilar.length ? (
-          <div style={{ marginTop: 13, display: "grid", gap: 7 }}>
-            {uyarilar.map((u, i) => (
-              <div key={i} style={{ display: "flex", gap: 8, color: "#fbbf24", fontSize: 11.5, lineHeight: 1.5, background: "rgba(251,191,36,.09)", border: "1px solid rgba(251,191,36,.24)", borderRadius: 11, padding: "9px 11px" }}>
-                <span>⚠</span><span>{u}</span>
-              </div>
-            ))}
-          </div>
-        ) : null}
+      {uyarilar.length ? (
+        <div style={{ display: "grid", gap: 7 }}>
+          {uyarilar.map((u, i) => (
+            <div key={i} style={{ display: "flex", gap: 8, color: "#fbbf24", fontSize: 11.5, lineHeight: 1.5, background: "rgba(251,191,36,.09)", border: "1px solid rgba(251,191,36,.24)", borderRadius: 11, padding: "9px 11px" }}>
+              <span>⚠</span><span>{u}</span>
+            </div>
+          ))}
+        </div>
+      ) : null}
+
+      <div style={{ color: "#64748b", fontSize: 10.5, lineHeight: 1.5 }}>
+        Ön ayar rakamları 2026 piyasa ortalamalarıdır; şehir ve mekâna göre önemli ölçüde değişir.
       </div>
     </article>
   );
