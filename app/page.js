@@ -997,12 +997,22 @@ function HealthStrip({ totals }) {
     { etiket: "Kredi Yükü", deger: "%" + borcYuku.toFixed(1), renk: renk(borcYuku <= 35, borcYuku <= 50), alt: "Taksit / gelir · sağlıklı %35 altı" },
     { etiket: "Borç Kapanma", deger: kapanma === null ? "—" : kapanma > 600 ? "60+ yıl" : Math.ceil(kapanma) + " ay", renk: kapanma === null ? "#fb7185" : renk(kapanma <= 24, kapanma <= 60), alt: kapanma === null ? "Aylık kalanın negatif" : "Mevcut tempoda tüm borcun" },
   ];
+  // Tek parça şerit: üstteki 4'lü özet kartlarıyla sütun sayısı tutmadığı için
+  // ayrı kartlar "kırık ızgara" gibi görünüyordu. Bu bir yorum katmanı, ayrı
+  // kart seti değil — o yüzden bölmeli tek panel olarak gösteriliyor.
   return (
-    <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10, margin: '0 0 14px' }}>
-      {kalemler.map((k) => (
-        <div key={k.etiket} style={{ border: '1px solid rgba(255,255,255,.10)', borderRadius: 16, padding: '12px 14px', background: 'rgba(2,6,23,.42)' }}>
+    <section style={{
+      display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))',
+      border: '1px solid rgba(255,255,255,.11)', borderRadius: 16,
+      background: 'rgba(2,6,23,.42)', overflow: 'hidden', margin: '0 0 14px',
+    }}>
+      {kalemler.map((k, i) => (
+        <div key={k.etiket} style={{
+          padding: '12px 15px',
+          borderLeft: i === 0 ? 'none' : '1px solid rgba(255,255,255,.08)',
+        }}>
           <div style={{ color: '#94a3b8', fontSize: 10.5, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '.04em' }}>{k.etiket}</div>
-          <div style={{ color: k.renk, fontSize: 21, fontWeight: 900, marginTop: 3 }}>{k.deger}</div>
+          <div style={{ color: k.renk, fontSize: 21, fontWeight: 900, marginTop: 3, lineHeight: 1.15 }}>{k.deger}</div>
           <div style={{ color: '#64748b', fontSize: 10.5, marginTop: 2, lineHeight: 1.4 }}>{k.alt}</div>
         </div>
       ))}

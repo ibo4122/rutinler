@@ -699,12 +699,14 @@ function AracKarti({ goal, c, onChange, onDelete, likit, aylikGelir }) {
       <div style={{
         border: "1px solid rgba(245,158,11,.3)", borderRadius: 16, padding: "13px 15px",
         background: "linear-gradient(120deg, rgba(245,158,11,.14), rgba(2,6,23,.5))",
-        display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 12, alignItems: "end",
+        // alignItems: start — alanların ipucu satırı farklı yükseklikte olduğu için
+        // "end" hizalamada girdi kutuları kayıyordu.
+        display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 12, alignItems: "start",
       }}>
         <div style={{ gridColumn: "1 / -1", color: "#fcd34d", fontSize: 11, fontWeight: 900, textTransform: "uppercase", letterSpacing: ".05em" }}>
           🏷️ Araç Künyesi
         </div>
-        <Alan label="Aracın Fiyatı (₺)">
+        <Alan label="Aracın Fiyatı (₺)" hint="Satıcının istediği fiyat">
           <input style={inputStyle} inputMode="decimal" value={goal.price || ""} placeholder="Örn: 1.450.000" onChange={(e) => onChange("price", e.target.value)} />
         </Alan>
         <Alan label="Yakıt Tipi" hint="Elektrikliye daha yüksek kredi limiti">
