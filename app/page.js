@@ -142,18 +142,35 @@ function normalizeFinanceData(data) {
   };
 }
 
-function getLocalBackup() {
+// KRITIK: Yerel yedek KULLANICIYA OZEL anahtarda tutulur. Eskiden tek bir global
+// anahtar kullaniliyordu; ayni tarayicida baska bir hesap acildiginda onceki
+// kullanicinin verileri yeni hesaba yukleniyor ve otomatik kayitla uzerine
+// yaziliyordu (veri kaybi). Artik yedek yalnizca sahibi olan kullanici icin okunur.
+function backupKeyFor(userId) {
+  return `${LOCAL_BACKUP_KEY}:${userId}`;
+}
+
+function getLocalBackup(userId) {
+  if (!userId) return null;
   try {
-    const raw = window.localStorage.getItem(LOCAL_BACKUP_KEY);
+    const raw = window.localStorage.getItem(backupKeyFor(userId));
     return raw ? normalizeFinanceData(JSON.parse(raw)) : null;
   } catch {
     return null;
   }
 }
 
-function saveLocalBackup(payload) {
+function saveLocalBackup(userId, payload) {
+  if (!userId) return;
   try {
-    window.localStorage.setItem(LOCAL_BACKUP_KEY, JSON.stringify(payload));
+    window.localStorage.setItem(backupKeyFor(userId), JSON.stringify(payload));
+  } catch {}
+}
+
+// Kullaniciya ait olmayan eski global yedegi temizle (bir daha baska hesaba sizmasin).
+function clearLegacyLocalBackup() {
+  try {
+    window.localStorage.removeItem(LOCAL_BACKUP_KEY);
   } catch {}
 }
 
@@ -317,6 +334,10 @@ export default function HomePage() {
 
   const loadFinanceData = async (userId) => {
     setDataLoading(true);
+    // Yukleme bitene kadar otomatik kayit KAPALI olmali; aksi halde hesap degisiminde
+    // onceki kullanicinin state'i yeni hesabin uzerine yazilabilir.
+    setFinanceLoaded(false);
+    clearLegacyLocalBackup(); // eski, kullaniciya ait olmayan yedegi bir kez temizle
     const { data, error } = await supabase.from("user_finance_data").select("data").eq("user_id", userId).maybeSingle();
     if (error) console.log(error);
 
@@ -337,8 +358,9 @@ export default function HomePage() {
       normalized.investments.funds.length ||
       normalized.routines.length;
 
+    // Yalnizca AYNI kullaniciya ait yerel yedek geri yuklenebilir.
     if (!hasCloudData) {
-      const localBackup = getLocalBackup();
+      const localBackup = getLocalBackup(userId);
       if (localBackup) normalized = localBackup;
     }
 
@@ -358,7 +380,7 @@ export default function HomePage() {
   const saveFinanceData = async () => {
     if (!session?.user || !supabase) return;
     const payload = currentPayload();
-    saveLocalBackup(payload);
+    saveLocalBackup(session.user.id, payload);
     setSaving(true);
     const { error } = await supabase.from("user_finance_data").upsert({ user_id: session.user.id, data: payload }, { onConflict: "user_id" });
     if (error) {
