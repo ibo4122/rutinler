@@ -219,8 +219,9 @@ export default function HomePage() {
   const [besSettings, setBesSettings] = useState(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [onboardingDone, setOnboardingDone] = useState(true); // yuklenene kadar gosterme
-  const [verifiedNotice, setVerifiedNotice] = useState("");   // "e-postan dogrulandi" bildirimi
+  const [verifiedNotice, setVerifiedNotice] = useState("");   // "hesabin dogrulandi" bildirimi
   const [processingVerify, setProcessingVerify] = useState(false);
+  const verifyCallbackRef = useRef(false); // dogrulama baglantisindan mi gelindi?
   const [routines, setRoutines] = useState([]);
   const [marketData, setMarketData] = useState(null);
 
@@ -319,16 +320,44 @@ export default function HomePage() {
   useEffect(() => {
     if (typeof window === "undefined" || !supabase) return;
     const hash = window.location.hash || "";
-    if (!/type=(signup|email)/.test(hash)) return;
+    const search = window.location.search || "";
 
+    // Sifre sifirlama akisi oturum gerektirir; ona dokunma.
+    if (/type=recovery/.test(hash + search)) return;
+
+    // Dogrulama baglantisi iki bicimde donebiliyor:
+    //  - implicit: #access_token=...&type=signup
+    //  - PKCE    : ?code=...
+    const isVerifyCallback =
+      /access_token=|type=(signup|email|magiclink|invite)/.test(hash) || /[?&]code=/.test(search);
+    if (!isVerifyCallback) return;
+
+    verifyCallbackRef.current = true;
     setProcessingVerify(true);
-    window.history.replaceState(null, "", window.location.pathname + window.location.search);
+    window.history.replaceState(null, "", window.location.pathname);
+
+    // Oturum hic acilmazsa (ornegin baglanti suresi dolmus) ekranda takilma.
+    const fallback = setTimeout(() => {
+      if (!verifyCallbackRef.current) return;
+      verifyCallbackRef.current = false;
+      setAuthMode("login");
+      setVerifiedNotice("✅ Hesabın doğrulandı. Artık e-posta adresin ve şifrenle giriş yapabilirsin.");
+      setProcessingVerify(false);
+    }, 5000);
+    return () => clearTimeout(fallback);
+  }, []);
+
+  // Dogrulama baglantisindan gelindi ve Supabase oturumu acti: otomatik girise
+  // izin verme, oturumu kapatip kullaniciyi giris ekranina al.
+  useEffect(() => {
+    if (!verifyCallbackRef.current || !session || !supabase) return;
+    verifyCallbackRef.current = false;
     supabase.auth.signOut().finally(() => {
       setAuthMode("login");
-      setVerifiedNotice("✅ E-posta adresin doğrulandı. Şimdi e-posta ve şifrenle giriş yapabilirsin.");
+      setVerifiedNotice("✅ Hesabın doğrulandı. Artık e-posta adresin ve şifrenle giriş yapabilirsin.");
       setProcessingVerify(false);
     });
-  }, []);
+  }, [session]);
 
   useEffect(() => {
     if (!session?.user) {
