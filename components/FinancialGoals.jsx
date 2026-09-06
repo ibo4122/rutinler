@@ -305,6 +305,71 @@ const inputStyle = {
   padding: "9px 11px", outline: "none", fontSize: 13,
 };
 
+// --- Kategori temaları ----------------------------------------------------
+// Her kategori kendi rengiyle ayrışsın; kullanıcı hangi ekranda olduğunu
+// bakar bakmaz anlasın.
+const TEMA = {
+  konut: { ana: "#60a5fa", ikinci: "#8b5cf6", zemin: "rgba(96,165,250,.13)", kenar: "rgba(96,165,250,.34)" },
+  arac: { ana: "#f59e0b", ikinci: "#ef4444", zemin: "rgba(245,158,11,.13)", kenar: "rgba(245,158,11,.34)" },
+  evlilik: { ana: "#f472b6", ikinci: "#a78bfa", zemin: "rgba(244,114,182,.13)", kenar: "rgba(244,114,182,.34)" },
+};
+const tema = (t) => TEMA[t] || TEMA.konut;
+
+// Ortak tablo bileşeni — sayıları liste yerine çizelgede göstermek karşılaştırmayı
+// kolaylaştırır (hangi kalem büyük, hangi bant bizim, hangi yıl ne kadar).
+function Tablo({ basliklar, satirlar, renk = "#93c5fd", not }) {
+  return (
+    <div style={{ overflowX: "auto" }}>
+      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12.5, color: "#e2e8f0", minWidth: 340 }}>
+        <thead>
+          <tr>
+            {basliklar.map((b, i) => (
+              <th key={i} style={{
+                textAlign: i === 0 ? "left" : "right", padding: "7px 10px", color: renk,
+                fontSize: 10.5, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".04em",
+                borderBottom: "1px solid rgba(255,255,255,.12)", whiteSpace: "nowrap",
+              }}>{b}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {satirlar.map((s, i) => (
+            <tr key={i} style={{
+              background: s.vurgu ? "rgba(255,255,255,.07)" : "transparent",
+              borderBottom: "1px solid rgba(255,255,255,.05)",
+              fontWeight: s.kalin ? 800 : 400,
+            }}>
+              {s.hucreler.map((h, j) => (
+                <td key={j} style={{
+                  textAlign: j === 0 ? "left" : "right", padding: "8px 10px",
+                  color: s.renk && j > 0 ? s.renk : s.vurgu ? "#fff" : undefined,
+                  whiteSpace: j === 0 ? "normal" : "nowrap",
+                }}>
+                  {h}
+                  {j === 0 && s.not ? <span style={{ display: "block", color: "#64748b", fontSize: 10, marginTop: 1 }}>{s.not}</span> : null}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {not ? <div style={{ color: "#64748b", fontSize: 10.5, marginTop: 8, lineHeight: 1.5 }}>{not}</div> : null}
+    </div>
+  );
+}
+
+function TabloKutu({ baslik, ikon, renk, children }) {
+  return (
+    <div style={{ border: "1px solid rgba(255,255,255,.11)", borderRadius: 16, padding: "13px 14px", background: "rgba(2,6,23,.4)" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 9 }}>
+        <span style={{ fontSize: 14 }}>{ikon}</span>
+        <span style={{ color: "#fff", fontWeight: 800, fontSize: 13 }}>{baslik}</span>
+      </div>
+      {children}
+    </div>
+  );
+}
+
 function Alan({ label, hint, children, aksiyon }) {
   return (
     <label style={{ display: "block" }}>
@@ -318,11 +383,11 @@ function Alan({ label, hint, children, aksiyon }) {
   );
 }
 
-function Blok({ no, baslik, aciklama, children }) {
+function Blok({ no, baslik, aciklama, children, renk = "#93c5fd", zemin = "rgba(96,165,250,.22)" }) {
   return (
     <div style={{ border: "1px solid rgba(255,255,255,.10)", borderRadius: 16, padding: 14, background: "rgba(2,6,23,.34)" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: aciklama ? 2 : 11 }}>
-        <span style={{ width: 21, height: 21, borderRadius: 999, background: "rgba(96,165,250,.22)", color: "#93c5fd", fontSize: 11, fontWeight: 900, display: "grid", placeItems: "center", flex: "0 0 auto" }}>{no}</span>
+        <span style={{ width: 21, height: 21, borderRadius: 999, background: zemin, color: renk, fontSize: 11, fontWeight: 900, display: "grid", placeItems: "center", flex: "0 0 auto" }}>{no}</span>
         <span style={{ color: "#fff", fontWeight: 800, fontSize: 13.5 }}>{baslik}</span>
       </div>
       {aciklama ? <div style={{ color: "#94a3b8", fontSize: 11, margin: "0 0 11px 30px" }}>{aciklama}</div> : null}
@@ -447,25 +512,40 @@ function KonutKarti({ goal, c, onChange, onDelete, likit, aylikGelir }) {
           </div>
         </div>
 
-        {/* Masraf dökümü */}
+        {/* Emlakçı dosyası: iki tablo yan yana — ne ödüyorum / nereden buluyorum */}
         {c.price > 0 ? (
-          <div style={{ marginTop: 13 }}>
-            <button type="button" onClick={() => setMasrafAcik((v) => !v)}
-              style={{ background: "none", border: "none", color: "#93c5fd", fontSize: 12, fontWeight: 700, cursor: "pointer", padding: 0 }}>
-              {masrafAcik ? "▾" : "▸"} Masraf dökümü ({money(c.masrafToplam)})
-            </button>
-            {masrafAcik ? (
-              <div style={{ marginTop: 9, display: "grid", gap: 5, color: "#cbd5e1", fontSize: 12 }}>
-                <Satir ad="Tapu harcı (%4)" tutar={c.masraflar.tapu} not="Yasada yarısı satıcının; pratikte alıcı öder" />
-                <Satir ad="Emlak komisyonu (%2 + KDV)" tutar={c.masraflar.komisyon} />
-                {c.masraflar.ekspertiz > 0 ? <Satir ad="Ekspertiz" tutar={c.masraflar.ekspertiz} not="Kredi çekilirken zorunlu" /> : null}
-                {c.masraflar.tahsis > 0 ? <Satir ad="Kredi tahsis (binde 5)" tutar={c.masraflar.tahsis} /> : null}
-                {c.masraflar.extra > 0 ? <Satir ad="Tadilat / taşınma" tutar={c.masraflar.extra} /> : null}
-                <div style={{ color: "#64748b", fontSize: 10.5, marginTop: 3, lineHeight: 1.5 }}>
-                  Oranlar 2026 mevzuatına göredir. DASK ve konut sigortası (yıllık birkaç bin ₺) ayrıca ödenir.
-                </div>
-              </div>
-            ) : null}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(290px, 1fr))", gap: 11, marginTop: 14 }}>
+            <TabloKutu baslik="Ödeyeceklerin" ikon="🧾">
+              <Tablo
+                renk="#93c5fd"
+                basliklar={["Kalem", "Tutar"]}
+                not="Oranlar 2026 mevzuatına göredir. DASK ve konut sigortası ayrıca ödenir."
+                satirlar={[
+                  { hucreler: ["Ev fiyatı", money(c.price)] },
+                  { hucreler: ["Tapu harcı (%4)", money(c.masraflar.tapu)], not: "Yasada yarısı satıcının; pratikte alıcı öder" },
+                  { hucreler: ["Emlak komisyonu (%2 + KDV)", money(c.masraflar.komisyon)] },
+                  ...(c.masraflar.ekspertiz > 0 ? [{ hucreler: ["Ekspertiz", money(c.masraflar.ekspertiz)], not: "Kredi çekilirken zorunlu" }] : []),
+                  ...(c.masraflar.tahsis > 0 ? [{ hucreler: ["Kredi tahsis (binde 5)", money(c.masraflar.tahsis)] }] : []),
+                  ...(c.masraflar.extra > 0 ? [{ hucreler: ["Tadilat / taşınma", money(c.masraflar.extra)] }] : []),
+                  { hucreler: ["TOPLAM", money(c.target)], kalin: true, vurgu: true },
+                ]}
+              />
+            </TabloKutu>
+
+            <TabloKutu baslik="Nereden karşılıyorsun" ikon="🏦">
+              <Tablo
+                renk="#c4b5fd"
+                basliklar={["Kaynak", "Tutar"]}
+                not={c.taksit > 0 ? `Kredi ${num(goal.loanMonths) || 0} ay boyunca aylık ${money(c.taksit)} taksitle geri ödenir.` : null}
+                satirlar={[
+                  { hucreler: ["Nakit / birikim", money(c.cash)] },
+                  { hucreler: ["Ev satışı (net)", money(c.sellNet)], not: num(goal.sellHomeDebt) > 0 ? `${money(num(goal.sellHome))} − ${money(num(goal.sellHomeDebt))} kredi borcu` : null },
+                  { hucreler: ["Konut kredisi", money(c.loan)] },
+                  { hucreler: ["TOPLAM KAYNAK", money(c.resources)], kalin: true, vurgu: true },
+                  { hucreler: [c.gap > 0 ? "Açık" : "Fazla", money(Math.abs(c.gap))], kalin: true, renk: c.gap > 0 ? "#fbbf24" : "#86efac" },
+                ]}
+              />
+            </TabloKutu>
           </div>
         ) : null}
 
@@ -517,7 +597,7 @@ function AracKarti({ goal, c, onChange, onDelete, likit, aylikGelir }) {
         </div>
       </div>
 
-      <Blok no="1" baslik="Almak istediğin araç" aciklama="Yakıt tipi ve durumu, kredi limitini ve değer kaybını belirler.">
+      <Blok renk="#fcd34d" zemin="rgba(245,158,11,.22)" no="1" baslik="Almak istediğin araç" aciklama="Yakıt tipi ve durumu, kredi limitini ve değer kaybını belirler.">
         <Alan label="Aracın Fiyatı (₺)">
           <input style={inputStyle} inputMode="decimal" value={goal.price || ""} placeholder="Örn: 1.450.000" onChange={(e) => onChange("price", e.target.value)} />
         </Alan>
@@ -535,7 +615,7 @@ function AracKarti({ goal, c, onChange, onDelete, likit, aylikGelir }) {
         </Alan>
       </Blok>
 
-      <Blok no="2" baslik="Elindeki kaynaklar">
+      <Blok renk="#fcd34d" zemin="rgba(245,158,11,.22)" no="2" baslik="Elindeki kaynaklar">
         <Alan
           label="Nakit / Birikim (₺)"
           hint="Peşinat için ayırabileceğin tutar"
@@ -556,7 +636,7 @@ function AracKarti({ goal, c, onChange, onDelete, likit, aylikGelir }) {
         </Alan>
       </Blok>
 
-      <Blok no="3" baslik="Taşıt kredisi" aciklama="Kredi kullanmayacaksan boş bırak.">
+      <Blok renk="#fcd34d" zemin="rgba(245,158,11,.22)" no="3" baslik="Taşıt kredisi" aciklama="Kredi kullanmayacaksan boş bırak.">
         <Alan
           label="Kredi Tutarı (₺)"
           hint={c.price > 0
@@ -635,25 +715,60 @@ function AracKarti({ goal, c, onChange, onDelete, likit, aylikGelir }) {
           </div>
         </div>
 
-        {/* Masraf dökümü */}
+        {/* Galerici raporu: kredi bandın + yıl yıl değer kaybı */}
         {c.price > 0 ? (
-          <div style={{ marginTop: 13 }}>
-            <button type="button" onClick={() => setMasrafAcik((v) => !v)}
-              style={{ background: "none", border: "none", color: "#93c5fd", fontSize: 12, fontWeight: 700, cursor: "pointer", padding: 0 }}>
-              {masrafAcik ? "▾" : "▸"} Masraf ve gider dökümü
-            </button>
-            {masrafAcik ? (
-              <div style={{ marginTop: 9, display: "grid", gap: 5, color: "#cbd5e1", fontSize: 12 }}>
-                <Satir ad="Noter satış harcı (binde 2)" tutar={c.masraflar.noterHarc} not="Asgari 1.000 ₺" />
-                <Satir ad="Noter hizmet bedeli" tutar={c.masraflar.noterHizmet} not="Harcın %30'u + sayfa/nüsha/bildirim" />
-                <Satir ad="Tescil / plaka" tutar={c.masraflar.tescil} />
-                <Satir ad="Aylık sigorta + vergi (tahmini)" tutar={c.aylikSigortaVergi} not="Kasko + trafik + MTV; yaş ve motor hacmine göre değişir" />
-                {c.aylikKullanim > 0 ? <Satir ad="Aylık yakıt + bakım" tutar={c.aylikKullanim} /> : null}
-                <div style={{ color: "#64748b", fontSize: 10.5, marginTop: 3, lineHeight: 1.5 }}>
-                  Noter tarifesi 2026'ya göredir. Sigorta/vergi ve değer kaybı tahminidir; gerçek tutarlar araca göre değişir.
-                </div>
-              </div>
-            ) : null}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 11, marginTop: 14 }}>
+            <TabloKutu baslik="Kredi bandın (BDDK)" ikon="📋">
+              <Tablo
+                renk="#fcd34d"
+                basliklar={["Araç değeri", "Kredi", "Vade"]}
+                not="Vurgulu satır senin aracının bandı. Değer yükseldikçe kredi oranı düşer, vade kısalır."
+                satirlar={KREDI_KADEMELERI[goal.fuel === "ev" ? "ev" : "ice"].map((k, i, arr) => {
+                  const alt = i === 0 ? 0 : arr[i - 1].ustSinir;
+                  const aralik = k.ustSinir === Infinity ? `${money(alt)} üzeri` : `${money(alt)} – ${money(k.ustSinir)}`;
+                  return {
+                    hucreler: [aralik, k.oran > 0 ? `%${(k.oran * 100).toFixed(0)}` : "yok", k.vade > 0 ? `${k.vade} ay` : "—"],
+                    vurgu: c.price > alt && c.price <= k.ustSinir,
+                    kalin: c.price > alt && c.price <= k.ustSinir,
+                  };
+                })}
+              />
+            </TabloKutu>
+
+            <TabloKutu baslik="Değer kaybı projeksiyonu" ikon="📉">
+              <Tablo
+                renk="#fca5a5"
+                basliklar={["Yıl", "Tahmini değer", "Kayıp"]}
+                not={`${c.sifirMi ? "Sıfır araç ilk yıl ~%20, sonrasında ~%10" : "İkinci el ~%10/yıl"} değer kaybı varsayımıyla. Tahmindir.`}
+                satirlar={[1, 2, 3, 4, 5].map((y) => {
+                  const d = kalanDeger(c.price, y, c.sifirMi);
+                  return {
+                    hucreler: [`${y}. yıl`, money(d), `− ${money(c.price - d)}`],
+                    vurgu: y === SAHIPLIK_YIL,
+                    kalin: y === SAHIPLIK_YIL,
+                    renk: "#fda4af",
+                  };
+                })}
+              />
+            </TabloKutu>
+
+            <TabloKutu baslik="Alım masrafları ve aylık giderler" ikon="🧾">
+              <Tablo
+                renk="#fcd34d"
+                basliklar={["Kalem", "Tutar"]}
+                not="Noter tarifesi 2026'ya göredir. Sigorta/vergi tahminidir; araç yaşı ve motor hacmine göre değişir."
+                satirlar={[
+                  { hucreler: ["Noter satış harcı (binde 2)", money(c.masraflar.noterHarc)], not: "Asgari 1.000 ₺" },
+                  { hucreler: ["Noter hizmet bedeli", money(c.masraflar.noterHizmet)], not: "Harcın %30'u + sayfa/nüsha/bildirim" },
+                  { hucreler: ["Tescil / plaka", money(c.masraflar.tescil)] },
+                  { hucreler: ["ALIM MASRAFI TOPLAMI", money(c.masrafToplam)], kalin: true, vurgu: true },
+                  ...(c.taksit > 0 ? [{ hucreler: ["Aylık kredi taksiti", money(c.taksit)] }] : []),
+                  { hucreler: ["Aylık sigorta + vergi", money(c.aylikSigortaVergi)], not: "Kasko + trafik + MTV (tahmini)" },
+                  ...(c.aylikKullanim > 0 ? [{ hucreler: ["Aylık yakıt + bakım", money(c.aylikKullanim)] }] : []),
+                  { hucreler: ["AYLIK TOPLAM GİDER", money(c.aylikToplamGider)], kalin: true, vurgu: true, renk: "#fbbf24" },
+                ]}
+              />
+            </TabloKutu>
           </div>
         ) : null}
 
@@ -715,7 +830,7 @@ function EvlilikKarti({ goal, c, onChange, onApplyPreset, onDelete, likit, aylik
         </div>
       </div>
 
-      <Blok no="1" baslik="Düğün organizasyonu" aciklama="Salon + yemek, davetli sayısı × kişi başı menüden hesaplanır.">
+      <Blok renk="#f9a8d4" zemin="rgba(244,114,182,.22)" no="1" baslik="Düğün organizasyonu" aciklama="Salon + yemek, davetli sayısı × kişi başı menüden hesaplanır.">
         <Alan label="Davetli Sayısı">
           <input style={inputStyle} inputMode="decimal" value={goal.guests || ""} placeholder="200" onChange={(e) => onChange("guests", e.target.value)} />
         </Alan>
@@ -730,7 +845,7 @@ function EvlilikKarti({ goal, c, onChange, onApplyPreset, onDelete, likit, aylik
         </Alan>
       </Blok>
 
-      <Blok no="2" baslik="Takı ve ev kurma" aciklama="Evlilik bütçesinin en büyük iki kalemi genelde burasıdır.">
+      <Blok renk="#f9a8d4" zemin="rgba(244,114,182,.22)" no="2" baslik="Takı ve ev kurma" aciklama="Evlilik bütçesinin en büyük iki kalemi genelde burasıdır.">
         <Alan label="Alınacak Takı / Altın (₺)" hint="Alyans, set, bilezik — sizin aldığınız">
           <input style={inputStyle} inputMode="decimal" value={goal.jewelry || ""} placeholder="550.000" onChange={(e) => onChange("jewelry", e.target.value)} />
         </Alan>
@@ -739,13 +854,13 @@ function EvlilikKarti({ goal, c, onChange, onApplyPreset, onDelete, likit, aylik
         </Alan>
       </Blok>
 
-      <Blok no="3" baslik="Balayı">
+      <Blok renk="#f9a8d4" zemin="rgba(244,114,182,.22)" no="3" baslik="Balayı">
         <Alan label="Balayı Bütçesi (₺)" hint="Uçak, konaklama, harcama dâhil">
           <input style={inputStyle} inputMode="decimal" value={goal.honeymoon || ""} placeholder="150.000" onChange={(e) => onChange("honeymoon", e.target.value)} />
         </Alan>
       </Blok>
 
-      <Blok no="4" baslik="Kaynaklar" aciklama="Düğünde gelen takı ve para bütçenin önemli bir kısmını karşılar.">
+      <Blok renk="#f9a8d4" zemin="rgba(244,114,182,.22)" no="4" baslik="Kaynaklar" aciklama="Düğünde gelen takı ve para bütçenin önemli bir kısmını karşılar.">
         <Alan
           label="Nakit / Birikim (₺)"
           aksiyon={likit > 0 ? (
@@ -807,25 +922,56 @@ function EvlilikKarti({ goal, c, onChange, onApplyPreset, onDelete, likit, aylik
           </div>
         </div>
 
+        {/* Düğün bütçe çizelgesi: hangi kalem bütçeyi yiyor? */}
         {c.target > 0 ? (
-          <div style={{ marginTop: 13 }}>
-            <button type="button" onClick={() => setDokumAcik((v) => !v)}
-              style={{ background: "none", border: "none", color: "#93c5fd", fontSize: 12, fontWeight: 700, cursor: "pointer", padding: 0 }}>
-              {dokumAcik ? "▾" : "▸"} Masraf dökümü ({money(c.target)})
-            </button>
-            {dokumAcik ? (
-              <div style={{ marginTop: 9, display: "grid", gap: 5, color: "#cbd5e1", fontSize: 12 }}>
-                <Satir ad="Salon + yemek" tutar={c.kalemler.salonYemek} not={c.davetli > 0 ? `${c.davetli} kişi × ${money(num(goal.perGuest))}` : null} />
-                <Satir ad="Gelinlik + damatlık" tutar={c.kalemler.attire} />
-                <Satir ad="Organizasyon" tutar={c.kalemler.organization} not="Fotoğraf, orkestra, kuaför, davetiye, nikah" />
-                <Satir ad="Takı / altın" tutar={c.kalemler.jewelry} />
-                <Satir ad="Ev kurma" tutar={c.kalemler.homeSetup} not="Mobilya + beyaz eşya + çeyiz" />
-                <Satir ad="Balayı" tutar={c.kalemler.honeymoon} />
-                <div style={{ color: "#64748b", fontSize: 10.5, marginTop: 3, lineHeight: 1.5 }}>
-                  Ön ayar rakamları 2026 piyasa ortalamalarıdır; şehir ve mekâna göre önemli ölçüde değişir.
-                </div>
-              </div>
-            ) : null}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 11, marginTop: 14 }}>
+            <TabloKutu baslik="Bütçe dağılımı" ikon="📊">
+              <Tablo
+                renk="#f9a8d4"
+                basliklar={["Kalem", "Tutar", "Pay"]}
+                not="Ön ayar rakamları 2026 piyasa ortalamalarıdır; şehir ve mekâna göre önemli ölçüde değişir."
+                satirlar={[
+                  ["Salon + yemek", c.kalemler.salonYemek, c.davetli > 0 ? `${c.davetli} kişi × ${money(num(goal.perGuest))}` : null],
+                  ["Gelinlik + damatlık", c.kalemler.attire, null],
+                  ["Organizasyon", c.kalemler.organization, "Fotoğraf, orkestra, kuaför, davetiye, nikah"],
+                  ["Takı / altın", c.kalemler.jewelry, null],
+                  ["Ev kurma", c.kalemler.homeSetup, "Mobilya + beyaz eşya + çeyiz"],
+                  ["Balayı", c.kalemler.honeymoon, null],
+                ]
+                  .filter(([, tutar]) => tutar > 0)
+                  .sort((a, b) => b[1] - a[1])
+                  .map(([ad, tutar, not]) => {
+                    const pay = (tutar / c.target) * 100;
+                    return {
+                      hucreler: [ad, money(tutar), (
+                        <span style={{ display: "inline-flex", alignItems: "center", gap: 6, justifyContent: "flex-end" }}>
+                          <span style={{ width: 44, height: 6, borderRadius: 999, background: "rgba(255,255,255,.12)", overflow: "hidden", display: "inline-block" }}>
+                            <span style={{ display: "block", width: `${pay}%`, height: "100%", background: "linear-gradient(90deg,#f472b6,#a78bfa)" }} />
+                          </span>
+                          <span style={{ minWidth: 30, textAlign: "right" }}>%{pay.toFixed(0)}</span>
+                        </span>
+                      )],
+                      not,
+                    };
+                  })
+                  .concat([{ hucreler: ["TOPLAM", money(c.target), "%100"], kalin: true, vurgu: true }])}
+              />
+            </TabloKutu>
+
+            <TabloKutu baslik="Kaynak dengesi" ikon="💐">
+              <Tablo
+                renk="#c4b5fd"
+                basliklar={["Kaynak", "Tutar", "Pay"]}
+                not={c.gifts > 0 ? "Düğünde gelen takı ve para tahminidir; davetli sayısı ve profiline göre değişir." : null}
+                satirlar={[
+                  { hucreler: ["Nakit / birikim", money(c.cash), c.target > 0 ? `%${((c.cash / c.target) * 100).toFixed(0)}` : "—"] },
+                  { hucreler: ["Beklenen takı + para", money(c.gifts), `%${c.takiKarsilama.toFixed(0)}`], renk: c.takiKarsilama > 60 ? "#fbbf24" : undefined },
+                  { hucreler: ["Aile katkısı", money(c.family), c.target > 0 ? `%${((c.family / c.target) * 100).toFixed(0)}` : "—"] },
+                  { hucreler: ["TOPLAM KAYNAK", money(c.resources), `%${c.percent.toFixed(0)}`], kalin: true, vurgu: true },
+                  { hucreler: [c.gap > 0 ? "Eksik" : "Fazla", money(Math.abs(c.gap)), ""], kalin: true, renk: c.gap > 0 ? "#fbbf24" : "#86efac" },
+                ]}
+              />
+            </TabloKutu>
           </div>
         ) : null}
 
