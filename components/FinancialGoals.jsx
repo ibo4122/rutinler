@@ -7,7 +7,7 @@ import { money } from "../lib/format";
 const GOAL_TYPES = [
   { id: "konut", label: "Konut", icon: "🏠", ready: true },
   { id: "arac", label: "Araç", icon: "🚗", ready: true },
-  { id: "evlilik", label: "Evlilik", icon: "💍", ready: false },
+  { id: "evlilik", label: "Evlilik", icon: "💍", ready: true },
   { id: "seyahat", label: "Seyahat", icon: "✈️", ready: false },
   { id: "is", label: "İş Kurma", icon: "💼", ready: false },
   { id: "alisveris", label: "Alışveriş", icon: "🛍️", ready: false },
@@ -113,6 +113,41 @@ function calcArac(goal) {
   };
 }
 
+// --- Evlilik (Türkiye, 2026) ----------------------------------------------
+// Sektörün kritik gerçeği: takı hem GİDER hem GELİRDİR. Düğünde gelen altın ve
+// para, masrafın önemli bir kısmını karşılar — bütçe bunu görmezse yanıltır.
+const EVLILIK_OLCEK = {
+  sade: { label: "Sade", guests: "120", perGuest: "2000", attire: "50000", organization: "70000", jewelry: "200000", homeSetup: "350000", honeymoon: "60000" },
+  orta: { label: "Orta", guests: "200", perGuest: "2500", attire: "100000", organization: "150000", jewelry: "550000", homeSetup: "750000", honeymoon: "150000" },
+  genis: { label: "Gösterişli", guests: "350", perGuest: "5000", attire: "180000", organization: "300000", jewelry: "900000", homeSetup: "1200000", honeymoon: "300000" },
+};
+
+function calcEvlilik(goal) {
+  const davetli = num(goal.guests);
+  const kisiBasi = num(goal.perGuest);
+  const salonYemek = davetli * kisiBasi;
+  const attire = num(goal.attire);            // gelinlik + damatlık
+  const organization = num(goal.organization); // fotoğraf, orkestra, kuaför, davetiye, nikah
+  const jewelry = num(goal.jewelry);           // alınacak takı/altın
+  const homeSetup = num(goal.homeSetup);       // mobilya + beyaz eşya
+  const honeymoon = num(goal.honeymoon);
+
+  const kalemler = { salonYemek, attire, organization, jewelry, homeSetup, honeymoon };
+  const target = salonYemek + attire + organization + jewelry + homeSetup + honeymoon;
+
+  const cash = num(goal.cash);
+  const gifts = num(goal.expectedGifts);   // düğünde gelen takı + para
+  const family = num(goal.familyHelp);
+  const resources = cash + gifts + family;
+
+  const gap = target - resources;
+  const percent = target > 0 ? Math.min(100, (resources / target) * 100) : 0;
+  const takiKarsilama = target > 0 ? (gifts / target) * 100 : 0;
+  const kisiBasiToplam = davetli > 0 ? target / davetli : 0;
+
+  return { davetli, kalemler, target, resources, cash, gifts, family, gap, percent, takiKarsilama, kisiBasiToplam };
+}
+
 // Anüite taksiti
 function taksitHesapla(anapara, aylikFaizYuzde, ay) {
   if (anapara <= 0 || ay <= 0) return 0;
@@ -172,6 +207,7 @@ function migrate(goal) {
 function calcGoal(goal) {
   if (goal.type === "konut") return calcKonut(goal);
   if (goal.type === "arac") return calcArac(goal);
+  if (goal.type === "evlilik") return calcEvlilik(goal);
   // Diğer türler eklendikçe buraya gelecek.
   const target = num(goal.targetValue);
   return { target, resources: 0, gap: target, percent: 0, taksit: 0, ltv: 0, masrafToplam: 0, masraflar: {} };
@@ -183,6 +219,78 @@ function aylikKalan(targetDate) {
   if (Number.isNaN(d.getTime())) return null;
   const now = new Date();
   return Math.max(0, (d.getFullYear() - now.getFullYear()) * 12 + (d.getMonth() - now.getMonth()));
+}
+
+// --- Kategori görselleri --------------------------------------------------
+// Dış bağımlılık/telif riski olmasın diye fotoğraf yerine satır içi SVG çizim
+// kullanıyoruz: anında yüklenir, her ekranda net görünür, tema ile uyumlu.
+const HERO = {
+  konut: { renk: ["#60a5fa", "#8b5cf6"], baslik: "Konut Hedefi", alt: "Ev alım maliyetini, kredi tavanını ve taksit yükünü birlikte hesaplar." },
+  arac: { renk: ["#f59e0b", "#ef4444"], baslik: "Araç Hedefi", alt: "Kademeli kredi limitini, sahip olma giderini ve değer kaybını gösterir." },
+  evlilik: { renk: ["#f472b6", "#a78bfa"], baslik: "Evlilik Hedefi", alt: "Düğün, takı, ev kurma ve balayını tek bütçede toplar." },
+  seyahat: { renk: ["#22d3ee", "#3b82f6"], baslik: "Seyahat Hedefi", alt: "Hazırlanıyor." },
+  is: { renk: ["#34d399", "#059669"], baslik: "İş Kurma Hedefi", alt: "Hazırlanıyor." },
+  alisveris: { renk: ["#fb7185", "#f59e0b"], baslik: "Alışveriş Hedefi", alt: "Hazırlanıyor." },
+  ozel: { renk: ["#a78bfa", "#6366f1"], baslik: "Özel Hedef", alt: "Hazırlanıyor." },
+};
+
+function HeroCizim({ type }) {
+  const c = "rgba(255,255,255,.92)";
+  const s = "rgba(255,255,255,.45)";
+  if (type === "konut") return (
+    <svg viewBox="0 0 120 80" width="118" height="78" aria-hidden="true">
+      <circle cx="97" cy="18" r="9" fill={s} opacity=".5" />
+      <path d="M18 40 L48 18 L78 40 V70 H18 Z" fill="none" stroke={c} strokeWidth="3" strokeLinejoin="round" />
+      <path d="M12 42 L48 14 L84 42" fill="none" stroke={c} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+      <rect x="40" y="50" width="16" height="20" fill="none" stroke={c} strokeWidth="2.5" />
+      <rect x="25" y="47" width="10" height="9" fill="none" stroke={s} strokeWidth="2" />
+      <rect x="61" y="47" width="10" height="9" fill="none" stroke={s} strokeWidth="2" />
+    </svg>
+  );
+  if (type === "arac") return (
+    <svg viewBox="0 0 120 80" width="118" height="78" aria-hidden="true">
+      <path d="M16 52 L23 34 C24 31 26 30 29 30 H79 C82 30 84 31 86 34 L96 52" fill="none" stroke={c} strokeWidth="3" strokeLinejoin="round" />
+      <rect x="10" y="52" width="92" height="14" rx="6" fill="none" stroke={c} strokeWidth="3" />
+      <circle cx="31" cy="66" r="8" fill="none" stroke={c} strokeWidth="3" />
+      <circle cx="81" cy="66" r="8" fill="none" stroke={c} strokeWidth="3" />
+      <path d="M40 32 V50 M63 32 V50" stroke={s} strokeWidth="2" />
+      <path d="M100 40 h12 M100 46 h9" stroke={s} strokeWidth="2.5" strokeLinecap="round" />
+    </svg>
+  );
+  if (type === "evlilik") return (
+    <svg viewBox="0 0 120 80" width="118" height="78" aria-hidden="true">
+      <circle cx="46" cy="48" r="17" fill="none" stroke={c} strokeWidth="3" />
+      <circle cx="72" cy="48" r="17" fill="none" stroke={c} strokeWidth="3" opacity=".75" />
+      <path d="M46 31 l-5 -7 h10 z" fill={c} />
+      <path d="M92 22 c3-4 9-3 9 2 0 5-9 10-9 10 s-9-5-9-10 c0-5 6-6 9-2 z" fill={s} />
+      <path d="M22 20 c2-3 6-2 6 1.5 0 3.5-6 7-6 7 s-6-3.5-6-7 c0-3.5 4-4.5 6-1.5 z" fill={s} opacity=".7" />
+    </svg>
+  );
+  return (
+    <svg viewBox="0 0 120 80" width="118" height="78" aria-hidden="true">
+      <circle cx="60" cy="44" r="22" fill="none" stroke={c} strokeWidth="3" />
+      <circle cx="60" cy="44" r="10" fill="none" stroke={s} strokeWidth="2.5" />
+      <circle cx="60" cy="44" r="3" fill={c} />
+    </svg>
+  );
+}
+
+function Hero({ type }) {
+  const h = HERO[type] || HERO.ozel;
+  return (
+    <div style={{
+      display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16,
+      borderRadius: 20, padding: "18px 22px", overflow: "hidden",
+      background: `linear-gradient(135deg, ${h.renk[0]}38, ${h.renk[1]}22), rgba(2,6,23,.55)`,
+      border: `1px solid ${h.renk[0]}44`,
+    }}>
+      <div style={{ minWidth: 0 }}>
+        <h2 style={{ margin: 0, fontSize: 21, fontWeight: 900, color: "#fff" }}>{h.baslik}</h2>
+        <p style={{ margin: "5px 0 0", color: "#cbd5e1", fontSize: 12.5, lineHeight: 1.55 }}>{h.alt}</p>
+      </div>
+      <div style={{ flex: "0 0 auto", opacity: 0.9 }}><HeroCizim type={type} /></div>
+    </div>
+  );
 }
 
 const card = {
@@ -563,6 +671,178 @@ function AracKarti({ goal, c, onChange, onDelete, likit, aylikGelir }) {
   );
 }
 
+function EvlilikKarti({ goal, c, onChange, onApplyPreset, onDelete, likit, aylikKalanPara }) {
+  const [dokumAcik, setDokumAcik] = useState(false);
+  const ayKalan = aylikKalan(goal.targetDate);
+  const aylikBirikim = c.gap > 0 && ayKalan && ayKalan > 0 ? c.gap / ayKalan : null;
+
+  const uyarilar = [];
+  if (c.takiKarsilama > 60)
+    uyarilar.push(`Beklenen takı, bütçenin %${c.takiKarsilama.toFixed(0)} kadarını karşılıyor. Gelen takı davetli profiline göre değişir ve garanti değildir; planı buna fazla yaslama.`);
+  if (aylikBirikim && aylikKalanPara > 0 && aylikBirikim > aylikKalanPara)
+    uyarilar.push(`Ayda ${money(aylikBirikim)} biriktirmen gerekiyor ama aylık kalanın ${money(aylikKalanPara)}. Tarihi ilerletmen ya da bütçeyi küçültmen gerekebilir.`);
+  if (c.davetli > 0 && c.kisiBasiToplam > 0 && num(goal.perGuest) === 0)
+    uyarilar.push("Kişi başı menü tutarını girmezsen salon + yemek maliyeti hesaba katılmaz.");
+
+  const tamam = c.gap <= 0;
+
+  return (
+    <article style={{ ...card, display: "grid", gap: 13 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 11, alignItems: "end" }}>
+        <Alan label="💍 Hedef Adı">
+          <input style={inputStyle} value={goal.name || ""} placeholder="Örn: Evlilik Hedefi" onChange={(e) => onChange("name", e.target.value)} />
+        </Alan>
+        <Alan label="Düğün Tarihi">
+          <input style={inputStyle} type="date" value={goal.targetDate || ""} onChange={(e) => onChange("targetDate", e.target.value)} />
+        </Alan>
+        <div style={{ justifySelf: "end" }}>
+          <button type="button" className="deleteButton" onClick={onDelete}>Sil</button>
+        </div>
+      </div>
+
+      {/* Ölçek ön ayarı — sıfırdan doldurmak yerine tek tıkla başla */}
+      <div style={{ border: "1px solid rgba(255,255,255,.10)", borderRadius: 14, padding: "11px 13px", background: "rgba(2,6,23,.34)" }}>
+        <div style={{ color: "#cbd5e1", fontSize: 11.5, fontWeight: 700, marginBottom: 8 }}>
+          Hızlı başlangıç — düğün ölçeğini seç, rakamlar dolsun (sonra düzenleyebilirsin)
+        </div>
+        <div style={{ display: "flex", gap: 7, flexWrap: "wrap" }}>
+          {Object.entries(EVLILIK_OLCEK).map(([k, v]) => (
+            <button key={k} type="button" onClick={() => onApplyPreset(v)}
+              style={{ border: "1px solid rgba(148,163,184,.3)", background: "rgba(2,6,23,.5)", color: "#e2e8f0", borderRadius: 10, padding: "7px 13px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+              {v.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <Blok no="1" baslik="Düğün organizasyonu" aciklama="Salon + yemek, davetli sayısı × kişi başı menüden hesaplanır.">
+        <Alan label="Davetli Sayısı">
+          <input style={inputStyle} inputMode="decimal" value={goal.guests || ""} placeholder="200" onChange={(e) => onChange("guests", e.target.value)} />
+        </Alan>
+        <Alan label="Kişi Başı Menü (₺)" hint="2026'da 2.500–6.000 ₺ aralığı">
+          <input style={inputStyle} inputMode="decimal" value={goal.perGuest || ""} placeholder="2.500" onChange={(e) => onChange("perGuest", e.target.value)} />
+        </Alan>
+        <Alan label="Gelinlik + Damatlık (₺)" hint="Hazır 15.000 ₺'den, özel dikim 80.000 ₺'ye kadar">
+          <input style={inputStyle} inputMode="decimal" value={goal.attire || ""} placeholder="100.000" onChange={(e) => onChange("attire", e.target.value)} />
+        </Alan>
+        <Alan label="Organizasyon (₺)" hint="Fotoğraf/video, orkestra, kuaför, davetiye, nikah">
+          <input style={inputStyle} inputMode="decimal" value={goal.organization || ""} placeholder="150.000" onChange={(e) => onChange("organization", e.target.value)} />
+        </Alan>
+      </Blok>
+
+      <Blok no="2" baslik="Takı ve ev kurma" aciklama="Evlilik bütçesinin en büyük iki kalemi genelde burasıdır.">
+        <Alan label="Alınacak Takı / Altın (₺)" hint="Alyans, set, bilezik — sizin aldığınız">
+          <input style={inputStyle} inputMode="decimal" value={goal.jewelry || ""} placeholder="550.000" onChange={(e) => onChange("jewelry", e.target.value)} />
+        </Alan>
+        <Alan label="Ev Kurma (₺)" hint="Mobilya + beyaz eşya + çeyiz">
+          <input style={inputStyle} inputMode="decimal" value={goal.homeSetup || ""} placeholder="750.000" onChange={(e) => onChange("homeSetup", e.target.value)} />
+        </Alan>
+      </Blok>
+
+      <Blok no="3" baslik="Balayı">
+        <Alan label="Balayı Bütçesi (₺)" hint="Uçak, konaklama, harcama dâhil">
+          <input style={inputStyle} inputMode="decimal" value={goal.honeymoon || ""} placeholder="150.000" onChange={(e) => onChange("honeymoon", e.target.value)} />
+        </Alan>
+      </Blok>
+
+      <Blok no="4" baslik="Kaynaklar" aciklama="Düğünde gelen takı ve para bütçenin önemli bir kısmını karşılar.">
+        <Alan
+          label="Nakit / Birikim (₺)"
+          aksiyon={likit > 0 ? (
+            <button type="button" onClick={() => onChange("cash", String(Math.round(likit)))}
+              style={{ background: "none", border: "none", color: "#60a5fa", fontSize: 10.5, fontWeight: 700, cursor: "pointer", padding: 0 }}>
+              Portföyümden al ({money(likit)})
+            </button>
+          ) : null}
+        >
+          <input style={inputStyle} inputMode="decimal" value={goal.cash || ""} placeholder="0" onChange={(e) => onChange("cash", e.target.value)} />
+        </Alan>
+        <Alan label="Beklenen Takı + Para (₺)" hint="Düğünde takılacağını tahmin ettiğin altın ve para">
+          <input style={inputStyle} inputMode="decimal" value={goal.expectedGifts || ""} placeholder="0" onChange={(e) => onChange("expectedGifts", e.target.value)} />
+        </Alan>
+        <Alan label="Aile Katkısı (₺)" hint="İki taraftan gelecek destek">
+          <input style={inputStyle} inputMode="decimal" value={goal.familyHelp || ""} placeholder="0" onChange={(e) => onChange("familyHelp", e.target.value)} />
+        </Alan>
+      </Blok>
+
+      {/* SONUÇ */}
+      <div style={{
+        border: `1px solid ${tamam ? "rgba(34,197,94,.4)" : "rgba(244,114,182,.4)"}`,
+        borderRadius: 18, padding: 17,
+        background: tamam
+          ? "linear-gradient(150deg, rgba(34,197,94,.15), rgba(15,23,42,.6))"
+          : "linear-gradient(150deg, rgba(244,114,182,.14), rgba(15,23,42,.6))",
+      }}>
+        <div style={{ color: "#cbd5e1", fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".04em" }}>
+          {tamam ? "Bütçen yeterli" : "Eksik kaynak"}
+        </div>
+        <div style={{ color: tamam ? "#86efac" : "#f9a8d4", fontSize: "clamp(26px, 4.5vw, 38px)", fontWeight: 900, lineHeight: 1.1, margin: "5px 0 3px" }}>
+          {tamam ? `+${money(Math.abs(c.gap))}` : money(c.gap)}
+        </div>
+        <div style={{ color: "#94a3b8", fontSize: 11.5 }}>
+          {tamam ? "Kaynakların toplam evlilik maliyetini karşılıyor." : "Düğüne kadar bulman gereken tutar."}
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 9, marginTop: 14 }}>
+          <Kutu etiket="Toplam Evlilik Maliyeti" deger={money(c.target)} renk="#e2e8f0" alt="Düğün + takı + ev + balayı" />
+          <Kutu etiket="Kaynakların" deger={money(c.resources)} renk="#60a5fa" alt="Nakit + takı + aile" />
+          {c.gifts > 0 ? (
+            <Kutu etiket="Takı Karşılama Oranı" deger={`%${c.takiKarsilama.toFixed(0)}`}
+              renk={c.takiKarsilama > 60 ? "#fbbf24" : "#34d399"} alt="Bütçenin gelen takıyla karşılanan kısmı" />
+          ) : null}
+          {c.davetli > 0 ? (
+            <Kutu etiket="Davetli Başına Maliyet" deger={money(c.kisiBasiToplam)} renk="#a78bfa" alt={`${c.davetli} kişi üzerinden`} />
+          ) : null}
+          {aylikBirikim ? (
+            <Kutu etiket="Aylık Biriktirmelisin" deger={money(aylikBirikim)} renk="#fbbf24" alt={`${ayKalan} ay içinde yetişmek için`} />
+          ) : null}
+        </div>
+
+        <div style={{ marginTop: 13 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", color: "#94a3b8", fontSize: 11, marginBottom: 5 }}>
+            <span>Karşılanan</span><strong style={{ color: "#fff" }}>%{c.percent.toFixed(1)}</strong>
+          </div>
+          <div style={{ height: 9, borderRadius: 999, background: "rgba(255,255,255,.10)", overflow: "hidden" }}>
+            <div style={{ width: `${c.percent}%`, height: "100%", background: tamam ? "linear-gradient(90deg,#34d399,#22c55e)" : "linear-gradient(90deg,#f472b6,#a78bfa)" }} />
+          </div>
+        </div>
+
+        {c.target > 0 ? (
+          <div style={{ marginTop: 13 }}>
+            <button type="button" onClick={() => setDokumAcik((v) => !v)}
+              style={{ background: "none", border: "none", color: "#93c5fd", fontSize: 12, fontWeight: 700, cursor: "pointer", padding: 0 }}>
+              {dokumAcik ? "▾" : "▸"} Masraf dökümü ({money(c.target)})
+            </button>
+            {dokumAcik ? (
+              <div style={{ marginTop: 9, display: "grid", gap: 5, color: "#cbd5e1", fontSize: 12 }}>
+                <Satir ad="Salon + yemek" tutar={c.kalemler.salonYemek} not={c.davetli > 0 ? `${c.davetli} kişi × ${money(num(goal.perGuest))}` : null} />
+                <Satir ad="Gelinlik + damatlık" tutar={c.kalemler.attire} />
+                <Satir ad="Organizasyon" tutar={c.kalemler.organization} not="Fotoğraf, orkestra, kuaför, davetiye, nikah" />
+                <Satir ad="Takı / altın" tutar={c.kalemler.jewelry} />
+                <Satir ad="Ev kurma" tutar={c.kalemler.homeSetup} not="Mobilya + beyaz eşya + çeyiz" />
+                <Satir ad="Balayı" tutar={c.kalemler.honeymoon} />
+                <div style={{ color: "#64748b", fontSize: 10.5, marginTop: 3, lineHeight: 1.5 }}>
+                  Ön ayar rakamları 2026 piyasa ortalamalarıdır; şehir ve mekâna göre önemli ölçüde değişir.
+                </div>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+
+        {uyarilar.length ? (
+          <div style={{ marginTop: 13, display: "grid", gap: 7 }}>
+            {uyarilar.map((u, i) => (
+              <div key={i} style={{ display: "flex", gap: 8, color: "#fbbf24", fontSize: 11.5, lineHeight: 1.5, background: "rgba(251,191,36,.09)", border: "1px solid rgba(251,191,36,.24)", borderRadius: 11, padding: "9px 11px" }}>
+                <span>⚠</span><span>{u}</span>
+              </div>
+            ))}
+          </div>
+        ) : null}
+      </div>
+    </article>
+  );
+}
+
 function Kutu({ etiket, deger, renk, alt }) {
   return (
     <div style={{ border: "1px solid rgba(255,255,255,.10)", borderRadius: 13, padding: "10px 12px", background: "rgba(2,6,23,.45)", minWidth: 0 }}>
@@ -585,8 +865,12 @@ function Satir({ ad, tutar, not }) {
 export default function FinancialGoals({ data, setData, financeTotals, investmentTotals, monthlyBalance = 0 }) {
   const goals = data?.goals || [];
   const [bilgi, setBilgi] = useState("");
+  // Sekme: açılışta hedefi olan ilk kategori, yoksa Konut.
+  const [activeType, setActiveType] = useState(() => goals[0]?.type || "konut");
   const likitAvailable = Number(investmentTotals?.availableInvestment || 0);
   const aylikGelir = Number(financeTotals?.totalIncome || 0);
+  const aktifTur = GOAL_TYPES.find((t) => t.id === activeType);
+  const aktifHedefler = goals.filter((g) => g.type === activeType);
 
   // Hedef listesini DAİMA en güncel state üzerinden değiştir (bayat closure koruması).
   const mutateGoals = (fn) =>
@@ -597,17 +881,18 @@ export default function FinancialGoals({ data, setData, financeTotals, investmen
 
   const addGoal = (type) => {
     const meta = GOAL_TYPES.find((t) => t.id === type);
-    if (!meta?.ready) {
-      setBilgi(`"${meta?.label}" kategorisi hazırlanıyor. Şu an Konut hedefi oluşturabilirsin.`);
-      return;
-    }
+    if (!meta?.ready) return;
     setBilgi("");
-    const base = { id: uid(), type, targetDate: "", cash: "", loan: "" };
-    const yeni = type === "arac"
-      ? { ...base, name: "Araç Alma Hedefi", price: "", fuel: "ice", condition: "new",
-          tradeIn: "", tradeInDebt: "", monthlyRun: "", loanMonths: "24", loanRate: "3,25" }
-      : { ...base, name: "Ev Alma Hedefi", housePrice: "", extraCost: "",
-          sellHome: "", sellHomeDebt: "", loanMonths: "120", loanRate: "2,75" };
+    const base = { id: uid(), type, targetDate: "", cash: "" };
+    const yeni =
+      type === "arac"
+        ? { ...base, name: "Araç Alma Hedefi", price: "", fuel: "ice", condition: "new", loan: "",
+            tradeIn: "", tradeInDebt: "", monthlyRun: "", loanMonths: "24", loanRate: "3,25" }
+        : type === "evlilik"
+        ? { ...base, name: "Evlilik Hedefi", guests: "", perGuest: "", attire: "", organization: "",
+            jewelry: "", homeSetup: "", honeymoon: "", expectedGifts: "", familyHelp: "" }
+        : { ...base, name: "Ev Alma Hedefi", housePrice: "", extraCost: "", loan: "",
+            sellHome: "", sellHomeDebt: "", loanMonths: "120", loanRate: "2,75" };
     mutateGoals((gs) => [yeni, ...gs]);
   };
   const updateGoal = (id, field, value) => mutateGoals((gs) => gs.map((g) => (g.id === id ? { ...g, [field]: value } : g)));
@@ -643,65 +928,76 @@ export default function FinancialGoals({ data, setData, financeTotals, investmen
         </div>
       </section>
 
-      {/* Kategori seçimi */}
-      <section style={card}>
-        <h2 className="gradientTitle" style={{ margin: 0 }}>Yeni Hedef Oluştur</h2>
-        <p className="sectionDescription" style={{ marginTop: 4 }}>Bir kategori seç — ekran o hedefe özel alanlarla açılır.</p>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(105px, 1fr))", gap: 9, marginTop: 12 }}>
-          {GOAL_TYPES.map((t) => (
-            <button key={t.id} type="button" onClick={() => addGoal(t.id)}
-              title={t.ready ? `${t.label} hedefi ekle` : "Hazırlanıyor"}
-              style={{
-                display: "grid", placeItems: "center", gap: 4, padding: "13px 8px", borderRadius: 15, cursor: "pointer",
-                border: `1px solid ${t.ready ? "rgba(96,165,250,.5)" : "rgba(255,255,255,.10)"}`,
-                background: t.ready ? "linear-gradient(150deg, rgba(96,165,250,.18), rgba(139,92,246,.12))" : "rgba(2,6,23,.4)",
-                color: "#fff", opacity: t.ready ? 1 : 0.45,
-              }}>
-              <span style={{ fontSize: 21 }}>{t.icon}</span>
-              <span style={{ fontSize: 12, fontWeight: 800 }}>{t.label}</span>
-              <span style={{ fontSize: 9.5, color: t.ready ? "#86efac" : "#94a3b8" }}>{t.ready ? "Hazır" : "Hazırlanıyor"}</span>
-            </button>
-          ))}
-        </div>
-        {bilgi ? (
-          <div style={{ marginTop: 11, color: "#93c5fd", fontSize: 12, background: "rgba(96,165,250,.10)", border: "1px solid rgba(96,165,250,.28)", borderRadius: 12, padding: "9px 12px" }}>
-            {bilgi}
-          </div>
-        ) : null}
-      </section>
-
-      {/* Hedefler */}
-      {goals.length === 0 ? (
-        <div style={{ ...card, textAlign: "center", color: "#94a3b8", fontSize: 13 }}>
-          Henüz hedef yok. Yukarıdan bir kategori seçerek başla.
-        </div>
-      ) : (
-        goals.map((raw) => {
-          const goal = migrate(raw);
-          const c = calcGoal(goal);
-          if (goal.type === "konut") {
-            return (
-              <KonutKarti key={goal.id} goal={goal} c={c} likit={likitAvailable} aylikGelir={aylikGelir}
-                onChange={(f, v) => updateGoal(goal.id, f, v)} onDelete={() => deleteGoal(goal.id)} />
-            );
-          }
-          if (goal.type === "arac") {
-            return (
-              <AracKarti key={goal.id} goal={goal} c={c} likit={likitAvailable} aylikGelir={aylikGelir}
-                onChange={(f, v) => updateGoal(goal.id, f, v)} onDelete={() => deleteGoal(goal.id)} />
-            );
-          }
-          const meta = typeMeta(goal.type);
+      {/* Kategori sekmeleri */}
+      <div style={{ display: "flex", gap: 8, overflowX: "auto", paddingBottom: 4 }}>
+        {GOAL_TYPES.map((t) => {
+          const sayi = goals.filter((g) => g.type === t.id).length;
+          const aktif = t.id === activeType;
           return (
-            <article key={goal.id} style={card}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
-                <strong style={{ color: "#fff" }}>{meta.icon} {goal.name || meta.label}</strong>
-                <button type="button" className="deleteButton" onClick={() => deleteGoal(goal.id)}>Sil</button>
-              </div>
-              <p className="sectionDescription" style={{ marginBottom: 0 }}>Bu kategori hazırlanıyor.</p>
-            </article>
+            <button key={t.id} type="button" onClick={() => setActiveType(t.id)}
+              style={{
+                flex: "0 0 auto", display: "flex", alignItems: "center", gap: 7, padding: "10px 15px",
+                borderRadius: 14, cursor: "pointer", whiteSpace: "nowrap",
+                border: `1px solid ${aktif ? "rgba(96,165,250,.6)" : "rgba(255,255,255,.12)"}`,
+                background: aktif ? "linear-gradient(135deg, rgba(96,165,250,.28), rgba(139,92,246,.2))" : "rgba(2,6,23,.45)",
+                color: aktif ? "#fff" : "#cbd5e1", opacity: t.ready || aktif ? 1 : 0.6,
+              }}>
+              <span style={{ fontSize: 16 }}>{t.icon}</span>
+              <span style={{ fontSize: 12.5, fontWeight: 800 }}>{t.label}</span>
+              {sayi > 0 ? (
+                <span style={{ fontSize: 10, fontWeight: 900, background: "rgba(96,165,250,.35)", color: "#dbeafe", borderRadius: 999, padding: "1px 7px" }}>{sayi}</span>
+              ) : !t.ready ? (
+                <span style={{ fontSize: 9.5, color: "#94a3b8" }}>yakında</span>
+              ) : null}
+            </button>
           );
-        })
+        })}
+      </div>
+
+      {/* Seçili kategorinin alanı */}
+      <Hero type={activeType} />
+
+      {aktifTur?.ready ? (
+        <>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+            <span style={{ color: "#94a3b8", fontSize: 12.5 }}>
+              {aktifHedefler.length > 0 ? `${aktifHedefler.length} ${aktifTur.label.toLowerCase()} hedefi` : "Bu kategoride henüz hedefin yok."}
+            </span>
+            <button type="button" className="premiumButton" onClick={() => addGoal(activeType)}>
+              + Yeni {aktifTur.label} Hedefi
+            </button>
+          </div>
+
+          {aktifHedefler.length === 0 ? (
+            <div style={{ ...card, textAlign: "center", color: "#94a3b8", fontSize: 13, padding: 26 }}>
+              <div style={{ fontSize: 30, marginBottom: 8 }}>{aktifTur.icon}</div>
+              Yukarıdaki butonla ilk {aktifTur.label.toLowerCase()} hedefini oluştur.
+            </div>
+          ) : (
+            aktifHedefler.map((raw) => {
+              const goal = migrate(raw);
+              const c = calcGoal(goal);
+              const ortak = {
+                goal, c, likit: likitAvailable, aylikGelir,
+                onChange: (f, v) => updateGoal(goal.id, f, v),
+                onDelete: () => deleteGoal(goal.id),
+              };
+              if (goal.type === "konut") return <KonutKarti key={goal.id} {...ortak} />;
+              if (goal.type === "arac") return <AracKarti key={goal.id} {...ortak} />;
+              if (goal.type === "evlilik") return (
+                <EvlilikKarti key={goal.id} {...ortak} aylikKalanPara={monthlyBalance}
+                  onApplyPreset={(p) => mutateGoals((gs) => gs.map((g) => (g.id === goal.id ? { ...g, ...p, label: undefined } : g)))} />
+              );
+              return null;
+            })
+          )}
+        </>
+      ) : (
+        <div style={{ ...card, textAlign: "center", color: "#94a3b8", fontSize: 13, padding: 30 }}>
+          <div style={{ fontSize: 34, marginBottom: 10 }}>{aktifTur?.icon}</div>
+          <strong style={{ color: "#fff", display: "block", marginBottom: 6 }}>{aktifTur?.label} hedefi hazırlanıyor</strong>
+          Bu kategori için özel hesaplama ekranı yakında eklenecek.
+        </div>
       )}
     </div>
   );

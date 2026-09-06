@@ -108,6 +108,34 @@ hem vade kısalır. Kullanıcı bunu bilmez; ekran söylemeli.
 danışmanlığında kabul gören eşik: toplam araç gideri **net gelirin %20'sini**
 aşmamalı.
 
+## Evlilik (Türkiye, 2026) — alan bilgisi
+
+**Sektörün kritik gerçeği: takı hem GİDER hem GELİRDİR.** Düğünde takılan altın
+ve para masrafın önemli bir kısmını karşılar — bütçe bunu görmezse yanıltır.
+Ama garanti değildir; %60'ı aşan bir takı beklentisi riskli plandır, uyar.
+
+**2026 ortalamaları** (toplam ≈ 2.000.000 ₺, büyükşehirde 2 M+):
+
+| Kalem | Tutar |
+|---|---|
+| Ev kurma (mobilya + beyaz eşya + çeyiz) | ~750.000 ₺ |
+| Altın & takı | ~550.000 ₺ |
+| Düğün salonu + yemek | kişi başı **2.500–6.000 ₺** × davetli |
+| Gelinlik + damatlık | hazır 15.000 ₺'den, özel dikim 80.000 ₺'ye |
+| Fotoğraf + video | 10.000–40.000 ₺ |
+| Orkestra / canlı müzik | 10.000–30.000 ₺ |
+| Kuaför + makyaj | 20.000–25.000 ₺ |
+| Nikah | 3.000–10.000 ₺ (belediyeye göre) |
+| Balayı | ~150.000 ₺ |
+
+**Ekran yaklaşımı:** Salon+yemek'i tek tutar olarak sordurma — **davetli sayısı ×
+kişi başı menü** olarak hesapla; böylece "50 kişi az davet etsek ne olur?"
+sorusu anında yanıtlanır. **Davetli başına maliyet** göster, karar verdirir.
+
+**Ölçek ön ayarı koy** (Sade / Orta / Gösterişli). Evlilik bütçesinde çok kalem
+vardır; sıfırdan doldurtmak yerine tek tıkla makul rakamlarla başlat, sonra
+düzenletsin.
+
 ## Ekran kuralları
 
 - **Girdi sayısını 8'i geçirme.** Geçiyorsa blokla ve varsayılanla otomatikleştir.
