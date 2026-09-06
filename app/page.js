@@ -397,7 +397,9 @@ export default function HomePage() {
     setFinancialGoals(normalized.financialGoals || emptyFinancialGoals);
     setBesSettings(normalized.besSettings || {});
     // Karsilama akisi: yalnizca hic tamamlanmamis VE verisi bos olan hesaplarda gosterilir.
-    setOnboardingDone(normalized.onboardingDone || hasCloudData);
+    // hasCloudData bir || zinciri oldugundan ilk dolu degeri (orn. maas metnini)
+    // dondurebiliyor; bayragi mutlaka boolean olarak sakla.
+    setOnboardingDone(normalized.onboardingDone || Boolean(hasCloudData));
     setFinanceLoaded(true);
     setDataLoading(false);
   };
