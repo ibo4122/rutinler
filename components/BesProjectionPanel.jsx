@@ -49,6 +49,22 @@ function monthlyStateContribution(monthlyContribution) {
   return (capped * STATE_RATE) / 12;
 }
 
+// Bir yil icin planlanan aylik katki payi
+function contributionForYear(year, { baseYear, monthly, growthMode, annualIncrease, yearlyPlan }) {
+  if (growthMode === "manual") {
+    const rows = (yearlyPlan || []).filter((r) => num(r.monthly) > 0);
+    const exact = rows.find((r) => Number(r.year) === year);
+    if (exact) return num(exact.monthly);
+    // O yil icin deger girilmemisse en yakin onceki yilin degerini surdur
+    const prev = rows.filter((r) => Number(r.year) <= year).sort((a, b) => Number(b.year) - Number(a.year))[0];
+    if (prev) return num(prev.monthly);
+    return monthly;
+  }
+  // Otomatik: her yil %annualIncrease kadar artir
+  const k = Math.max(0, year - baseYear);
+  return monthly * Math.pow(1 + (annualIncrease || 0) / 100, k);
+}
+
 function project(inp) {
   const { startDate, monthly, ownPrincipal, ownReturn, statePrincipal, stateReturn, annualReturn, exitYears } = inp;
 
@@ -57,25 +73,44 @@ function project(inp) {
   const remaining = Math.max(0, exitMonths - elapsed);
   const i = Math.pow(1 + annualReturn / 100, 1 / 12) - 1;
   const growth = Math.pow(1 + i, remaining);
-  const monthlyState = monthlyStateContribution(monthly);
 
   // --- BUGUN (BES ekstrendeki 4 kalem) ---
   const ownNow = ownPrincipal + ownReturn;     // kendi hesabin: anapara + fon getirisi
   const stateNow = statePrincipal + stateReturn; // devlet katkisi hesabi: anapara + fon getirisi
 
   // --- CIKIS ANINDA ---
-  // Mevcut bakiyeler buyur + yeni katkilar birikir
+  // Katki payi yillara gore degisebildigi icin ay ay simule ediyoruz.
+  const now = new Date();
+  const baseYear = now.getFullYear();
+  const planArgs = { baseYear, monthly, growthMode: inp.growthMode, annualIncrease: inp.annualIncrease, yearlyPlan: inp.yearlyPlan };
+
+  let own = ownNow;
+  let state = stateNow;
+  let paidPrincipalTotal = ownPrincipal;
+  let statePrincipalTotal = statePrincipal;
+  const yillik = new Map(); // yil -> { aylik, ay }
+
+  for (let m = 1; m <= remaining; m++) {
+    const d = new Date(now.getFullYear(), now.getMonth() + m, 1);
+    const c = contributionForYear(d.getFullYear(), planArgs);
+    const sc = monthlyStateContribution(c);
+    own = own * (1 + i) + c;
+    state = state * (1 + i) + sc;
+    paidPrincipalTotal += c;
+    statePrincipalTotal += sc;
+    const kayit = yillik.get(d.getFullYear()) || { aylik: c, ay: 0 };
+    kayit.ay += 1;
+    yillik.set(d.getFullYear(), kayit);
+  }
+
+  const ownAtExit = own;
+  const stateAtExit = state;
+  // Gorsel dokum icin: mevcut bakiyenin buyumesi ve yeni katkilarin payi
   const ownFromExisting = ownNow * growth;
-  const ownFromNew = futureValue(monthly, i, remaining);
-  const ownAtExit = ownFromExisting + ownFromNew;
-
+  const ownFromNew = Math.max(0, ownAtExit - ownFromExisting);
   const stateFromExisting = stateNow * growth;
-  const stateFromNew = futureValue(monthlyState, i, remaining);
-  const stateAtExit = stateFromExisting + stateFromNew;
-
-  // Anaparalar (stopaj matrahi icin gerekli)
-  const paidPrincipalTotal = ownPrincipal + monthly * remaining;
-  const statePrincipalTotal = statePrincipal + monthlyState * remaining;
+  const stateFromNew = Math.max(0, stateAtExit - stateFromExisting);
+  const planTablosu = [...yillik.entries()].map(([year, v]) => ({ year, aylik: v.aylik, ay: v.ay }));
 
   const option = EXIT_OPTIONS.find((o) => o.years === exitYears) || EXIT_OPTIONS[1];
 
@@ -95,7 +130,8 @@ function project(inp) {
   const currentTotal = ownNow + stateNow * currentVest;
 
   return {
-    elapsed, remaining, exitMonths, option, growth, monthlyState,
+    elapsed, remaining, exitMonths, option, growth, planTablosu,
+    monthlyState: monthlyStateContribution(contributionForYear(baseYear, planArgs)),
     ownNow, stateNow, currentVest, currentTotal,
     ownFromExisting, ownFromNew, ownAtExit,
     stateFromExisting, stateFromNew, stateAtExit,
@@ -143,6 +179,10 @@ export default function BesProjectionPanel({ onTotalChange, settings, onSettings
   const [ownReturn, setOwnReturn] = useState("");
   const [statePrincipal, setStatePrincipal] = useState("");
   const [stateReturn, setStateReturn] = useState("");
+  // Katki payi artis plani: "auto" = her yil %X artir, "manual" = yil yil gir
+  const [growthMode, setGrowthMode] = useState("auto");
+  const [annualIncrease, setAnnualIncrease] = useState("0");
+  const [yearlyPlan, setYearlyPlan] = useState([]);
 
   // Kayitli ayarlari bir kez yukle (eski surumlerin alan adlarindan da tasi)
   const hydratedRef = useRef(false);
@@ -161,6 +201,15 @@ export default function BesProjectionPanel({ onTotalChange, settings, onSettings
     setOwnReturn(String(s.ownReturn ?? s.actualMainFundReturn ?? ""));
     setStatePrincipal(String(s.statePrincipal ?? s.actualStateContribution ?? s.stateBalance ?? ""));
     setStateReturn(String(s.stateReturn ?? s.actualStateFundReturn ?? ""));
+
+    if (s.growthMode) setGrowthMode(s.growthMode);
+    if (s.annualIncrease != null) setAnnualIncrease(String(s.annualIncrease));
+    if (Array.isArray(s.yearlyPlan) && s.yearlyPlan.length) setYearlyPlan(s.yearlyPlan);
+    else if (Array.isArray(s.yearlyInputs) && s.yearlyInputs.length) {
+      // Eski panelin yillik tablosunu tasi
+      setYearlyPlan(s.yearlyInputs.map((r) => ({ year: Number(r.year), monthly: String(r.monthlyContribution ?? "") })));
+      if (!s.growthMode) setGrowthMode("manual");
+    }
   }, [settings]);
 
   useEffect(() => {
@@ -168,15 +217,17 @@ export default function BesProjectionPanel({ onTotalChange, settings, onSettings
     onSettingsChange?.({
       startDate, monthlyContribution: monthly, annualReturn, exitYears,
       ownPrincipal, ownReturn, statePrincipal, stateReturn,
+      growthMode, annualIncrease, yearlyPlan,
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [startDate, monthly, annualReturn, exitYears, ownPrincipal, ownReturn, statePrincipal, stateReturn]);
+  }, [startDate, monthly, annualReturn, exitYears, ownPrincipal, ownReturn, statePrincipal, stateReturn, growthMode, annualIncrease, yearlyPlan]);
 
   const girdi = useMemo(() => ({
     startDate, monthly: num(monthly), annualReturn: num(annualReturn) || 0, exitYears,
     ownPrincipal: num(ownPrincipal), ownReturn: num(ownReturn),
     statePrincipal: num(statePrincipal), stateReturn: num(stateReturn),
-  }), [startDate, monthly, annualReturn, exitYears, ownPrincipal, ownReturn, statePrincipal, stateReturn]);
+    growthMode, annualIncrease: num(annualIncrease), yearlyPlan,
+  }), [startDate, monthly, annualReturn, exitYears, ownPrincipal, ownReturn, statePrincipal, stateReturn, growthMode, annualIncrease, yearlyPlan]);
 
   const p = useMemo(() => project(girdi), [girdi]);
   useEffect(() => { onTotalChange?.(Number(p.currentTotal || 0)); }, [onTotalChange, p.currentTotal]);
@@ -218,6 +269,62 @@ export default function BesProjectionPanel({ onTotalChange, settings, onSettings
               </select>
             </Field>
           </Grup>
+
+          {/* Katki payi artis plani */}
+          <div style={{ border: "1px solid rgba(255,255,255,.12)", borderRadius: 18, padding: 16, background: "rgba(2,6,23,.35)", marginBottom: 14 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10, marginBottom: 10 }}>
+              <div>
+                <div style={{ color: "#fff", fontWeight: 800, fontSize: 14 }}>Katkı Payı Artışı</div>
+                <div style={{ color: "#94a3b8", fontSize: 11.5 }}>Her yıl aynı tutarı ödemeyeceksen burayı kullan.</div>
+              </div>
+              <div style={{ display: "flex", gap: 6 }}>
+                {[["auto", "Otomatik artış"], ["manual", "Yıl yıl gireyim"]].map(([mod, etiket]) => (
+                  <button key={mod} type="button" onClick={() => {
+                    setGrowthMode(mod);
+                    if (mod === "manual" && yearlyPlan.length === 0) {
+                      const y0 = new Date().getFullYear();
+                      setYearlyPlan(Array.from({ length: Math.max(1, exitYears) }, (_, k) => ({ year: y0 + k, monthly: k === 0 ? String(num(monthly) || "") : "" })));
+                    }
+                  }} style={{
+                    border: "1px solid rgba(255,255,255,.16)", borderRadius: 10, padding: "7px 12px", cursor: "pointer",
+                    fontSize: 12, fontWeight: 800,
+                    background: growthMode === mod ? "linear-gradient(135deg,#60a5fa,#8b5cf6)" : "rgba(2,6,23,.5)",
+                    color: growthMode === mod ? "#fff" : "#cbd5e1",
+                  }}>{etiket}</button>
+                ))}
+              </div>
+            </div>
+
+            {growthMode === "auto" ? (
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 12 }}>
+                <Field label="Yıllık Katkı Artışı (%)" hint="0 girersen katkın hep aynı kalır">
+                  <input style={inputStyle} inputMode="decimal" value={annualIncrease} placeholder="Örn: 25" onChange={(e) => setAnnualIncrease(e.target.value)} />
+                </Field>
+                <div style={{ alignSelf: "end", color: "#94a3b8", fontSize: 11.5, lineHeight: 1.5 }}>
+                  {num(annualIncrease) > 0
+                    ? `Bu yıl ${money(num(monthly))} → gelecek yıl ${money(num(monthly) * (1 + num(annualIncrease) / 100))} → sonraki ${money(num(monthly) * Math.pow(1 + num(annualIncrease) / 100, 2))}`
+                    : "Katkın her yıl aynı kabul ediliyor."}
+                </div>
+              </div>
+            ) : (
+              <div style={{ display: "grid", gap: 8 }}>
+                {yearlyPlan.map((r, idx) => (
+                  <div key={r.year} style={{ display: "grid", gridTemplateColumns: "80px minmax(0,1fr)", gap: 10, alignItems: "center" }}>
+                    <span style={{ color: "#cbd5e1", fontWeight: 800, fontSize: 13 }}>{r.year}</span>
+                    <input
+                      style={inputStyle} inputMode="decimal" value={r.monthly}
+                      placeholder={idx > 0 ? "Boş = önceki yıl devam" : "Aylık katkı"}
+                      onChange={(e) => setYearlyPlan((cur) => cur.map((x, k) => (k === idx ? { ...x, monthly: e.target.value } : x)))}
+                    />
+                  </div>
+                ))}
+                <button type="button" className="secondaryButton" style={{ justifySelf: "start", marginTop: 4 }}
+                  onClick={() => setYearlyPlan((cur) => [...cur, { year: (cur.length ? Number(cur[cur.length - 1].year) : new Date().getFullYear()) + 1, monthly: "" }])}>
+                  + Yıl Ekle
+                </button>
+              </div>
+            )}
+          </div>
 
           <Grup baslik="Bugünkü Durumun" aciklama="Bu 4 rakamı BES ekstrenden/uygulamandan aynen kopyalayabilirsin.">
             <Field label="Ödediğin Katkı Payı (anapara)">
