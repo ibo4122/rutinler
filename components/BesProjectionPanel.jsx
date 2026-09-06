@@ -3,222 +3,273 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { money } from "../lib/format";
 
-// Nötr varsayılanlar: yeni kullanıcı SIFIR değerlerle başlar (kişisel veri gömülü değil).
-// Getiri oranları (%30/%20) yalnızca genel modelleme varsayımıdır.
-const CURRENT_YEAR = new Date().getFullYear();
-const defaultYearlyInputs = Array.from({ length: 6 }, (_, i) => ({
-  year: CURRENT_YEAR + i,
-  monthlyContribution: "0",
-  fundReturn: "30",
-  stateReturn: "20",
-}));
+// ---------------------------------------------------------------------------
+// BES kurallari (2026)
+//  - Devlet katkisi: odenen katki payinin %20'si (01.01.2026'dan itibaren; onceden %30)
+//  - Yillik ust sinir: 396.360 TL katkiya karsilik en fazla 79.272 TL devlet katkisi
+//  - Hak edis (sistemde kalma suresine gore devlet katkisinin ne kadarini alirsin):
+//      <3 yil %0 | 3-6 yil %15 | 6-10 yil %35 | 10+ yil %60 | 10 yil + 56 yas %100
+//  - Stopaj: yalnizca GETIRI uzerinden. 10 yildan once cikis %15, 10 yil (emekli degil)
+//    %10, emeklilik %5. Anaparadan kesinti yapilmaz.
+// ---------------------------------------------------------------------------
+const STATE_RATE = 0.20;
+const ANNUAL_STATE_CAP = 79272;      // 2026 yillik devlet katkisi ust siniri
+const ANNUAL_CONTRIB_CAP = 396360;   // bu sinira karsilik gelen yillik katki payi
+
+const EXIT_OPTIONS = [
+  { years: 3, vest: 0.15, tax: 0.15, label: "3. yıl" },
+  { years: 6, vest: 0.35, tax: 0.15, label: "6. yıl" },
+  { years: 10, vest: 0.60, tax: 0.10, label: "10. yıl" },
+  { years: 15, vest: 1.0, tax: 0.05, label: "Emeklilik (10 yıl + 56 yaş)" },
+];
+
+const num = (v) => {
+  const n = Number(String(v ?? "").replace(/\./g, "").replace(",", ".").replace(/[^\d.-]/g, ""));
+  return Number.isFinite(n) ? n : 0;
+};
 const todayIso = () => new Date().toISOString().slice(0, 10);
 
-function numberValue(value) {
-  return Number(String(value || "").replace(/\./g, "").replace(",", ".").replace(/[^\d.]/g, "")) || 0;
+// Aylik odemeli birikimin gelecek degeri (donem sonu odemeli anuite)
+function futureValue(payment, monthlyRate, months) {
+  if (months <= 0 || payment <= 0) return 0;
+  if (monthlyRate === 0) return payment * months;
+  return payment * ((Math.pow(1 + monthlyRate, months) - 1) / monthlyRate);
 }
 
-function percentValue(value) {
-  return numberValue(value) / 100;
+function monthsBetween(fromIso, to = new Date()) {
+  const from = new Date(fromIso);
+  if (Number.isNaN(from.getTime())) return 0;
+  return Math.max(0, (to.getFullYear() - from.getFullYear()) * 12 + (to.getMonth() - from.getMonth()));
 }
 
-function formatDate(date) {
-  if (!date) return "-";
-  return new Intl.DateTimeFormat("tr-TR", { day: "2-digit", month: "2-digit", year: "numeric" }).format(date);
+// Yillik ust sinir dikkate alinarak aylik devlet katkisi
+function monthlyStateContribution(monthlyContribution) {
+  const yearly = monthlyContribution * 12;
+  const capped = Math.min(yearly, ANNUAL_CONTRIB_CAP);
+  return (capped * STATE_RATE) / 12;
 }
 
-function addMonths(dateText, monthCount) {
-  const date = new Date(dateText || "2025-01-07");
-  date.setMonth(date.getMonth() + monthCount);
-  return date;
+function project({ startDate, monthly, ownBalance, stateBalance, annualReturn, exitYears }) {
+  const elapsed = monthsBetween(startDate);
+  const exitMonths = exitYears * 12;
+  const remaining = Math.max(0, exitMonths - elapsed);
+  const i = Math.pow(1 + annualReturn / 100, 1 / 12) - 1;
+  const monthlyState = monthlyStateContribution(monthly);
+
+  // Bugunku bakiyeler: kullanici girdiyse onu kullan, girmediyse plana gore tahmin et
+  const ownNow = ownBalance > 0 ? ownBalance : futureValue(monthly, i, elapsed);
+  const stateNow = stateBalance > 0 ? stateBalance : futureValue(monthlyState, i, elapsed);
+
+  // Cikisa kadar: mevcut bakiye buyur + yeni katkilar birikir
+  const growth = Math.pow(1 + i, remaining);
+  const ownAtExit = ownNow * growth + futureValue(monthly, i, remaining);
+  const stateAtExit = stateNow * growth + futureValue(monthlyState, i, remaining);
+
+  // Anapara (stopaj matrahi icin): toplam odenen katki payi ve devlet katkisi anaparasi
+  const paidPrincipal = monthly * exitMonths;
+  const statePrincipal = monthlyState * exitMonths;
+
+  const option = EXIT_OPTIONS.find((o) => o.years === exitYears) || EXIT_OPTIONS[1];
+  const vestedState = stateAtExit * option.vest;
+  const vestedStatePrincipal = statePrincipal * option.vest;
+
+  const gross = ownAtExit + vestedState;
+  const gain = Math.max(0, gross - paidPrincipal - vestedStatePrincipal);
+  const tax = gain * option.tax;
+  const net = gross - tax;
+
+  // Bugun itibariyle hak edilen (panel basligi ve portfoy toplami icin)
+  const elapsedYears = elapsed / 12;
+  const currentVest = elapsedYears >= 10 ? 0.6 : elapsedYears >= 6 ? 0.35 : elapsedYears >= 3 ? 0.15 : 0;
+  const currentTotal = ownNow + stateNow * currentVest;
+
+  return {
+    elapsed, remaining, exitMonths, option,
+    ownNow, stateNow, currentVest, currentTotal,
+    ownAtExit, stateAtExit, vestedState, gross, gain, tax, net,
+    paidPrincipal, statePrincipal,
+    lostState: stateAtExit - vestedState,
+    progress: Math.min(100, (elapsed / exitMonths) * 100),
+    exitDate: (() => { const d = new Date(startDate); return Number.isNaN(d.getTime()) ? null : new Date(d.setMonth(d.getMonth() + exitMonths)); })(),
+  };
 }
 
-function PanelBlock({ title, subtitle, open, onToggle, color = "purple", children }) {
+const inputStyle = {
+  width: "100%", boxSizing: "border-box", border: "1px solid rgba(255,255,255,.18)",
+  background: "rgba(2,6,23,.6)", color: "#f8fafc", borderRadius: 12,
+  padding: "10px 12px", outline: "none", fontSize: 14,
+};
+
+function Field({ label, hint, children }) {
   return (
-    <section className={`miniPanel ${color}`}>
-      <button type="button" className="miniHeader" onClick={onToggle}>
-        <div>
-          <h3 className={`miniTitle miniTitle-${color}`}>{title}</h3>
-          {subtitle ? <p className="sectionDescription">{subtitle}</p> : null}
-        </div>
-        <div className="miniRight"><div className="miniToggle">{open ? "−" : "+"}</div></div>
-      </button>
-      {open ? <div className="miniBody">{children}</div> : null}
-    </section>
+    <label style={{ display: "block" }}>
+      <span style={{ display: "block", color: "#cbd5e1", fontSize: 11.5, fontWeight: 700, marginBottom: 5 }}>{label}</span>
+      {children}
+      {hint ? <span style={{ display: "block", color: "#64748b", fontSize: 10.5, marginTop: 4 }}>{hint}</span> : null}
+    </label>
   );
 }
 
 export default function BesProjectionPanel({ onTotalChange, settings, onSettingsChange }) {
-  const [mainOpen, setMainOpen] = useState(false);
-  const [inputsOpen, setInputsOpen] = useState(false);
-  const [yearlyOpen, setYearlyOpen] = useState(false);
-  const [summaryOpen, setSummaryOpen] = useState(false);
-  const [tableOpen, setTableOpen] = useState(false);
-
-  const [currentMonthInput, setCurrentMonthInput] = useState("0");
+  const [open, setOpen] = useState(false);
   const [startDate, setStartDate] = useState(todayIso());
-  const [totalMonths, setTotalMonths] = useState("72");
-  const [vestingMonth, setVestingMonth] = useState("72");
-  const [stateContributionRate, setStateContributionRate] = useState("30");
-  const [vestingRate, setVestingRate] = useState("35");
-  const [actualPrincipalPaid, setActualPrincipalPaid] = useState("");
-  const [actualMainFundReturn, setActualMainFundReturn] = useState("0");
-  const [actualStateContribution, setActualStateContribution] = useState("0");
-  const [actualStateFundReturn, setActualStateFundReturn] = useState("0");
-  const [yearlyInputs, setYearlyInputs] = useState(defaultYearlyInputs);
+  const [monthly, setMonthly] = useState("0");
+  const [ownBalance, setOwnBalance] = useState("");
+  const [stateBalance, setStateBalance] = useState("");
+  const [annualReturn, setAnnualReturn] = useState("30");
+  const [exitYears, setExitYears] = useState(6);
 
-  // Kayıtlı BES ayarlarını (kullanıcının bulut verisi) bir kez yükle; sonraki her
-  // değişikliği üst bileşene bildir (mevcut autosave altyapısı buluta yazar).
+  // Kayitli ayarlari bir kez yukle (eski surumun alanlarindan da tasi).
   const hydratedRef = useRef(false);
   useEffect(() => {
     if (hydratedRef.current || !settings || typeof settings !== "object") return;
     hydratedRef.current = true;
-    if (settings.currentMonthInput != null) setCurrentMonthInput(String(settings.currentMonthInput));
-    if (settings.startDate) setStartDate(settings.startDate);
-    if (settings.totalMonths != null) setTotalMonths(String(settings.totalMonths));
-    if (settings.vestingMonth != null) setVestingMonth(String(settings.vestingMonth));
-    if (settings.stateContributionRate != null) setStateContributionRate(String(settings.stateContributionRate));
-    if (settings.vestingRate != null) setVestingRate(String(settings.vestingRate));
-    if (settings.actualPrincipalPaid != null) setActualPrincipalPaid(String(settings.actualPrincipalPaid));
-    if (settings.actualMainFundReturn != null) setActualMainFundReturn(String(settings.actualMainFundReturn));
-    if (settings.actualStateContribution != null) setActualStateContribution(String(settings.actualStateContribution));
-    if (settings.actualStateFundReturn != null) setActualStateFundReturn(String(settings.actualStateFundReturn));
-    if (Array.isArray(settings.yearlyInputs) && settings.yearlyInputs.length) setYearlyInputs(settings.yearlyInputs);
+    const s = settings;
+    if (s.startDate) setStartDate(s.startDate);
+    if (s.monthlyContribution != null) setMonthly(String(s.monthlyContribution));
+    else if (Array.isArray(s.yearlyInputs) && s.yearlyInputs[0]?.monthlyContribution) setMonthly(String(s.yearlyInputs[0].monthlyContribution));
+    if (s.ownBalance != null) setOwnBalance(String(s.ownBalance));
+    else if (s.actualPrincipalPaid || s.actualMainFundReturn) setOwnBalance(String(num(s.actualPrincipalPaid) + num(s.actualMainFundReturn) || ""));
+    if (s.stateBalance != null) setStateBalance(String(s.stateBalance));
+    else if (s.actualStateContribution || s.actualStateFundReturn) setStateBalance(String(num(s.actualStateContribution) + num(s.actualStateFundReturn) || ""));
+    if (s.annualReturn != null) setAnnualReturn(String(s.annualReturn));
+    if (s.exitYears != null) setExitYears(Number(s.exitYears) || 6);
   }, [settings]);
 
   useEffect(() => {
-    if (!hydratedRef.current) return; // kayıtlı veri yüklenmeden (hydrate olmadan) hiç yazma
-    onSettingsChange?.({
-      currentMonthInput, startDate, totalMonths, vestingMonth, stateContributionRate, vestingRate,
-      actualPrincipalPaid, actualMainFundReturn, actualStateContribution, actualStateFundReturn, yearlyInputs,
-    });
+    if (!hydratedRef.current) return;
+    onSettingsChange?.({ startDate, monthlyContribution: monthly, ownBalance, stateBalance, annualReturn, exitYears });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentMonthInput, startDate, totalMonths, vestingMonth, stateContributionRate, vestingRate, actualPrincipalPaid, actualMainFundReturn, actualStateContribution, actualStateFundReturn, yearlyInputs]);
+  }, [startDate, monthly, ownBalance, stateBalance, annualReturn, exitYears]);
 
-  const projection = useMemo(() => {
-    const modelTotalMonths = Math.max(1, numberValue(totalMonths));
-    const currentMonth = Math.min(Math.max(0, numberValue(currentMonthInput)), modelTotalMonths);
-    const vestMonth = Math.max(1, numberValue(vestingMonth));
-    const stateRate = percentValue(stateContributionRate);
-    const vestRate = percentValue(vestingRate);
-    const actualFundReturn = numberValue(actualMainFundReturn);
-    const actualStateBase = numberValue(actualStateContribution);
-    const actualStateReturn = numberValue(actualStateFundReturn);
-    const actualStateTotal = actualStateBase + actualStateReturn;
+  const p = useMemo(() => project({
+    startDate, monthly: num(monthly), ownBalance: num(ownBalance),
+    stateBalance: num(stateBalance), annualReturn: num(annualReturn) || 0, exitYears,
+  }), [startDate, monthly, ownBalance, stateBalance, annualReturn, exitYears]);
 
-    let scheduledPrincipalUntilCurrent = 0;
-    for (let month = 1; month <= currentMonth; month += 1) {
-      const date = addMonths(startDate, month - 1);
-      const yearInput = yearlyInputs.find((item) => Number(item.year) === date.getFullYear()) || yearlyInputs[yearlyInputs.length - 1];
-      scheduledPrincipalUntilCurrent += numberValue(yearInput?.monthlyContribution);
-    }
+  useEffect(() => { onTotalChange?.(Number(p.currentTotal || 0)); }, [onTotalChange, p.currentTotal]);
 
-    const currentPrincipalPaid = numberValue(actualPrincipalPaid) > 0 ? numberValue(actualPrincipalPaid) : scheduledPrincipalUntilCurrent;
-    const currentEarnedStateAmount = actualStateTotal * vestRate;
-    const currentTotalMoney = currentPrincipalPaid + actualFundReturn + currentEarnedStateAmount;
-
-    let principalPaid = 0;
-    let fundOpening = 0;
-    let cumulativeFundReturn = 0;
-    let stateContributionTotal = 0;
-    let stateFundOpening = 0;
-    let cumulativeStateFundReturn = 0;
-    const rows = [];
-
-    for (let month = 1; month <= modelTotalMonths; month += 1) {
-      const date = addMonths(startDate, month - 1);
-      const year = date.getFullYear();
-      const yearInput = yearlyInputs.find((item) => Number(item.year) === year) || yearlyInputs[yearlyInputs.length - 1];
-      const monthlyContribution = numberValue(yearInput?.monthlyContribution);
-      const monthlyFundRate = Math.pow(1 + percentValue(yearInput?.fundReturn), 1 / 12) - 1;
-      const monthlyStateRate = Math.pow(1 + percentValue(yearInput?.stateReturn), 1 / 12) - 1;
-      let monthlyFundReturn = 0;
-      let monthlyStateContribution = 0;
-      let monthlyStateFundReturn = 0;
-
-      if (month < currentMonth) {
-        const ratio = currentMonth > 0 ? month / currentMonth : 0;
-        principalPaid = currentPrincipalPaid * ratio;
-        cumulativeFundReturn = actualFundReturn * ratio;
-        fundOpening = principalPaid + cumulativeFundReturn;
-        stateContributionTotal = actualStateBase * ratio;
-        cumulativeStateFundReturn = actualStateReturn * ratio;
-        stateFundOpening = stateContributionTotal + cumulativeStateFundReturn;
-        monthlyFundReturn = month === 1 ? cumulativeFundReturn : 0;
-        monthlyStateContribution = month === 1 ? stateContributionTotal : 0;
-        monthlyStateFundReturn = month === 1 ? cumulativeStateFundReturn : 0;
-      } else if (month === currentMonth) {
-        principalPaid = currentPrincipalPaid;
-        cumulativeFundReturn = actualFundReturn;
-        fundOpening = principalPaid + cumulativeFundReturn;
-        stateContributionTotal = actualStateBase;
-        cumulativeStateFundReturn = actualStateReturn;
-        stateFundOpening = actualStateTotal;
-        monthlyFundReturn = actualFundReturn;
-        monthlyStateContribution = actualStateBase;
-        monthlyStateFundReturn = actualStateReturn;
-      } else {
-        principalPaid += monthlyContribution;
-        monthlyFundReturn = (fundOpening + monthlyContribution) * monthlyFundRate;
-        cumulativeFundReturn += monthlyFundReturn;
-        fundOpening = fundOpening + monthlyContribution + monthlyFundReturn;
-        monthlyStateContribution = monthlyContribution * stateRate;
-        stateContributionTotal += monthlyStateContribution;
-        monthlyStateFundReturn = (stateFundOpening + monthlyStateContribution) * monthlyStateRate;
-        cumulativeStateFundReturn += monthlyStateFundReturn;
-        stateFundOpening = stateFundOpening + monthlyStateContribution + monthlyStateFundReturn;
-      }
-
-      const fundClosing = month <= currentMonth ? principalPaid + cumulativeFundReturn : fundOpening;
-      const stateFundClosing = month <= currentMonth ? stateContributionTotal + cumulativeStateFundReturn : stateFundOpening;
-      const earnedStateAmount = month >= vestMonth ? stateFundClosing * vestRate : 0;
-      const estimatedTotalReturn = cumulativeFundReturn + earnedStateAmount;
-      const totalPortfolioValue = principalPaid + estimatedTotalReturn;
-
-      rows.push({ month, period: `${month}/${modelTotalMonths}`, remainingMonth: Math.max(modelTotalMonths - month, 0), date, year, monthlyContribution, principalPaid, monthlyFundReturn, cumulativeFundReturn, fundClosing, monthlyStateContribution, stateContributionTotal, monthlyStateFundReturn, cumulativeStateFundReturn, stateFundClosing, earnedStateAmount, estimatedTotalReturn, totalPortfolioValue });
-    }
-
-    const currentRow = rows[Math.max(currentMonth - 1, 0)] || rows[0];
-    const vestingRow = rows[vestMonth - 1];
-    const exitRow = rows[modelTotalMonths - 1];
-    const sixYearDate = addMonths(startDate, 72);
-    const progressPercent = Math.min(100, Math.max(0, (currentMonth / modelTotalMonths) * 100));
-
-    return { rows, currentMonth, currentRow, remainingMonth: Math.max(modelTotalMonths - currentMonth, 0), vestingRow, exitRow, sixYearDate, currentStateTotal: actualStateTotal, currentPrincipalPaid, currentEarnedStateAmount, currentTotalMoney, progressPercent, modelTotalMonths };
-  }, [currentMonthInput, startDate, totalMonths, vestingMonth, stateContributionRate, vestingRate, actualPrincipalPaid, actualMainFundReturn, actualStateContribution, actualStateFundReturn, yearlyInputs]);
-
-  useEffect(() => {
-    if (typeof onTotalChange === "function") onTotalChange(Number(projection.currentTotalMoney || 0));
-  }, [onTotalChange, projection.currentTotalMoney]);
-
-  const updateYearInput = (index, field, value) => {
-    setYearlyInputs((current) => current.map((item, itemIndex) => (itemIndex === index ? { ...item, [field]: value } : item)));
-  };
+  const karsilastirma = useMemo(() => EXIT_OPTIONS.map((o) =>
+    ({ ...o, sonuc: project({ startDate, monthly: num(monthly), ownBalance: num(ownBalance), stateBalance: num(stateBalance), annualReturn: num(annualReturn) || 0, exitYears: o.years }) })
+  ), [startDate, monthly, ownBalance, stateBalance, annualReturn]);
 
   return (
     <section className="panelCard besProjectionPanel">
-      <button type="button" className="panelHeader" onClick={() => setMainOpen((value) => !value)}>
-        <div><h2 className="gradientTitle">BES Projeksiyon</h2><p>Mevcut BES değeri, yukarıdaki Blokajlı Yatırım toplamına otomatik eklenir.</p></div>
-        <div className="panelRight"><div className="panelTotal"><span>Mevcut Total Para</span><strong>{money(projection.currentTotalMoney)}</strong></div><div className="panelTotal"><span>İlerleme</span><strong>{projection.currentMonth} / {projection.modelTotalMonths} Ay</strong></div><div className="toggleButton">{mainOpen ? "−" : "+"}</div></div>
+      <button type="button" className="panelHeader" onClick={() => setOpen((v) => !v)}>
+        <div>
+          <h2 className="gradientTitle">BES Projeksiyon</h2>
+          <p>Bugünkü değerin ve planladığın çıkışta eline geçecek net tutar.</p>
+        </div>
+        <div className="panelRight">
+          <div className="panelTotal"><span>Bugünkü Değer</span><strong>{money(p.currentTotal)}</strong></div>
+          <div className="panelTotal"><span>{p.option.label} Net</span><strong>{money(p.net)}</strong></div>
+          <div className="toggleButton">{open ? "−" : "+"}</div>
+        </div>
       </button>
 
-      {mainOpen ? (
+      {open ? (
         <div className="panelBody">
-          <div className="besProgressCard"><div className="besProgressTop"><div><span>Mevcut Ay</span><strong>{projection.currentMonth}. Ay</strong></div><div><span>Toplam Süre</span><strong>{projection.modelTotalMonths} Ay</strong></div><div><span>Tamamlanma</span><strong>%{projection.progressPercent.toFixed(1)}</strong></div></div><div className="besProgressTrack"><div className="besProgressFill" style={{ width: `${projection.progressPercent}%` }} /></div></div>
+          {/* Girisler */}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(165px, 1fr))", gap: 12, marginBottom: 18 }}>
+            <Field label="BES Başlangıç Tarihi">
+              <input style={inputStyle} type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+            </Field>
+            <Field label="Aylık Katkı Payı (₺)">
+              <input style={inputStyle} inputMode="decimal" value={monthly} placeholder="Örn: 5.000" onChange={(e) => setMonthly(e.target.value)} />
+            </Field>
+            <Field label="Mevcut Birikimin (₺)" hint="Boş bırakırsan plana göre tahmin edilir">
+              <input style={inputStyle} inputMode="decimal" value={ownBalance} placeholder="Hesabındaki tutar" onChange={(e) => setOwnBalance(e.target.value)} />
+            </Field>
+            <Field label="Devlet Katkısı Hesabın (₺)" hint="Boş bırakırsan %20'den hesaplanır">
+              <input style={inputStyle} inputMode="decimal" value={stateBalance} placeholder="Devlet katkısı tutarı" onChange={(e) => setStateBalance(e.target.value)} />
+            </Field>
+            <Field label="Yıllık Getiri Beklentin (%)" hint="Fonlarının ortalama yıllık kazancı">
+              <input style={inputStyle} inputMode="decimal" value={annualReturn} onChange={(e) => setAnnualReturn(e.target.value)} />
+            </Field>
+            <Field label="Çıkış Planın">
+              <select style={inputStyle} value={exitYears} onChange={(e) => setExitYears(Number(e.target.value))}>
+                {EXIT_OPTIONS.map((o) => <option key={o.years} value={o.years}>{o.label} — devlet katkısının %{Math.round(o.vest * 100)}'i</option>)}
+              </select>
+            </Field>
+          </div>
 
-          <section className="summaryGrid investmentSummaryGrid"><article className="summaryCard green"><div className="summaryLabel">Mevcut Total Para</div><div className="summaryValue summaryValue-green">{money(projection.currentTotalMoney)}</div><div className="summaryDetail">Ana para + fon getirisi + devlet toplamının %{vestingRate} payı</div></article><article className="summaryCard blue"><div className="summaryLabel">Güncel İlerleme</div><div className="summaryValue summaryValue-blue">{projection.currentMonth}. Ay</div><div className="summaryDetail">Kalan ay: {projection.remainingMonth}</div></article><article className="summaryCard purple"><div className="summaryLabel">Mevcut Fon Getirisi</div><div className="summaryValue summaryValue-purple">{money(projection.currentRow?.cumulativeFundReturn)}</div><div className="summaryDetail">Gerçekleşen ana fon kârı</div></article><article className="summaryCard red"><div className="summaryLabel">Hak Edilen Devlet Payı</div><div className="summaryValue summaryValue-red">{money(projection.currentEarnedStateAmount)}</div><div className="summaryDetail">Devlet katkısı + devlet fon getirisi x %{vestingRate}</div></article></section>
+          {/* Ilerleme */}
+          <div style={{ border: "1px solid rgba(255,255,255,.12)", borderRadius: 16, padding: "14px 16px", background: "rgba(2,6,23,.4)", marginBottom: 16 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", color: "#cbd5e1", fontSize: 12, marginBottom: 8, flexWrap: "wrap", gap: 8 }}>
+              <span><strong style={{ color: "#fff" }}>{p.elapsed}</strong> ay geçti · <strong style={{ color: "#fff" }}>{p.remaining}</strong> ay kaldı</span>
+              <span>{p.exitDate ? `Hedef çıkış: ${p.exitDate.toLocaleDateString("tr-TR", { month: "long", year: "numeric" })}` : ""}</span>
+            </div>
+            <div style={{ height: 10, borderRadius: 999, background: "rgba(255,255,255,.10)", overflow: "hidden" }}>
+              <div style={{ width: `${p.progress}%`, height: "100%", background: "linear-gradient(90deg,#60a5fa,#a78bfa)" }} />
+            </div>
+          </div>
 
-          <PanelBlock title="Gerçekleşen Güncel Değerler" subtitle="Bugüne kadar gerçekleşen mevcut BES değerlerini buraya gir." color="purple" open={inputsOpen} onToggle={() => setInputsOpen((value) => !value)}>
-            <div className="formGrid six besGrid"><label className="inputBox"><span>Güncel Ay</span><input value={currentMonthInput} onChange={(event) => setCurrentMonthInput(event.target.value)} placeholder="15" /></label><label className="inputBox"><span>Başlangıç Tarihi</span><input type="date" value={startDate} onChange={(event) => setStartDate(event.target.value)} /></label><label className="inputBox"><span>Toplam Ay</span><input value={totalMonths} onChange={(event) => setTotalMonths(event.target.value)} /></label><label className="inputBox"><span>Hak Ediş Ayı</span><input value={vestingMonth} onChange={(event) => setVestingMonth(event.target.value)} /></label><label className="inputBox"><span>Hak Ediş %</span><input value={vestingRate} onChange={(event) => setVestingRate(event.target.value)} /></label><label className="inputBox"><span>Gerçekleşen Ana Para</span><input value={actualPrincipalPaid} onChange={(event) => setActualPrincipalPaid(event.target.value)} placeholder="Boşsa plana göre hesaplar" /></label><label className="inputBox"><span>Mevcut Fon Getirisi</span><input value={actualMainFundReturn} onChange={(event) => setActualMainFundReturn(event.target.value)} /></label><label className="inputBox"><span>Devlet Katkısı Ana Para</span><input value={actualStateContribution} onChange={(event) => setActualStateContribution(event.target.value)} /></label><label className="inputBox"><span>Devlet Katkısı Fon Getirisi</span><input value={actualStateFundReturn} onChange={(event) => setActualStateFundReturn(event.target.value)} /></label><label className="inputBox"><span>Gelecek Devlet Katkısı %</span><input value={stateContributionRate} onChange={(event) => setStateContributionRate(event.target.value)} /></label></div>
-          </PanelBlock>
+          {/* Sonuc: cikista eline gececek */}
+          <div style={{ border: "1px solid rgba(34,197,94,.35)", borderRadius: 20, padding: 20, background: "linear-gradient(150deg, rgba(34,197,94,.16), rgba(15,23,42,.6))", marginBottom: 16 }}>
+            <div style={{ color: "#cbd5e1", fontSize: 12, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".04em" }}>
+              {p.option.label}nda elinize geçecek NET
+            </div>
+            <div style={{ color: "#86efac", fontSize: "clamp(28px, 5vw, 42px)", fontWeight: 900, margin: "6px 0 4px", lineHeight: 1.1 }}>{money(p.net)}</div>
+            <div style={{ color: "#94a3b8", fontSize: 12 }}>Vergi ve hak ediş kesintileri düşülmüş hâli</div>
 
-          <PanelBlock title="Devlet Katkısı Mantığı" subtitle="Devlet katkısı ana para ve devlet katkısı fon getirisi ayrı takip edilir." color="mint" open={summaryOpen} onToggle={() => setSummaryOpen((value) => !value)}><div className="besLogicGrid"><div className="besLogicCard"><span>Gerçekleşen Ana Para</span><strong>{money(projection.currentPrincipalPaid)}</strong><p>BES hesabına bugüne kadar yatırılan veya plana göre hesaplanan ana para.</p></div><div className="besLogicCard"><span>Devlet Katkısı Ana Para</span><strong>{money(numberValue(actualStateContribution))}</strong><p>Ödenen katkı paylarından oluşan devlet katkısı ana tutarı.</p></div><div className="besLogicCard"><span>Devlet Katkısı Fon Getirisi</span><strong>{money(numberValue(actualStateFundReturn))}</strong><p>Devlet katkısı hesabının fonlarda kazandırdığı getiri.</p></div><div className="besLogicCard"><span>Mevcut Total Para</span><strong>{money(projection.currentTotalMoney)}</strong><p>Ana para + fon getirisi + devlet toplamının %{vestingRate} hak edilen kısmı.</p></div></div></PanelBlock>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(155px, 1fr))", gap: 10, marginTop: 16 }}>
+              <Kalem etiket="Kendi Birikimin" tutar={money(p.ownAtExit)} renk="#60a5fa" alt={`${money(p.paidPrincipal)} yatırdın`} />
+              <Kalem etiket={`Hak Edilen Devlet Katkısı (%${Math.round(p.option.vest * 100)})`} tutar={money(p.vestedState)} renk="#a78bfa" alt={`${money(p.stateAtExit)} birikenin payı`} />
+              <Kalem etiket="Brüt Toplam" tutar={money(p.gross)} renk="#e2e8f0" />
+              <Kalem etiket={`Stopaj (%${Math.round(p.option.tax * 100)})`} tutar={`− ${money(p.tax)}`} renk="#fb7185" alt="Sadece getiri üzerinden" />
+            </div>
+          </div>
 
-          <PanelBlock title="Yıllık Katkı ve Getiri Varsayımları" subtitle="Gelecek dönem katkı ve getiri varsayımlarını yıl bazında değiştir." color="orange" open={yearlyOpen} onToggle={() => setYearlyOpen((value) => !value)}><div className="besYearTable"><div className="besYearHeader"><span>Yıl</span><span>Aylık Katkı</span><span>Ana Fon Yıllık Getiri %</span><span>Devlet Fon Yıllık Getiri %</span></div>{yearlyInputs.map((item, index) => <div className="besYearRow" key={item.year}><strong>{item.year}</strong><input value={item.monthlyContribution} onChange={(event) => updateYearInput(index, "monthlyContribution", event.target.value)} /><input value={item.fundReturn} onChange={(event) => updateYearInput(index, "fundReturn", event.target.value)} /><input value={item.stateReturn} onChange={(event) => updateYearInput(index, "stateReturn", event.target.value)} /></div>)}</div></PanelBlock>
+          {/* Cikis zamani karsilastirmasi */}
+          <div style={{ border: "1px solid rgba(255,255,255,.12)", borderRadius: 18, padding: 16, background: "rgba(2,6,23,.35)" }}>
+            <h3 style={{ margin: "0 0 4px", color: "#fff", fontSize: 16 }}>Ne zaman çıksam?</h3>
+            <p className="sectionDescription" style={{ marginTop: 0 }}>Aynı katkıyla farklı çıkış zamanlarında eline geçecek net tutar.</p>
+            <div style={{ overflowX: "auto" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", color: "#e2e8f0", fontSize: 12.5, minWidth: 460 }}>
+                <thead>
+                  <tr style={{ color: "#bfdbfe", textAlign: "left" }}>
+                    <th style={{ padding: "8px 10px" }}>Çıkış</th>
+                    <th style={{ padding: "8px 10px" }}>Devlet Katkısı Hakkı</th>
+                    <th style={{ padding: "8px 10px" }}>Stopaj</th>
+                    <th style={{ padding: "8px 10px", textAlign: "right" }}>Net Tutar</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {karsilastirma.map((k) => (
+                    <tr key={k.years} style={{ borderTop: "1px solid rgba(255,255,255,.08)", background: k.years === exitYears ? "rgba(96,165,250,.12)" : "transparent" }}>
+                      <td style={{ padding: "10px" }}>{k.label}{k.years === exitYears ? <span style={{ color: "#93c5fd", fontSize: 10.5, marginLeft: 6 }}>seçili</span> : null}</td>
+                      <td style={{ padding: "10px" }}>%{Math.round(k.vest * 100)}</td>
+                      <td style={{ padding: "10px" }}>%{Math.round(k.tax * 100)}</td>
+                      <td style={{ padding: "10px", textAlign: "right", fontWeight: 800, color: k.years === exitYears ? "#86efac" : "#e2e8f0" }}>{money(k.sonuc.net)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {p.lostState > 0 ? (
+              <div style={{ marginTop: 12, color: "#fbbf24", fontSize: 12, lineHeight: 1.55 }}>
+                ⚠️ {p.option.label}nda çıkarsan devlet katkısının <strong>{money(p.lostState)}</strong> kadarını alamıyorsun. Daha uzun kalmak bu tutarı kazandırır.
+              </div>
+            ) : null}
+          </div>
 
-          <PanelBlock title="Ay Bazlı Projeksiyon" subtitle="Tablo varsayılan kapalı gelir. Açınca tüm aylar ve tarihler görünür." color="purple" open={tableOpen} onToggle={() => setTableOpen((value) => !value)}><div className="besProjectionTableWrap"><table className="besProjectionTable"><thead><tr><th>Dönem</th><th>Tarih</th><th>Kalan Ay</th><th>Aylık Katkı</th><th>Mevcut Yatırım</th><th>Aylık Fon Getirisi</th><th>Kümülatif Fon Getirisi</th><th>Ana Fon Değeri</th><th>Devlet Katkısı Ana Para</th><th>Devlet Katkısı Fon Getirisi</th><th>Toplam Devlet Fonu</th><th>Hak Edilen Devlet</th><th>Total Getiri</th><th>Portföy</th></tr></thead><tbody>{projection.rows.map((row) => <tr key={row.month} className={row.month === Number(vestingMonth) ? "vestingBesRow" : row.month === projection.currentMonth ? "currentBesRow" : ""}><td>{row.period}</td><td>{formatDate(row.date)}</td><td>{row.remainingMonth}</td><td>{money(row.monthlyContribution)}</td><td>{money(row.principalPaid)}</td><td>{money(row.monthlyFundReturn)}</td><td>{money(row.cumulativeFundReturn)}</td><td>{money(row.fundClosing)}</td><td>{money(row.stateContributionTotal)}</td><td>{money(row.cumulativeStateFundReturn)}</td><td>{money(row.stateFundClosing)}</td><td>{money(row.earnedStateAmount)}</td><td>{money(row.estimatedTotalReturn)}</td><td>{money(row.totalPortfolioValue)}</td></tr>)}</tbody></table></div></PanelBlock>
+          <p className="sectionDescription" style={{ marginTop: 14, lineHeight: 1.6 }}>
+            <strong>Kurallar (2026):</strong> Devlet katkısı ödediğin katkı payının %20'si (yılda en fazla {money(ANNUAL_STATE_CAP)}).
+            Hak ediş: 3 yıl %15 · 6 yıl %35 · 10 yıl %60 · emeklilik %100. Stopaj yalnızca <em>getiri</em> üzerinden alınır,
+            anaparandan kesinti yapılmaz. Bu hesap bir tahmindir; gerçek tutar fon performansına göre değişir.
+          </p>
         </div>
       ) : null}
     </section>
+  );
+}
+
+function Kalem({ etiket, tutar, renk, alt }) {
+  return (
+    <div style={{ border: "1px solid rgba(255,255,255,.10)", borderRadius: 14, padding: "11px 13px", background: "rgba(2,6,23,.45)", minWidth: 0 }}>
+      <div style={{ color: "#94a3b8", fontSize: 10.5, fontWeight: 700, textTransform: "uppercase", lineHeight: 1.35 }}>{etiket}</div>
+      <div style={{ color: renk, fontSize: 17, fontWeight: 800, marginTop: 4, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{tutar}</div>
+      {alt ? <div style={{ color: "#64748b", fontSize: 10.5, marginTop: 2 }}>{alt}</div> : null}
+    </div>
   );
 }
