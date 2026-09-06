@@ -116,36 +116,136 @@ function calcArac(goal) {
 // --- Evlilik (Türkiye, 2026) ----------------------------------------------
 // Sektörün kritik gerçeği: takı hem GİDER hem GELİRDİR. Düğünde gelen altın ve
 // para, masrafın önemli bir kısmını karşılar — bütçe bunu görmezse yanıltır.
-const EVLILIK_OLCEK = {
-  sade: { label: "Sade", guests: "120", perGuest: "2000", attire: "50000", organization: "70000", jewelry: "200000", homeSetup: "350000", honeymoon: "60000" },
-  orta: { label: "Orta", guests: "200", perGuest: "2500", attire: "100000", organization: "150000", jewelry: "550000", homeSetup: "750000", honeymoon: "150000" },
-  genis: { label: "Gösterişli", guests: "350", perGuest: "5000", attire: "180000", organization: "300000", jewelry: "900000", homeSetup: "1200000", honeymoon: "300000" },
-};
+// Evlilik bütçesi iki ana bölüme ayrılır: DÜĞÜN (mavi) ve EV KURMA (yeşil).
+// Kalemler gerçek bir düğün bütçe çizelgesinden alınmıştır; varsayılanlar
+// 2026 piyasa ortalamalarıdır ve tek tıkla doldurulabilir.
+const EVLILIK_BOLUMLER = [
+  {
+    id: "dugun", ad: "DÜĞÜN MASRAFLARI", ikon: "💍",
+    ana: "#3b82f6", acik: "#bfdbfe", zemin: "rgba(59,130,246,.14)", kenar: "rgba(59,130,246,.34)",
+    gruplar: [
+      { no: 1, ad: "Söz ve Nişan Aşamaları", kalemler: [
+        ["sozYuzuk", "Söz Yüzükleri & Tepsisi", 25000],
+        ["sozGelinKiyafet", "Gelin İçin Kıyafet", 0],
+        ["sozDamatKiyafet", "Damat İçin Kıyafet", 0],
+        ["sozFoto", "Fotoğraf & Video Çekimi", 25000],
+        ["nisanMekan", "Nişan Mekânı & Organizasyonu", 80000],
+        ["nisanElbise", "Nişan Elbisesi & Damatlık", 20000],
+        ["nisanPasta", "Nişan Pastası & İkramlıklar", 10000],
+        ["nisanFoto", "Nişan Fotoğraf & Video", 15000],
+        ["nisanSusleme", "Süsleme & Masa Dekorları", 10000],
+        ["nisanTaki", "Takılar (Bilezik, Kolye vb.)", 120000],
+      ] },
+      { no: 2, ad: "Nikâh Töreni", kalemler: [
+        ["nikahSalon", "Nikâh Salonu Kirası", 10000],
+        ["nikahResmi", "Resmî İşlemler (Evrak, Harç)", 5000],
+        ["nikahKiyafet", "Gelinlik & Damatlık", 0],
+        ["nikahGelinHazirlik", "Gelin Çiçeği & Saç & Makyaj", 30000],
+        ["nikahFoto", "Fotoğraf & Video Çekimi", 0],
+        ["nikahSeker", "Nikâh Şekeri & Davetiye", 0],
+      ] },
+      { no: 3, ad: "Düğün Organizasyonu", kalemler: [
+        ["dugunSalon", "Düğün Salonu", 400000],
+        ["dugunKiyafet", "Gelinlik & Damatlık", 100000],
+        ["dugunMuzik", "Müzik Grubu / DJ", 50000],
+        ["dugunGelinHazirlik", "Gelin Saçı & Makyajı", 20000],
+        ["dugunPasta", "Düğün Pastası & İkramlar", 25000],
+        ["dugunDavetiye", "Davetiyeler", 10000],
+        ["dugunFoto", "Fotoğraf & Video Çekimi", 30000],
+        ["dugunAraba", "Gelin Arabası Kiralama", 3000],
+        ["dugunTaki", "Takı & Altın Masrafları", 120000],
+        ["balayi", "Balayı", 200000],
+      ] },
+    ],
+  },
+  {
+    id: "ev", ad: "EV MASRAFLARI", ikon: "🏡",
+    ana: "#22c55e", acik: "#bbf7d0", zemin: "rgba(34,197,94,.13)", kenar: "rgba(34,197,94,.32)",
+    gruplar: [
+      { no: 4, ad: "Beyaz Eşyalar", kalemler: [
+        ["buzdolabi", "Buzdolabı", 50000],
+        ["camasirMak", "Çamaşır Makinesi", 35000],
+        ["bulasikMak", "Bulaşık Makinesi", 30000],
+        ["firin", "Fırın", 30000],
+        ["kurutmaMak", "Kurutma Makinesi", 30000],
+        ["televizyon", "Televizyon", 80000],
+      ] },
+      { no: 5, ad: "Mobilyalar", kalemler: [
+        ["oturmaOdasi", "Oturma Odası Takımı", 80000],
+        ["yemekOdasi", "Yemek Odası Takımı", 80000],
+        ["yatakOdasi", "Yatak Odası Takımı", 120000],
+        ["mutfakMasa", "Mutfak Masası ve Sandalyeler", 35000],
+        ["sehpa", "Sehpa ve Yan Masalar", 15000],
+      ] },
+      { no: 6, ad: "Mutfak Gereçleri", kalemler: [
+        ["tencere", "Tencere ve Tava Seti", 30000],
+        ["yemekTakimi", "Yemek Takımı", 22000],
+        ["catalKasik", "Çatal, Kaşık, Bıçak Seti", 10000],
+        ["bardak", "Bardak ve Fincan Setleri", 15000],
+        ["mutfakAlet", "Mutfak Aletleri", 50000],
+      ] },
+      { no: 7, ad: "Ev Tekstili", kalemler: [
+        ["nevresim", "Nevresim Takımları", 20000],
+        ["yorgan", "Yorgan ve Yastıklar", 20000],
+        ["havlu", "Havlu Setleri", 7000],
+        ["perde", "Perdeler", 25000],
+        ["hali", "Halılar", 40000],
+        ["mutfakGerec", "Mutfak Gereçleri", 100000],
+      ] },
+      { no: 8, ad: "Diğer", kalemler: [
+        ["aydinlatma", "Aydınlatma Ürünleri", 50000],
+        ["supurge", "Elektrikli Süpürge", 35000],
+        ["utu", "Ütü ve Ütü Masası", 25000],
+        ["kurutmaAskisi", "Çamaşır Kurutma Askısı", 0],
+        ["kahveMak", "Kahve Makinesi", 35000],
+      ] },
+    ],
+  },
+];
+
+const EVLILIK_OLCEK = [
+  { id: "sade", label: "Sade", carpan: 0.6 },
+  { id: "standart", label: "Standart", carpan: 1 },
+  { id: "genis", label: "Gösterişli", carpan: 1.7 },
+];
+
+function evlilikOnAyar(carpan) {
+  const items = {};
+  EVLILIK_BOLUMLER.forEach((b) => b.gruplar.forEach((g) => g.kalemler.forEach(([k, , v]) => {
+    items[k] = v > 0 ? String(Math.round((v * carpan) / 1000) * 1000) : "";
+  })));
+  return items;
+}
 
 function calcEvlilik(goal) {
-  const davetli = num(goal.guests);
-  const kisiBasi = num(goal.perGuest);
-  const salonYemek = davetli * kisiBasi;
-  const attire = num(goal.attire);            // gelinlik + damatlık
-  const organization = num(goal.organization); // fotoğraf, orkestra, kuaför, davetiye, nikah
-  const jewelry = num(goal.jewelry);           // alınacak takı/altın
-  const homeSetup = num(goal.homeSetup);       // mobilya + beyaz eşya
-  const honeymoon = num(goal.honeymoon);
+  const items = goal.items && typeof goal.items === "object" ? goal.items : {};
+  const deger = (k) => num(items[k]);
 
-  const kalemler = { salonYemek, attire, organization, jewelry, homeSetup, honeymoon };
-  const target = salonYemek + attire + organization + jewelry + homeSetup + honeymoon;
+  const bolumToplam = {};
+  const grupToplam = {};
+  EVLILIK_BOLUMLER.forEach((b) => {
+    let bt = 0;
+    b.gruplar.forEach((g) => {
+      const gt = g.kalemler.reduce((s, [k]) => s + deger(k), 0);
+      grupToplam[g.no] = gt;
+      bt += gt;
+    });
+    bolumToplam[b.id] = bt;
+  });
 
+  const target = Object.values(bolumToplam).reduce((s, v) => s + v, 0);
   const cash = num(goal.cash);
-  const gifts = num(goal.expectedGifts);   // düğünde gelen takı + para
+  const gifts = num(goal.expectedGifts);
   const family = num(goal.familyHelp);
   const resources = cash + gifts + family;
 
   const gap = target - resources;
   const percent = target > 0 ? Math.min(100, (resources / target) * 100) : 0;
   const takiKarsilama = target > 0 ? (gifts / target) * 100 : 0;
+  const davetli = num(goal.guests);
   const kisiBasiToplam = davetli > 0 ? target / davetli : 0;
 
-  return { davetli, kalemler, target, resources, cash, gifts, family, gap, percent, takiKarsilama, kisiBasiToplam };
+  return { deger, grupToplam, bolumToplam, target, resources, cash, gifts, family, gap, percent, takiKarsilama, davetli, kisiBasiToplam };
 }
 
 // Anüite taksiti
@@ -796,48 +896,58 @@ function AracKarti({ goal, c, onChange, onDelete, likit, aylikGelir }) {
 // blok blok form yerine, düğün planlamacılarının kullandığı gibi tek bir
 // DÜZENLENEBİLİR ÇİZELGE. Her satır bir bütçe kalemi; tutarı satırın içinde
 // değiştirirsin, payı ve çubuğu anında güncellenir.
-function CizelgeInput({ value, onChange, placeholder, genislik = 118 }) {
+// Evlilik ekranı diğer kategorilerden bilinçli olarak farklı kurgulanmıştır:
+// gerçek bir düğün bütçe çizelgesi gibi, iki renk ailesine ayrılmış 8 grup
+// (DÜĞÜN = mavi, EV KURMA = yeşil) ve her grubun kendi alt toplamı.
+function KalemSatiri({ ad, value, onChange, varsayilan, renk }) {
   return (
-    <input
-      style={{
-        width: genislik, boxSizing: "border-box", textAlign: "right",
-        border: "1px solid rgba(255,255,255,.16)", background: "rgba(2,6,23,.55)",
-        color: "#f8fafc", borderRadius: 9, padding: "6px 9px", outline: "none", fontSize: 12.5,
-      }}
-      inputMode="decimal" value={value || ""} placeholder={placeholder}
-      onChange={(e) => onChange(e.target.value)}
-    />
+    <div style={{
+      display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8,
+      padding: "5px 10px", borderBottom: "1px solid rgba(255,255,255,.05)",
+    }}>
+      <span style={{ color: "#cbd5e1", fontSize: 11.5, minWidth: 0, flex: 1, lineHeight: 1.35 }}>{ad}</span>
+      <input
+        style={{
+          width: 104, flex: "0 0 auto", boxSizing: "border-box", textAlign: "right",
+          border: "1px solid rgba(255,255,255,.12)", background: "rgba(2,6,23,.55)",
+          color: value ? "#f8fafc" : "#64748b", borderRadius: 7, padding: "5px 8px",
+          outline: "none", fontSize: 11.5, fontVariantNumeric: "tabular-nums",
+        }}
+        inputMode="decimal" value={value || ""} placeholder={varsayilan > 0 ? String(varsayilan) : "0"}
+        onFocus={(e) => { e.target.style.borderColor = renk; }}
+        onBlur={(e) => { e.target.style.borderColor = "rgba(255,255,255,.12)"; }}
+        onChange={(e) => onChange(e.target.value)}
+      />
+    </div>
   );
 }
 
-function CizelgeSatir({ ad, not, sagUst, children, pay, payRenk = "#f472b6", kalin, vurgu }) {
+function GrupKarti({ grup, bolum, c, onItem }) {
   return (
-    <tr style={{ borderBottom: "1px solid rgba(255,255,255,.06)", background: vurgu ? "rgba(244,114,182,.10)" : "transparent" }}>
-      <td style={{ padding: "9px 10px", minWidth: 0 }}>
-        <span style={{ display: "block", color: vurgu ? "#fff" : "#e2e8f0", fontWeight: kalin ? 800 : 600, fontSize: 12.5 }}>{ad}</span>
-        {not ? <span style={{ display: "block", color: "#64748b", fontSize: 10, marginTop: 1 }}>{not}</span> : null}
-      </td>
-      <td style={{ padding: "9px 10px", textAlign: "right", whiteSpace: "nowrap" }}>{children}</td>
-      <td style={{ padding: "9px 10px", textAlign: "right", whiteSpace: "nowrap", width: 108 }}>
-        {pay === null || pay === undefined ? (
-          sagUst || null
-        ) : (
-          <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-            <span style={{ width: 40, height: 6, borderRadius: 999, background: "rgba(255,255,255,.12)", overflow: "hidden", display: "inline-block" }}>
-              <span style={{ display: "block", width: `${Math.min(100, pay)}%`, height: "100%", background: `linear-gradient(90deg, ${payRenk}, #a78bfa)` }} />
-            </span>
-            <span style={{ minWidth: 32, textAlign: "right", color: "#cbd5e1", fontSize: 11.5 }}>%{pay.toFixed(0)}</span>
-          </span>
-        )}
-      </td>
-    </tr>
+    <div style={{ border: `1px solid ${bolum.kenar}`, borderRadius: 13, overflow: "hidden", background: "rgba(2,6,23,.42)" }}>
+      <div style={{
+        display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8,
+        padding: "7px 10px", background: bolum.zemin, borderBottom: `1px solid ${bolum.kenar}`,
+      }}>
+        <span style={{ color: bolum.acik, fontSize: 11.5, fontWeight: 800 }}>{grup.no}. {grup.ad}</span>
+        <span style={{ color: "#fff", fontSize: 11.5, fontWeight: 900, whiteSpace: "nowrap" }}>{money(c.grupToplam[grup.no] || 0)}</span>
+      </div>
+      <div>
+        {grup.kalemler.map(([k, ad, v]) => (
+          <KalemSatiri key={k} ad={ad} varsayilan={v} renk={bolum.ana}
+            value={(c.rawItems || {})[k]} onChange={(val) => onItem(k, val)} />
+        ))}
+      </div>
+    </div>
   );
 }
 
 function EvlilikKarti({ goal, c, onChange, onApplyPreset, onDelete, likit, aylikKalanPara }) {
   const ayKalan = aylikKalan(goal.targetDate);
   const aylikBirikim = c.gap > 0 && ayKalan && ayKalan > 0 ? c.gap / ayKalan : null;
-  const pay = (v) => (c.target > 0 ? (v / c.target) * 100 : 0);
+  const rawItems = goal.items && typeof goal.items === "object" ? goal.items : {};
+  const cc = { ...c, rawItems };
+  const onItem = (k, v) => onChange("items", { ...rawItems, [k]: v });
 
   const uyarilar = [];
   if (c.takiKarsilama > 60)
@@ -846,127 +956,127 @@ function EvlilikKarti({ goal, c, onChange, onApplyPreset, onDelete, likit, aylik
     uyarilar.push(`Ayda ${money(aylikBirikim)} biriktirmen gerekiyor ama aylık kalanın ${money(aylikKalanPara)}. Tarihi ilerletmen ya da bütçeyi küçültmen gerekebilir.`);
 
   const tamam = c.gap <= 0;
-  const th = { padding: "7px 10px", color: "#f9a8d4", fontSize: 10.5, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".04em", borderBottom: "1px solid rgba(244,114,182,.28)" };
+  const kaynakSatir = (etiket, alan, ipucu, aksiyon) => (
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "9px 12px", borderBottom: "1px solid rgba(255,255,255,.06)" }}>
+      <span style={{ minWidth: 0 }}>
+        <span style={{ display: "block", color: "#e2e8f0", fontSize: 12.5, fontWeight: 600 }}>{etiket}</span>
+        {ipucu ? <span style={{ display: "block", color: "#64748b", fontSize: 10, marginTop: 1 }}>{ipucu}</span> : null}
+      </span>
+      <span style={{ display: "flex", alignItems: "center", gap: 8, flex: "0 0 auto" }}>
+        {aksiyon}
+        <input style={{ width: 118, boxSizing: "border-box", textAlign: "right", border: "1px solid rgba(255,255,255,.14)", background: "rgba(2,6,23,.55)", color: "#f8fafc", borderRadius: 8, padding: "6px 9px", outline: "none", fontSize: 12.5 }}
+          inputMode="decimal" value={goal[alan] || ""} placeholder="0" onChange={(e) => onChange(alan, e.target.value)} />
+      </span>
+    </div>
+  );
 
   return (
     <article style={{
-      border: "1px solid rgba(244,114,182,.3)", borderRadius: 20, padding: 18,
-      background: "linear-gradient(160deg, rgba(76,29,63,.42), rgba(15,23,42,.8))",
-      display: "grid", gap: 13,
+      border: "1px solid rgba(148,163,184,.22)", borderRadius: 20, padding: 17,
+      background: "linear-gradient(165deg, rgba(30,41,59,.7), rgba(15,23,42,.85))",
+      display: "grid", gap: 14,
     }}>
-      {/* Künye şeridi */}
+      {/* Künye */}
       <div style={{ display: "flex", gap: 11, alignItems: "flex-end", flexWrap: "wrap" }}>
-        <label style={{ flex: "1 1 190px" }}>
-          <span style={{ display: "block", color: "#f9a8d4", fontSize: 11, fontWeight: 800, marginBottom: 5 }}>💍 HEDEF ADI</span>
+        <label style={{ flex: "1 1 180px" }}>
+          <span style={{ display: "block", color: "#cbd5e1", fontSize: 11, fontWeight: 800, marginBottom: 5 }}>💍 HEDEF ADI</span>
           <input style={inputStyle} value={goal.name || ""} placeholder="Evlilik Hedefi" onChange={(e) => onChange("name", e.target.value)} />
         </label>
-        <label style={{ flex: "0 1 175px" }}>
-          <span style={{ display: "block", color: "#f9a8d4", fontSize: 11, fontWeight: 800, marginBottom: 5 }}>DÜĞÜN TARİHİ</span>
+        <label style={{ flex: "0 1 165px" }}>
+          <span style={{ display: "block", color: "#cbd5e1", fontSize: 11, fontWeight: 800, marginBottom: 5 }}>DÜĞÜN TARİHİ</span>
           <input style={inputStyle} type="date" value={goal.targetDate || ""} onChange={(e) => onChange("targetDate", e.target.value)} />
         </label>
+        <label style={{ flex: "0 1 120px" }}>
+          <span style={{ display: "block", color: "#cbd5e1", fontSize: 11, fontWeight: 800, marginBottom: 5 }}>DAVETLİ</span>
+          <input style={inputStyle} inputMode="decimal" value={goal.guests || ""} placeholder="200" onChange={(e) => onChange("guests", e.target.value)} />
+        </label>
         <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
-          {Object.entries(EVLILIK_OLCEK).map(([k, v]) => (
-            <button key={k} type="button" onClick={() => onApplyPreset(v)} title="Bu ölçeğin 2026 ortalamalarıyla doldur"
-              style={{ border: "1px solid rgba(244,114,182,.36)", background: "rgba(244,114,182,.12)", color: "#fbcfe8", borderRadius: 9, padding: "8px 12px", fontSize: 11.5, fontWeight: 800, cursor: "pointer" }}>
-              {v.label}
+          {EVLILIK_OLCEK.map((o) => (
+            <button key={o.id} type="button" onClick={() => onApplyPreset({ items: evlilikOnAyar(o.carpan) })}
+              title="Bu ölçeğin 2026 ortalamalarıyla tüm kalemleri doldur"
+              style={{ border: "1px solid rgba(148,163,184,.32)", background: "rgba(2,6,23,.5)", color: "#e2e8f0", borderRadius: 9, padding: "8px 12px", fontSize: 11.5, fontWeight: 800, cursor: "pointer" }}>
+              {o.label}
             </button>
           ))}
         </div>
         <button type="button" className="deleteButton" onClick={onDelete}>Sil</button>
       </div>
 
-      {/* ÇİZELGE — gider */}
-      <div style={{ border: "1px solid rgba(244,114,182,.22)", borderRadius: 16, background: "rgba(2,6,23,.45)", overflow: "hidden" }}>
-        <div style={{ padding: "11px 13px", borderBottom: "1px solid rgba(244,114,182,.2)", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-          <span style={{ color: "#fff", fontWeight: 900, fontSize: 13.5 }}>📋 Düğün Bütçe Çizelgesi</span>
-          <span style={{ color: "#f9a8d4", fontSize: 11.5, fontWeight: 700 }}>Tutarları satır içinde değiştir</span>
-        </div>
-        <div style={{ overflowX: "auto" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 430 }}>
-            <thead><tr><th style={{ ...th, textAlign: "left" }}>Kalem</th><th style={{ ...th, textAlign: "right" }}>Tutar</th><th style={{ ...th, textAlign: "right" }}>Pay</th></tr></thead>
-            <tbody>
-              <CizelgeSatir ad="Salon + yemek" not={`${c.davetli || 0} davetli × kişi başı menü`} pay={pay(c.kalemler.salonYemek)}>
-                <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
-                  <CizelgeInput value={goal.guests} onChange={(v) => onChange("guests", v)} placeholder="200" genislik={62} />
-                  <span style={{ color: "#64748b", fontSize: 12 }}>×</span>
-                  <CizelgeInput value={goal.perGuest} onChange={(v) => onChange("perGuest", v)} placeholder="2.500" genislik={82} />
-                </span>
-                <span style={{ display: "block", color: "#f9a8d4", fontSize: 11.5, fontWeight: 700, marginTop: 3 }}>{money(c.kalemler.salonYemek)}</span>
-              </CizelgeSatir>
-              <CizelgeSatir ad="Gelinlik + damatlık" not="Hazır 15.000 ₺'den, özel dikim 80.000 ₺'ye" pay={pay(c.kalemler.attire)}>
-                <CizelgeInput value={goal.attire} onChange={(v) => onChange("attire", v)} placeholder="100.000" />
-              </CizelgeSatir>
-              <CizelgeSatir ad="Organizasyon" not="Fotoğraf, orkestra, kuaför, davetiye, nikah" pay={pay(c.kalemler.organization)}>
-                <CizelgeInput value={goal.organization} onChange={(v) => onChange("organization", v)} placeholder="150.000" />
-              </CizelgeSatir>
-              <CizelgeSatir ad="Takı / altın" not="Alyans, set, bilezik — sizin aldığınız" pay={pay(c.kalemler.jewelry)}>
-                <CizelgeInput value={goal.jewelry} onChange={(v) => onChange("jewelry", v)} placeholder="550.000" />
-              </CizelgeSatir>
-              <CizelgeSatir ad="Ev kurma" not="Mobilya + beyaz eşya + çeyiz" pay={pay(c.kalemler.homeSetup)}>
-                <CizelgeInput value={goal.homeSetup} onChange={(v) => onChange("homeSetup", v)} placeholder="750.000" />
-              </CizelgeSatir>
-              <CizelgeSatir ad="Balayı" not="Uçak, konaklama, harcama dâhil" pay={pay(c.kalemler.honeymoon)}>
-                <CizelgeInput value={goal.honeymoon} onChange={(v) => onChange("honeymoon", v)} placeholder="150.000" />
-              </CizelgeSatir>
-              <CizelgeSatir ad="TOPLAM MALİYET" kalin vurgu pay={c.target > 0 ? 100 : 0}
-                not={c.davetli > 0 ? `Davetli başına ${money(c.kisiBasiToplam)}` : null}>
-                <strong style={{ color: "#fff", fontSize: 14 }}>{money(c.target)}</strong>
-              </CizelgeSatir>
-            </tbody>
-          </table>
-        </div>
+      {/* İKİ RENK AİLESİ: düğün (mavi) / ev (yeşil) */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(330px, 1fr))", gap: 13 }}>
+        {EVLILIK_BOLUMLER.map((b) => (
+          <section key={b.id} style={{ border: `1px solid ${b.kenar}`, borderRadius: 17, overflow: "hidden", background: "rgba(2,6,23,.3)" }}>
+            <header style={{
+              display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10,
+              padding: "11px 14px", background: `linear-gradient(120deg, ${b.ana}44, ${b.ana}18)`,
+              borderBottom: `1px solid ${b.kenar}`,
+            }}>
+              <span style={{ color: "#fff", fontWeight: 900, fontSize: 13, letterSpacing: ".03em" }}>{b.ikon} {b.ad}</span>
+              <span style={{ color: b.acik, fontWeight: 900, fontSize: 14, whiteSpace: "nowrap" }}>{money(c.bolumToplam[b.id] || 0)}</span>
+            </header>
+            <div style={{ padding: 11, display: "grid", gap: 10 }}>
+              {b.gruplar.map((g) => <GrupKarti key={g.no} grup={g} bolum={b} c={cc} onItem={onItem} />)}
+            </div>
+          </section>
+        ))}
       </div>
 
-      {/* ÇİZELGE — kaynak */}
-      <div style={{ border: "1px solid rgba(167,139,250,.24)", borderRadius: 16, background: "rgba(2,6,23,.45)", overflow: "hidden" }}>
-        <div style={{ padding: "11px 13px", borderBottom: "1px solid rgba(167,139,250,.2)", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-          <span style={{ color: "#fff", fontWeight: 900, fontSize: 13.5 }}>💐 Kaynaklar</span>
-          {likit > 0 ? (
-            <button type="button" onClick={() => onChange("cash", String(Math.round(likit)))}
-              style={{ background: "none", border: "none", color: "#c4b5fd", fontSize: 11, fontWeight: 700, cursor: "pointer", padding: 0 }}>
-              Portföyümden al ({money(likit)})
-            </button>
-          ) : null}
-        </div>
-        <div style={{ overflowX: "auto" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 430 }}>
-            <thead><tr>
-              <th style={{ ...th, color: "#c4b5fd", borderBottomColor: "rgba(167,139,250,.28)", textAlign: "left" }}>Kaynak</th>
-              <th style={{ ...th, color: "#c4b5fd", borderBottomColor: "rgba(167,139,250,.28)", textAlign: "right" }}>Tutar</th>
-              <th style={{ ...th, color: "#c4b5fd", borderBottomColor: "rgba(167,139,250,.28)", textAlign: "right" }}>Karşılama</th>
-            </tr></thead>
-            <tbody>
-              <CizelgeSatir ad="Nakit / birikim" pay={pay(c.cash)} payRenk="#a78bfa">
-                <CizelgeInput value={goal.cash} onChange={(v) => onChange("cash", v)} placeholder="0" />
-              </CizelgeSatir>
-              <CizelgeSatir ad="Beklenen takı + para" not="Düğünde takılacağını tahmin ettiğin altın ve para"
-                pay={c.takiKarsilama} payRenk={c.takiKarsilama > 60 ? "#fbbf24" : "#a78bfa"}>
-                <CizelgeInput value={goal.expectedGifts} onChange={(v) => onChange("expectedGifts", v)} placeholder="0" />
-              </CizelgeSatir>
-              <CizelgeSatir ad="Aile katkısı" not="İki taraftan gelecek destek" pay={pay(c.family)} payRenk="#a78bfa">
-                <CizelgeInput value={goal.familyHelp} onChange={(v) => onChange("familyHelp", v)} placeholder="0" />
-              </CizelgeSatir>
-              <CizelgeSatir ad="TOPLAM KAYNAK" kalin vurgu pay={c.percent} payRenk="#a78bfa">
-                <strong style={{ color: "#fff", fontSize: 14 }}>{money(c.resources)}</strong>
-              </CizelgeSatir>
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* SONUÇ — kompakt şerit */}
+      {/* GENEL TOPLAM — mor */}
       <div style={{
         display: "flex", alignItems: "center", justifyContent: "space-between", gap: 14, flexWrap: "wrap",
-        border: `1px solid ${tamam ? "rgba(34,197,94,.4)" : "rgba(244,114,182,.42)"}`, borderRadius: 16, padding: "14px 17px",
-        background: tamam ? "linear-gradient(120deg, rgba(34,197,94,.16), rgba(15,23,42,.5))" : "linear-gradient(120deg, rgba(244,114,182,.16), rgba(15,23,42,.5))",
+        border: "1px solid rgba(168,85,247,.42)", borderRadius: 16, padding: "14px 18px",
+        background: "linear-gradient(120deg, rgba(168,85,247,.28), rgba(88,28,135,.2))",
+      }}>
+        <div>
+          <div style={{ color: "#e9d5ff", fontSize: 10.5, fontWeight: 900, textTransform: "uppercase", letterSpacing: ".06em" }}>Genel Toplam</div>
+          <div style={{ color: "#fff", fontSize: "clamp(24px, 4vw, 34px)", fontWeight: 900, lineHeight: 1.15 }}>{money(c.target)}</div>
+        </div>
+        <div style={{ display: "flex", gap: 20, flexWrap: "wrap" }}>
+          <span><span style={{ display: "block", color: "#c4b5fd", fontSize: 10, fontWeight: 800, textTransform: "uppercase" }}>Düğün</span>
+            <strong style={{ color: "#bfdbfe", fontSize: 15 }}>{money(c.bolumToplam.dugun || 0)}</strong></span>
+          <span><span style={{ display: "block", color: "#c4b5fd", fontSize: 10, fontWeight: 800, textTransform: "uppercase" }}>Ev Kurma</span>
+            <strong style={{ color: "#bbf7d0", fontSize: 15 }}>{money(c.bolumToplam.ev || 0)}</strong></span>
+          {c.davetli > 0 ? (
+            <span><span style={{ display: "block", color: "#c4b5fd", fontSize: 10, fontWeight: 800, textTransform: "uppercase" }}>Davetli Başına</span>
+              <strong style={{ color: "#fff", fontSize: 15 }}>{money(c.kisiBasiToplam)}</strong></span>
+          ) : null}
+        </div>
+      </div>
+
+      {/* KAYNAKLAR */}
+      <div style={{ border: "1px solid rgba(251,191,36,.26)", borderRadius: 16, background: "rgba(2,6,23,.42)", overflow: "hidden" }}>
+        <div style={{ padding: "10px 13px", background: "rgba(251,191,36,.11)", borderBottom: "1px solid rgba(251,191,36,.22)", color: "#fde68a", fontWeight: 900, fontSize: 12.5 }}>
+          💐 Kaynaklar
+        </div>
+        {kaynakSatir("Nakit / birikim", "cash", "Peşin ödeyebileceğin tutar",
+          likit > 0 ? (
+            <button type="button" onClick={() => onChange("cash", String(Math.round(likit)))}
+              style={{ background: "none", border: "none", color: "#93c5fd", fontSize: 10.5, fontWeight: 700, cursor: "pointer", padding: 0, whiteSpace: "nowrap" }}>
+              Portföyümden al
+            </button>
+          ) : null)}
+        {kaynakSatir("Beklenen takı + para", "expectedGifts", "Düğünde takılacağını tahmin ettiğin altın ve para")}
+        {kaynakSatir("Aile katkısı", "familyHelp", "İki taraftan gelecek destek")}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 13px", background: "rgba(251,191,36,.07)" }}>
+          <span style={{ color: "#fde68a", fontWeight: 900, fontSize: 12.5 }}>TOPLAM KAYNAK</span>
+          <strong style={{ color: "#fff", fontSize: 15 }}>{money(c.resources)}</strong>
+        </div>
+      </div>
+
+      {/* SONUÇ */}
+      <div style={{
+        display: "flex", alignItems: "center", justifyContent: "space-between", gap: 14, flexWrap: "wrap",
+        border: `1px solid ${tamam ? "rgba(34,197,94,.42)" : "rgba(248,113,113,.42)"}`, borderRadius: 16, padding: "14px 17px",
+        background: tamam ? "linear-gradient(120deg, rgba(34,197,94,.17), rgba(15,23,42,.5))" : "linear-gradient(120deg, rgba(248,113,113,.15), rgba(15,23,42,.5))",
       }}>
         <div>
           <div style={{ color: "#cbd5e1", fontSize: 10.5, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".04em" }}>
             {tamam ? "Bütçen yeterli" : "Eksik kaynak"}
           </div>
-          <div style={{ color: tamam ? "#86efac" : "#f9a8d4", fontSize: "clamp(24px, 4vw, 34px)", fontWeight: 900, lineHeight: 1.15 }}>
+          <div style={{ color: tamam ? "#86efac" : "#fca5a5", fontSize: "clamp(23px, 4vw, 32px)", fontWeight: 900, lineHeight: 1.15 }}>
             {tamam ? `+${money(Math.abs(c.gap))}` : money(c.gap)}
           </div>
+          <div style={{ color: "#94a3b8", fontSize: 11 }}>Karşılanan: %{c.percent.toFixed(1)}</div>
         </div>
         {aylikBirikim ? (
           <div style={{ textAlign: "right" }}>
@@ -988,11 +1098,12 @@ function EvlilikKarti({ goal, c, onChange, onApplyPreset, onDelete, likit, aylik
       ) : null}
 
       <div style={{ color: "#64748b", fontSize: 10.5, lineHeight: 1.5 }}>
-        Ön ayar rakamları 2026 piyasa ortalamalarıdır; şehir ve mekâna göre önemli ölçüde değişir.
+        Boş bıraktığın kalemler 0 sayılır. Ön ayar rakamları 2026 piyasa ortalamalarıdır; şehir ve mekâna göre değişir.
       </div>
     </article>
   );
 }
+
 
 function Kutu({ etiket, deger, renk, alt }) {
   return (
@@ -1040,8 +1151,7 @@ export default function FinancialGoals({ data, setData, financeTotals, investmen
         ? { ...base, name: "Araç Alma Hedefi", price: "", fuel: "ice", condition: "new", loan: "",
             tradeIn: "", tradeInDebt: "", monthlyRun: "", loanMonths: "24", loanRate: "3,25" }
         : type === "evlilik"
-        ? { ...base, name: "Evlilik Hedefi", guests: "", perGuest: "", attire: "", organization: "",
-            jewelry: "", homeSetup: "", honeymoon: "", expectedGifts: "", familyHelp: "" }
+        ? { ...base, name: "Evlilik Hedefi", guests: "", items: {}, expectedGifts: "", familyHelp: "" }
         : { ...base, name: "Ev Alma Hedefi", housePrice: "", extraCost: "", loan: "",
             sellHome: "", sellHomeDebt: "", loanMonths: "120", loanRate: "2,75" };
     mutateGoals((gs) => [yeni, ...gs]);
