@@ -54,12 +54,59 @@ yemediği (ödenebilirlik) ve açık varsa "ayda ne biriktirmelisin".
 `taksit = K × i × (1+i)^n / ((1+i)^n − 1)` — `i` aylık faiz, `n` vade (ay).
 Faiz 0 ise `K / n`.
 
-## Araç — alan bilgisi
+## Araç (Türkiye, 2026) — alan bilgisi
 
-*(Bu bölüm araç kategorisi yapılırken doldurulacak. Aynı iskelet: fiyat →
-kaynaklar → kredi → sonuç. Farkı: taşıt kredisinde LTV kademeli, ÖTV/KDV fiyata
-dahil, ek maliyetler noter + trafik/kasko sigortası + plaka-tescil, ayrıca
-**araç değer KAYBEDER** — konutun aksine yatırım değil gider kalemidir.)*
+**Konutla temel fark — bunu kaçırma:**
+Konutta asıl sürpriz **alım masrafıdır** (fiyatın ~%7'si). Araçta alım masrafı
+küçüktür; asıl maliyet **sahip olma giderleri + değer kaybıdır**. Ev değer
+kazanır, araç kaybeder. Bu yüzden araç ekranının kahraman sorusu şudur:
+
+> **"Bu araç bana 3 yılda gerçekte kaça mal olacak?"**
+> = ödenen taksitler + sigorta/vergi + yakıt/bakım − 3 yıl sonraki değeri
+
+**BDDK kademeli taşıt kredisi (2026)** — değer yükseldikçe hem kredi oranı düşer
+hem vade kısalır. Kullanıcı bunu bilmez; ekran söylemeli.
+
+*İçten yanmalı (benzin/dizel/hibrit):*
+
+| Araç değeri | Azami kredi | Azami vade |
+|---|---|---|
+| ≤ 400.000 ₺ | %80 | 48 ay |
+| 400.001 – 800.000 ₺ | %75 | 36 ay |
+| 800.001 – 1.200.000 ₺ | %70 | 24 ay |
+| 1.200.001 – 2.000.000 ₺ | %60 | 12 ay |
+| > 2.000.000 ₺ | **kredi yok** | — |
+
+*Elektrikli (teşvikli, daha geniş):*
+
+| Araç değeri | Azami kredi | Azami vade |
+|---|---|---|
+| ≤ 2.500.000 ₺ | %70 | 48 ay |
+| 2.500.001 – 5.000.000 ₺ | %60 | 36 ay |
+| 5.000.001 – 6.500.000 ₺ | %50 | 24 ay |
+| 6.500.001 – 7.500.000 ₺ | %40 | 12 ay |
+| > 7.500.000 ₺ | **kredi yok** | — |
+
+**Alım masrafları:**
+
+| Kalem | Tutar |
+|---|---|
+| Noter satış harcı | satış bedelinin **binde 2**, asgari **1.000 ₺** |
+| Noter hizmet bedeli | harcın **%30'u** + sayfa/nüsha/tescil/bildirim |
+| Tescil / plaka | ~2.500 ₺ (plaka değişiyorsa ayrıca Şoförler Odası) |
+| Zorunlu trafik sigortası | devir için **şart** |
+
+**Sahip olma giderleri (yıllık):** kasko + trafik ≈ araç değerinin **%4'ü**
+(eski araçlarda %10'u aşabilir, o noktada kasko ekonomik olmaktan çıkar), MTV
+(motor hacmi + yaşa göre), yakıt, bakım, lastik, otopark.
+
+**Değer kaybı (tahmini):** sıfır araç **ilk yıl ~%20**, sonraki yıllar ~%10.
+İkinci el ~%10/yıl. Tahmin olduğunu ekranda belirt.
+
+**Ödenebilirlik:** taksit tek başına değil, **toplam aylık araç gideri**
+(taksit + sigorta + vergi + yakıt/bakım) gelire oranlanmalı. Otomotiv
+danışmanlığında kabul gören eşik: toplam araç gideri **net gelirin %20'sini**
+aşmamalı.
 
 ## Ekran kuralları
 
