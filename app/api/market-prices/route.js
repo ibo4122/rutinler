@@ -521,119 +521,108 @@ async function getGoldPrices(usdTryRate) {
   return { gold: result, metals };
 }
 
-// Fon (TEFAS) fiyatları: resmi TEFAS API'si (BindHistoryInfo) kapalı (ERR-006) ve
-// fintables Cloudflare "managed challenge" ile sunucu fetch'ini bloklar. hangikredi
-// fon sayfası HTML'i Cloudflare'siz, Node fetch ile sorunsuz açılır ve son birim pay
-// fiyatını `data-testid="initial-data-last"` içinde verir (değişim: initial-data-cp).
-async function fetchText(url) {
-  try {
-    const res = await fetch(url, {
-      cache: "no-store",
-      headers: {
-        accept: "text/html,application/xhtml+xml",
-        "accept-language": "tr-TR,tr;q=0.9",
-        "user-agent":
-          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36",
-      },
-    });
-    if (!res.ok) return "";
-    return await res.text();
-  } catch (error) {
-    console.log("market text error", url, error?.message || error);
-    return "";
-  }
+// Fon fiyatlari: TEFAS 2026'da sitesini yeniledi ve KIMLIK DOGRULAMASIZ resmi bir
+// JSON API sundu. Tek istekte butun fonlarin son fiyatlari geliyor (~2000 fon).
+// Eski kaynaklar artik kullanilamiyor: BindHistoryInfo ERR-006, hangikredi 403,
+// fintables/TEFAS sayfasi bot korumasi arkasinda.
+// NOT: TEFAS dakikada ~6 istek siniri uyguluyor; bu yuzden sonucu uzun sureli
+// onbellege aliyoruz (fon fiyatlari gunde bir kez aciklanir).
+const TEFAS_INFO_URL = "https://www.tefas.gov.tr/api/funds/fonGnlBlgSiraliGetir";
+const FUND_CACHE_TTL_MS = 15 * 60 * 1000;
+let fundCache = { at: 0, rows: [] };
+
+function tefasYmd(date) {
+  return date.toISOString().slice(0, 10).replace(/-/g, "");
 }
 
-async function getHangikrediFundOne(symbol) {
-  const code = normalizeSymbol(symbol);
-  if (!code) return null;
+async function fetchAllTefasFunds() {
+  const now = Date.now();
+  if (fundCache.rows.length && now - fundCache.at < FUND_CACHE_TTL_MS) return fundCache.rows;
 
-  const html = await fetchText(`https://www.hangikredi.com/yatirim-araclari/fon/${encodeURIComponent(code)}`);
-
-  const value = normalizeNumber((html.match(/data-testid="initial-data-last">([\d.,]+)/) || [])[1] || "");
-
-  // initial-data-cp: "(<!-- -->%-1,08<!-- -->)" → -1.08
-  const cpBlock = (html.match(/data-testid="initial-data-cp">([\s\S]*?)<\/div>/) || [])[1] || "";
-  const cpMatch = cpBlock.replace(/<!--[\s\S]*?-->/g, "").match(/-?\d+(?:[.,]\d+)?/);
-  const changePercent = cpMatch ? Number(cpMatch[0].replace(",", ".")) : 0;
-
-  // <title> "AFT Fon - AK PORTFÖY YENİ TEKNOLOJİ" → "AK PORTFÖY YENİ TEKNOLOJİ"
-  const titleRaw = (html.match(/<title>([^<|]+)/) || [])[1] || "";
-  const name = titleRaw.replace(/^[A-ZİĞÜŞÖÇ0-9]+\s*Fon\s*-\s*/i, "").trim() || code;
-
-  if (value <= 0) {
-    return {
-      symbol: code,
-      name: code,
-      price: 0,
-      currency: "TRY",
-      changePercent: 0,
-      volume: 0,
-      date: "",
-      source: "Fon / Fiyat bekleniyor",
-      portfolio: true,
-    };
-  }
-
-  return {
-    symbol: code,
-    name,
-    price: value,
-    currency: "TRY",
-    changePercent: Number.isFinite(changePercent) ? changePercent : 0,
-    volume: 0,
-    date: "",
-    source: "hangikredi · TEFAS son fiyat",
-    portfolio: true,
+  // Son birkac is gunu: tatil/hafta sonu bosluklarini tolere etmek icin 10 gun geriye bak.
+  const bit = new Date();
+  const bas = new Date(now - 10 * 24 * 3600 * 1000);
+  const body = {
+    fonTipi: "YAT", fonKodu: "", aramaMetni: null, fonTurKod: null, fonGrubu: null,
+    sfonTurKod: null, fonTurAciklama: null, kurucuKod: null,
+    basTarih: tefasYmd(bas), bitTarih: tefasYmd(bit),
+    basSira: 1, bitSira: 100000, dil: "TR",
+    sFonTurKod: "", fonKod: "", fonGrup: "", fonUnvanTip: "",
   };
-}
 
-// Gezilebilir "Fonlar" listesi için popüler/likit TEFAS fon kodları (hangikredi'de
-// doğrulandı). TEFAS açık uçlu fonlar borsada işlem görmediği için TradingView'de yok;
-// toplu açık fiyat API'si de yok. Portföydeki fonlar bu evrene eklenir ve hepsi
-// hangikredi'den eş zamanlı (paralel) çekilir.
-const FUND_UNIVERSE = [
-  "TTE", "MAC", "IPB", "GAF", "TGR", "NNF", "AFT", "AFA", "DBB", "GBV",
-  "IIH", "AAK", "OKT", "YAS", "AES", "TCD", "DPK", "TFF", "IJP", "FYO",
-  "GTL", "HVT", "YKT", "TPL", "GPB", "DLY", "FPK", "DVT", "IST", "TMG",
-  "KLU", "OPI", "AGC", "TI2", "NRG", "AFV", "MPK", "GHS", "YHS", "AKE",
-  "TBV", "YZG", "GTZ",
-];
+  const data = await safeJson(TEFAS_INFO_URL, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      origin: "https://www.tefas.gov.tr",
+      referer: "https://www.tefas.gov.tr/",
+      "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0 Safari/537.36",
+    },
+    body: JSON.stringify(body),
+  });
 
-async function fetchPool(items, concurrency, worker) {
-  const out = [];
-  let index = 0;
-  await Promise.all(
-    Array.from({ length: Math.min(concurrency, items.length) }, async () => {
-      while (index < items.length) {
-        const current = items[index++];
-        const res = await worker(current);
-        if (res) out.push(res);
-      }
-    })
-  );
-  return out;
+  const list = Array.isArray(data?.resultList) ? data.resultList : [];
+  if (!list.length) return fundCache.rows; // bos dondu -> eldeki veriyi koru
+
+  // Her fonun EN SON tarihli kaydini al ve bir onceki fiyatla degisimi hesapla.
+  const sonKayit = new Map();
+  const oncekiKayit = new Map();
+  for (const row of list) {
+    const kod = normalizeSymbol(row.fonKodu);
+    if (!kod || !(numberOrZero(row.fiyat) > 0)) continue;
+    const mevcut = sonKayit.get(kod);
+    if (!mevcut || String(row.tarih) > String(mevcut.tarih)) {
+      if (mevcut) oncekiKayit.set(kod, mevcut);
+      sonKayit.set(kod, row);
+    } else {
+      const onceki = oncekiKayit.get(kod);
+      if (!onceki || String(row.tarih) > String(onceki.tarih)) oncekiKayit.set(kod, row);
+    }
+  }
+
+  const rows = [...sonKayit.entries()].map(([kod, row]) => {
+    const fiyat = numberOrZero(row.fiyat);
+    const onceki = numberOrZero(oncekiKayit.get(kod)?.fiyat);
+    return {
+      symbol: kod,
+      name: row.fonUnvan || kod,
+      price: fiyat,
+      currency: "TRY",
+      changePercent: onceki > 0 ? ((fiyat - onceki) / onceki) * 100 : 0,
+      volume: 0,
+      marketCap: Number(row.portfoyBuyukluk || 0),
+      date: row.tarih || "",
+      source: "TEFAS",
+    };
+  });
+
+  fundCache = { at: now, rows };
+  return rows;
 }
 
 async function getFundPayload(fundSymbols = []) {
   const portfolio = new Set((fundSymbols || []).map(normalizeSymbol).filter(Boolean));
-  const all = [...new Set([...portfolio, ...FUND_UNIVERSE])];
+  const all = await fetchAllTefasFunds();
 
-  const rows = await fetchPool(all, 8, getHangikrediFundOne);
+  const bulunan = new Set(all.map((r) => r.symbol));
+  const isaretli = all.map((r) => ({ ...r, portfolio: portfolio.has(r.symbol) }));
 
-  // Portföy fonları her zaman görünür; evren fonları yalnızca fiyatı geldiyse listede dursun.
-  const visible = rows
-    .filter((row) => portfolio.has(row.symbol) || row.price > 0)
-    .map((row) => ({ ...row, portfolio: portfolio.has(row.symbol) }));
-
-  const prices = {};
-  visible.forEach((row) => {
-    if (row.symbol && row.price > 0) prices[row.symbol] = row.price;
+  // Portfoyde olup TEFAS'ta bulunmayan kodlar da listede gorunsun (fiyat bekleniyor).
+  portfolio.forEach((kod) => {
+    if (!bulunan.has(kod)) {
+      isaretli.push({
+        symbol: kod, name: kod, price: 0, currency: "TRY", changePercent: 0,
+        volume: 0, marketCap: 0, date: "", source: "Fon / Fiyat bekleniyor", portfolio: true,
+      });
+    }
   });
 
+  const prices = {};
+  isaretli.forEach((r) => { if (r.symbol && r.price > 0) prices[r.symbol] = r.price; });
+
   return {
-    funds: visible.sort(
-      (a, b) => Number(b.portfolio || false) - Number(a.portfolio || false) || (b.price || 0) - (a.price || 0)
+    funds: isaretli.sort(
+      (a, b) => Number(b.portfolio || false) - Number(a.portfolio || false) || (b.marketCap || 0) - (a.marketCap || 0)
     ),
     prices,
   };
