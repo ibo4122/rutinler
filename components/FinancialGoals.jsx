@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { money } from "../lib/format";
 import { IS_KOLLARI, isKolu, IS_OLCEK } from "../lib/isKollari";
+import { ALISVERIS_KATEGORILER, alisverisKategori } from "../lib/alisveris";
 
 // Hedef türleri — her tür kendi ekranına sahip. Tür seçilince ekran o türe göre kurulur.
 const GOAL_TYPES = [
@@ -11,7 +12,7 @@ const GOAL_TYPES = [
   { id: "evlilik", label: "Evlilik", icon: "💍", ready: true },
   { id: "seyahat", label: "Seyahat", icon: "✈️", ready: true },
   { id: "is", label: "İş Kurma", icon: "💼", ready: true },
-  { id: "alisveris", label: "Alışveriş", icon: "🛍️", ready: false },
+  { id: "alisveris", label: "Alışveriş", icon: "🛍️", ready: true },
   { id: "ozel", label: "Özel", icon: "🎯", ready: false },
 ];
 const typeMeta = (id) => GOAL_TYPES.find((t) => t.id === id) || { label: "Hedef", icon: "🎯" };
@@ -238,6 +239,32 @@ function calcSeyahat(goal) {
   };
 }
 
+// --- Alışveriş -----------------------------------------------------------
+// Mağaza reyonu mantığı: kategori seç, o reyonun kalemleri listeye eklenir.
+// Kategoriler ÜST ÜSTE eklenir — tek listede hem giyim hem teknoloji olabilir.
+function alisverisGruplariUret(katId) {
+  const k = alisverisKategori(katId);
+  if (!k) return [];
+  return k.gruplar.map((g) => ({
+    id: yeniId(), ad: `${k.ikon} ${g.ad}`, acik: true, katId,
+    kalemler: g.kalemler.map((ad) => ({ id: yeniId(), ad, tutar: "" })),
+  }));
+}
+
+function calcAlisveris(goal) {
+  const gruplar = Array.isArray(goal.gruplar) ? goal.gruplar : [];
+  const target = grupToplami(gruplar);
+  const kalemSayisi = gruplar.reduce((s, g) => s + (g.kalemler || []).length, 0);
+  const doluKalem = gruplar.reduce((s, g) => s + (g.kalemler || []).filter((k) => num(k.tutar) > 0).length, 0);
+
+  const cash = num(goal.cash);
+  const gap = target - cash;
+  const percent = target > 0 ? Math.min(100, (cash / target) * 100) : 0;
+  const seciliKategoriler = [...new Set(gruplar.map((g) => g.katId).filter(Boolean))];
+
+  return { gruplar, target, kalemSayisi, doluKalem, cash, resources: cash, gap, percent, seciliKategoriler };
+}
+
 // --- İş Kurma ------------------------------------------------------------
 // Girişimci metrikleri: bu ekran "biriktir ve al" değil, "yatır–yak–kazan"
 // mantığıyla çalışır. Üç para vardır: kuruluş yatırımı, aylık gider ve
@@ -393,6 +420,7 @@ function calcGoal(goal) {
   if (goal.type === "evlilik") return calcEvlilik(goal);
   if (goal.type === "seyahat") return calcSeyahat(goal);
   if (goal.type === "is") return calcIs(goal);
+  if (goal.type === "alisveris") return calcAlisveris(goal);
   // Diğer türler eklendikçe buraya gelecek.
   const target = num(goal.targetValue);
   return { target, resources: 0, gap: target, percent: 0, taksit: 0, ltv: 0, masrafToplam: 0, masraflar: {} };
@@ -415,7 +443,7 @@ const HERO = {
   evlilik: { renk: ["#f472b6", "#a78bfa"], baslik: "Evlilik Hedefi", alt: "Düğün, takı, ev kurma ve balayını tek bütçede toplar." },
   seyahat: { renk: ["#22d3ee", "#3b82f6"], baslik: "Seyahat Hedefi", alt: "Sabit giderler ve günlük harcamaları kişi/gece çarpanıyla hesaplar." },
   is: { renk: ["#10b981", "#059669"], baslik: "İş Kurma Hedefi", alt: "10 iş kolu, sektöre özel sermaye planı ve adım adım yol haritası." },
-  alisveris: { renk: ["#fb7185", "#f59e0b"], baslik: "Alışveriş Hedefi", alt: "Hazırlanıyor." },
+  alisveris: { renk: ["#a78bfa", "#f472b6"], baslik: "Alışveriş Listesi", alt: "14 reyon: giyim, teknoloji, ev, kamp, hobi… Kategoriyi seç, ürünler hazır gelsin." },
   ozel: { renk: ["#a78bfa", "#6366f1"], baslik: "Özel Hedef", alt: "Hazırlanıyor." },
 };
 
@@ -1210,6 +1238,141 @@ function MetrikKutu({ etiket, deger, alt, renk }) {
   );
 }
 
+// Alışveriş kartı: mağaza reyonu gibi. Kategori rozetine basınca o reyonun
+// kalemleri listeye eklenir; her grup kendi kategorisinin rengini taşır.
+function AlisverisKarti({ goal, c, onChange, onDelete, likit }) {
+  const ayKalan = aylikKalan(goal.targetDate);
+  const aylikBirikim = c.gap > 0 && ayKalan && ayKalan > 0 ? c.gap / ayKalan : null;
+
+  const kategoriEkle = (kat) => {
+    if (c.seciliKategoriler.includes(kat.id)) {
+      // Zaten ekliyse kaldır (aç/kapa gibi davransın)
+      onChange("gruplar", c.gruplar.filter((g) => g.katId !== kat.id));
+    } else {
+      onChange("gruplar", [...c.gruplar, ...alisverisGruplariUret(kat.id)]);
+    }
+  };
+
+  return (
+    <article style={{
+      borderTop: "1px solid rgba(148,163,184,.14)", padding: 16,
+      background: "linear-gradient(165deg, rgba(30,27,60,.45), rgba(15,23,42,.8))",
+      display: "grid", gap: 13,
+    }}>
+      {/* Künye */}
+      <div style={{ display: "flex", gap: 11, alignItems: "flex-end", flexWrap: "wrap" }}>
+        <label style={{ flex: "1 1 190px" }}>
+          <span style={{ display: "block", color: "#cbd5e1", fontSize: 12, fontWeight: 800, marginBottom: 5 }}>🛍️ LİSTE ADI</span>
+          <input style={inputStyle} value={goal.name || ""} placeholder="Örn: Kışlık Alışveriş" onChange={(e) => onChange("name", e.target.value)} />
+        </label>
+        <label style={{ flex: "0 1 170px" }}>
+          <span style={{ display: "block", color: "#cbd5e1", fontSize: 12, fontWeight: 800, marginBottom: 5 }}>HEDEF TARİH</span>
+          <input style={inputStyle} type="date" value={goal.targetDate || ""} onChange={(e) => onChange("targetDate", e.target.value)} />
+        </label>
+        <button type="button" className="deleteButton" onClick={onDelete}>Sil</button>
+      </div>
+
+      {/* REYONLAR */}
+      <div style={{ border: "1px solid rgba(148,163,184,.2)", borderRadius: 16, padding: "13px 14px", background: "rgba(2,6,23,.4)" }}>
+        <div style={{ color: "#cbd5e1", fontSize: 12, fontWeight: 900, textTransform: "uppercase", letterSpacing: ".05em", marginBottom: 4 }}>
+          🏬 Reyonlar
+        </div>
+        <div style={{ color: "#64748b", fontSize: 11.5, marginBottom: 11 }}>
+          Kategoriye bas — o reyonun ürünleri listene eklenir. Tekrar basarsan çıkar.
+        </div>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 7 }}>
+          {ALISVERIS_KATEGORILER.map((kat) => {
+            const secili = c.seciliKategoriler.includes(kat.id);
+            return (
+              <button key={kat.id} type="button" onClick={() => kategoriEkle(kat)}
+                style={{
+                  display: "flex", alignItems: "center", gap: 6, padding: "8px 12px", borderRadius: 11, cursor: "pointer",
+                  border: `1px solid ${secili ? kat.renk : "rgba(255,255,255,.12)"}`,
+                  background: secili ? `${kat.renk}28` : "rgba(2,6,23,.5)",
+                  color: secili ? "#fff" : "#cbd5e1", fontSize: 12.5, fontWeight: 700,
+                }}>
+                <span style={{ fontSize: 15 }}>{kat.ikon}</span>
+                <span>{kat.ad}</span>
+                {secili ? <span style={{ color: kat.renk, fontWeight: 900 }}>✓</span> : null}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {c.gruplar.length === 0 ? (
+        <div style={{ border: "1px dashed rgba(148,163,184,.3)", borderRadius: 14, padding: "18px 16px", textAlign: "center", color: "#94a3b8", fontSize: 13.5, lineHeight: 1.6 }}>
+          Listen boş. Yukarıdaki reyonlardan seç — ürünler hazır gelir, sen sadece fiyatları yazarsın.
+          İstediğin kalemi silebilir, yenisini ekleyebilirsin.
+        </div>
+      ) : (
+        <div style={{ display: "grid", gap: 10 }}>
+          {ALISVERIS_KATEGORILER.filter((k) => c.seciliKategoriler.includes(k.id)).map((kat) => {
+            const katGruplar = c.gruplar.filter((g) => g.katId === kat.id);
+            const tema = { ana: kat.renk, acik: kat.renk, zemin: `${kat.renk}1f`, kenar: `${kat.renk}4d` };
+            // Başlıkta toUpperCase kullanılmıyor: Türkçe'de "i" harfini bozuyor (TEKNOLOJI).
+            return (
+              <ButceBolumu key={kat.id} baslik={kat.ad} ikon={kat.ikon} tema={tema}
+                gruplar={katGruplar}
+                onGruplar={(yeni) => {
+                  const digerleri = c.gruplar.filter((g) => g.katId !== kat.id);
+                  onChange("gruplar", [...digerleri, ...yeni.map((g) => ({ ...g, katId: kat.id }))]);
+                }} />
+            );
+          })}
+          {/* Kategoriye bağlı olmayan (kullanıcının kendi eklediği) gruplar */}
+          {c.gruplar.some((g) => !g.katId) ? (
+            <ButceBolumu baslik="KENDİ LİSTEM" ikon="✍️"
+              tema={{ ana: "#94a3b8", acik: "#e2e8f0", zemin: "rgba(148,163,184,.14)", kenar: "rgba(148,163,184,.32)" }}
+              gruplar={c.gruplar.filter((g) => !g.katId)}
+              onGruplar={(yeni) => onChange("gruplar", [...c.gruplar.filter((g) => g.katId), ...yeni])} />
+          ) : (
+            <button type="button"
+              onClick={() => onChange("gruplar", [...c.gruplar, { id: yeniId(), ad: "Kendi listem", acik: true, kalemler: [{ id: yeniId(), ad: "", tutar: "" }] }])}
+              style={{ border: "1px dashed rgba(148,163,184,.32)", background: "rgba(2,6,23,.3)", color: "#cbd5e1", borderRadius: 11, padding: "10px 14px", fontSize: 13.5, fontWeight: 800, cursor: "pointer" }}>
+              ✍️ Kendi grubumu ekle
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* TOPLAM + BÜTÇE */}
+      <div style={{
+        display: "flex", alignItems: "center", justifyContent: "space-between", gap: 14, flexWrap: "wrap",
+        border: `1px solid ${c.gap <= 0 && c.target > 0 ? "rgba(34,197,94,.42)" : "rgba(167,139,250,.4)"}`, borderRadius: 16, padding: "14px 18px",
+        background: c.gap <= 0 && c.target > 0
+          ? "linear-gradient(120deg, rgba(34,197,94,.18), rgba(15,23,42,.5))"
+          : "linear-gradient(120deg, rgba(167,139,250,.2), rgba(15,23,42,.5))",
+      }}>
+        <div>
+          <div style={{ color: "#ddd6fe", fontSize: 11, fontWeight: 900, textTransform: "uppercase", letterSpacing: ".06em" }}>Liste Tutarı</div>
+          <div style={{ color: "#fff", fontSize: "clamp(25px, 4vw, 34px)", fontWeight: 900, lineHeight: 1.15 }}>{money(c.target)}</div>
+          <div style={{ color: "#94a3b8", fontSize: 12 }}>{c.doluKalem} / {c.kalemSayisi} kaleme fiyat girildi</div>
+        </div>
+        <div style={{ textAlign: "right" }}>
+          <span style={{ display: "block", color: "#cbd5e1", fontSize: 11, fontWeight: 800, textTransform: "uppercase" }}>Ayırdığın bütçe</span>
+          <span style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4, justifyContent: "flex-end", flexWrap: "wrap" }}>
+            <input style={{ width: 140, boxSizing: "border-box", textAlign: "right", border: "1px solid rgba(255,255,255,.14)", background: "rgba(2,6,23,.55)", color: "#f8fafc", borderRadius: 9, padding: "8px 10px", outline: "none", fontSize: 14 }}
+              inputMode="decimal" value={goal.cash || ""} placeholder="0" onChange={(e) => onChange("cash", e.target.value)} />
+            {likit > 0 ? (
+              <button type="button" onClick={() => onChange("cash", String(Math.round(likit)))}
+                style={{ background: "none", border: "none", color: "#c4b5fd", fontSize: 12, fontWeight: 700, cursor: "pointer", padding: 0, whiteSpace: "nowrap" }}>
+                Portföyümden al
+              </button>
+            ) : null}
+          </span>
+          {c.target > 0 ? (
+            <div style={{ color: c.gap <= 0 ? "#86efac" : "#fca5a5", fontSize: 19, fontWeight: 900, marginTop: 5 }}>
+              {c.gap <= 0 ? `+${money(Math.abs(c.gap))} fazla` : `${money(c.gap)} eksik`}
+            </div>
+          ) : null}
+          {aylikBirikim ? <div style={{ color: "#fbbf24", fontSize: 12 }}>Ayda {money(aylikBirikim)} · {ayKalan} ay kaldı</div> : null}
+        </div>
+      </div>
+    </article>
+  );
+}
+
 function IsKarti({ goal, c, onChange, onApplyPreset, onDelete, likit }) {
   const [yolAcik, setYolAcik] = useState(true);
   const sektor = c.sektor;
@@ -1598,6 +1761,67 @@ function EvlilikKarti({ goal, c, onChange, onApplyPreset, onDelete, likit, aylik
 }
 
 
+// Birden fazla hedef alt alta açık durunca ekran okunmaz hâle geliyordu.
+// Her hedef artık kendi başlığıyla açılıp kapanır ve sırasına göre farklı bir
+// renk alır — böylece hangi kartta olduğun bir bakışta belli olur.
+const KART_RENKLERI = [
+  { ana: "#60a5fa", acik: "#bfdbfe" }, { ana: "#f59e0b", acik: "#fde68a" },
+  { ana: "#f472b6", acik: "#fbcfe8" }, { ana: "#22d3ee", acik: "#a5f3fc" },
+  { ana: "#10b981", acik: "#a7f3d0" }, { ana: "#a78bfa", acik: "#ddd6fe" },
+  { ana: "#fb7185", acik: "#fecdd3" }, { ana: "#84cc16", acik: "#d9f99d" },
+];
+
+// Hedefin başlıkta görünecek özet rakamı — türe göre değişir.
+function hedefOzeti(goal, c) {
+  switch (goal.type) {
+    case "konut": return { etiket: "Toplam maliyet", deger: money(c.target), ikinci: c.gap > 0 ? `${money(c.gap)} eksik` : "Karşılanıyor" };
+    case "arac": return { etiket: "Alım maliyeti", deger: money(c.target), ikinci: c.taksit > 0 ? `Taksit ${money(c.taksit)}` : (c.gap > 0 ? `${money(c.gap)} eksik` : "Karşılanıyor") };
+    case "evlilik": return { etiket: "Evlilik bütçesi", deger: money(c.target), ikinci: c.gap > 0 ? `${money(c.gap)} eksik` : "Karşılanıyor" };
+    case "seyahat": return { etiket: "Seyahat bütçesi", deger: money(c.target), ikinci: c.gap > 0 ? `${money(c.gap)} eksik` : "Karşılanıyor" };
+    case "is": return { etiket: "Gereken sermaye", deger: money(c.target), ikinci: c.sektor ? c.sektor.ad : "İş kolu seçilmedi" };
+    case "alisveris": return { etiket: "Liste tutarı", deger: money(c.target), ikinci: `${c.kalemSayisi} kalem` };
+    default: return { etiket: "Tutar", deger: money(c.target || 0), ikinci: "" };
+  }
+}
+
+function HedefKabuk({ goal, c, renk, acik, onToggle, ikon, children }) {
+  const o = hedefOzeti(goal, c);
+  return (
+    <div style={{
+      border: `1px solid ${acik ? renk.ana + "55" : "rgba(148,163,184,.2)"}`,
+      borderRadius: 20, overflow: "hidden",
+      background: acik ? "transparent" : "rgba(2,6,23,.35)",
+    }}>
+      <button type="button" onClick={onToggle}
+        style={{
+          width: "100%", display: "flex", alignItems: "center", gap: 11, flexWrap: "wrap",
+          padding: "13px 15px", cursor: "pointer", border: "none", textAlign: "left",
+          background: `linear-gradient(120deg, ${renk.ana}2e, ${renk.ana}0f)`,
+          borderBottom: acik ? `1px solid ${renk.ana}44` : "none",
+        }}>
+        <span style={{
+          flex: "0 0 auto", width: 32, height: 32, borderRadius: 10, display: "grid", placeItems: "center",
+          background: `${renk.ana}33`, fontSize: 17,
+        }}>{ikon}</span>
+        <span style={{ minWidth: 0, flex: 1 }}>
+          <span style={{ display: "block", color: "#fff", fontWeight: 900, fontSize: 15, lineHeight: 1.3 }}>
+            {goal.name || "Adsız hedef"}
+          </span>
+          <span style={{ display: "block", color: "#94a3b8", fontSize: 11.5, marginTop: 1 }}>
+            {o.etiket} · {o.ikinci}
+          </span>
+        </span>
+        <strong style={{ flex: "0 0 auto", color: renk.acik, fontSize: 16, whiteSpace: "nowrap" }}>{o.deger}</strong>
+        <span style={{
+          flex: "0 0 auto", width: 28, height: 28, borderRadius: 9, display: "grid", placeItems: "center",
+          border: `1px solid ${renk.ana}55`, color: renk.acik, fontSize: 15, fontWeight: 900,
+        }}>{acik ? "−" : "+"}</span>
+      </button>
+      {acik ? <div style={{ padding: 0 }}>{children}</div> : null}
+    </div>
+  );
+}
+
 function Kutu({ etiket, deger, renk, alt }) {
   return (
     <div style={{ border: "1px solid rgba(255,255,255,.10)", borderRadius: 13, padding: "10px 12px", background: "rgba(2,6,23,.45)", minWidth: 0 }}>
@@ -1622,6 +1846,8 @@ export default function FinancialGoals({ data, setData, financeTotals, investmen
   const [bilgi, setBilgi] = useState("");
   // Sekme: açılışta hedefi olan ilk kategori, yoksa Konut.
   const [activeType, setActiveType] = useState(() => goals[0]?.type || "konut");
+  // Hangi hedef kartı açık? (varsayılan hepsi açık; kullanıcı kapatabilir)
+  const [acikHedefler, setAcikHedefler] = useState({});
   const likitAvailable = Number(investmentTotals?.availableInvestment || 0);
   const aylikGelir = Number(financeTotals?.totalIncome || 0);
   const aktifTur = GOAL_TYPES.find((t) => t.id === activeType);
@@ -1643,6 +1869,8 @@ export default function FinancialGoals({ data, setData, financeTotals, investmen
       type === "arac"
         ? { ...base, name: "Araç Alma Hedefi", price: "", fuel: "ice", condition: "new", loan: "",
             tradeIn: "", loanMonths: "24", loanRate: "3,25" }
+        : type === "alisveris"
+        ? { ...base, name: "Alışveriş Listesi", gruplar: [] }
         : type === "is"
         ? { ...base, name: "İş Kurma Hedefi", sector: "", scale: "orta", runwayAy: "6",
             capexGruplar: [], opexGruplar: [], adet: "", birimFiyat: "", marj: "", gorevler: {} }
@@ -1657,33 +1885,98 @@ export default function FinancialGoals({ data, setData, financeTotals, investmen
   const updateGoal = (id, field, value) => mutateGoals((gs) => gs.map((g) => (g.id === id ? { ...g, [field]: value } : g)));
   const deleteGoal = (id) => mutateGoals((gs) => gs.filter((g) => g.id !== id));
 
-  const summary = useMemo(() => {
-    const gc = goals.map((g) => calcGoal(migrate(g)));
-    const totalTarget = gc.reduce((s, g) => s + g.target, 0);
-    const totalResources = gc.reduce((s, g) => s + g.resources, 0);
-    const totalGap = gc.reduce((s, g) => s + Math.max(0, g.gap), 0);
-    const totalTaksit = gc.reduce((s, g) => s + (g.taksit || 0), 0);
-    const achievement = totalTarget > 0 ? Math.min(100, (totalResources / totalTarget) * 100) : 0;
-    return { totalTarget, totalResources, totalGap, totalTaksit, achievement };
-  }, [goals]);
+  // Özet paneli AKTİF KATEGORİYE göre değişir: konutta tapu/kredi, araçta
+  // taksit, seyahatte kişi başı, iş kurmada sermaye ve kâr — her sekme kendi
+  // diline uygun rakamları gösterir.
+  const ozet = useMemo(() => {
+    const gc = aktifHedefler.map((g) => calcGoal(migrate(g)));
+    const topla = (f) => gc.reduce((s, g) => s + (f(g) || 0), 0);
+    const target = topla((g) => g.target);
+    const resources = topla((g) => g.resources);
+    const gap = gc.reduce((s, g) => s + Math.max(0, g.gap), 0);
+    const taksit = topla((g) => g.taksit);
+    const gapKutu = {
+      etiket: "Eksik Kaynak", deger: money(gap), renk: gap > 0 ? "#fbbf24" : "#34d399",
+      alt: gap > 0 ? "Bulunması gereken" : "Hedefler karşılanıyor",
+    };
+    const yok = gc.length === 0;
+
+    switch (activeType) {
+      case "konut":
+        return { baslik: "Konut Hedefi Özeti", aciklama: "Ev fiyatına tapu harcı, komisyon ve kredi masrafları eklenmiş gerçek maliyet.",
+          kutular: yok ? [] : [
+            { etiket: "Gerçek Toplam Maliyet", deger: money(target), renk: "#e2e8f0", alt: "Masraflar dâhil" },
+            { etiket: "Kaynakların", deger: money(resources), renk: "#a78bfa", alt: "Nakit + ev satışı + kredi" },
+            gapKutu,
+            ...(taksit > 0 ? [{ etiket: "Aylık Konut Taksiti", deger: money(taksit), renk: "#fb7185",
+              alt: aylikGelir > 0 ? `Gelire oranı %${((taksit / aylikGelir) * 100).toFixed(0)}` : "Kredi ödemesi" }] : []),
+          ] };
+      case "arac":
+        return { baslik: "Araç Hedefi Özeti", aciklama: "Araç fiyatı + noter/tescil masrafı ve taşıt kredisi yükü.",
+          kutular: yok ? [] : [
+            { etiket: "Alım Maliyeti", deger: money(target), renk: "#fcd34d", alt: "Fiyat + noter/tescil" },
+            { etiket: "Kaynakların", deger: money(resources), renk: "#a78bfa", alt: "Nakit + takas + kredi" },
+            gapKutu,
+            ...(taksit > 0 ? [{ etiket: "Aylık Kredi Ödemesi", deger: money(taksit), renk: "#fb7185",
+              alt: aylikGelir > 0 ? `Gelire oranı %${((taksit / aylikGelir) * 100).toFixed(0)}` : "Taşıt kredisi" }] : []),
+          ] };
+      case "evlilik": {
+        const taki = topla((g) => g.gifts);
+        return { baslik: "Evlilik Bütçesi Özeti", aciklama: "Düğün süreci ve ev kurma kalemlerinin toplamı, kaynaklarınla birlikte.",
+          kutular: yok ? [] : [
+            { etiket: "Toplam Evlilik Maliyeti", deger: money(target), renk: "#f9a8d4", alt: "Düğün + ev kurma" },
+            { etiket: "Kaynakların", deger: money(resources), renk: "#a78bfa", alt: "Nakit + takı + aile" },
+            gapKutu,
+            ...(taki > 0 ? [{ etiket: "Beklenen Takı", deger: money(taki), renk: target > 0 && (taki / target) * 100 > 60 ? "#fbbf24" : "#34d399",
+              alt: target > 0 ? `Bütçenin %${((taki / target) * 100).toFixed(0)} kadarı` : "" }] : []),
+          ] };
+      }
+      case "seyahat": {
+        const kisi = topla((g) => g.kisi);
+        return { baslik: "Seyahat Bütçesi Özeti", aciklama: "Planladığın seyahatlerin toplam maliyeti ve ayırdığın bütçe.",
+          kutular: yok ? [] : [
+            { etiket: "Toplam Seyahat Bütçesi", deger: money(target), renk: "#a5f3fc", alt: "Tüm kalemler" },
+            { etiket: "Ayırdığın Bütçe", deger: money(resources), renk: "#a78bfa", alt: "Biriktirdiğin tutar" },
+            gapKutu,
+            ...(kisi > 0 ? [{ etiket: "Kişi Başına", deger: money(target / kisi), renk: "#67e8f9", alt: `${kisi} kişi üzerinden` }] : []),
+          ] };
+      }
+      case "is": {
+        const capex = topla((g) => g.capex);
+        const net = topla((g) => g.aylikNet);
+        return { baslik: "İş Kurma Özeti", aciklama: "Kuruluş yatırımı, nakit tamponu ve işletmenin aylık sonucu.",
+          kutular: yok ? [] : [
+            { etiket: "Gereken Sermaye", deger: money(target), renk: "#a7f3d0", alt: `${money(capex)} kuruluş + tampon` },
+            { etiket: "Elindeki Sermaye", deger: money(resources), renk: "#a78bfa", alt: "Yatırıma hazır" },
+            gapKutu,
+            { etiket: "Aylık Kâr / Zarar", deger: money(net), renk: net >= 0 ? "#34d399" : "#fb7185",
+              alt: net >= 0 ? "Giderler sonrası" : "Bu hacimde zarar" },
+          ] };
+      }
+      case "alisveris": {
+        const kalem = topla((g) => g.kalemSayisi);
+        const dolu = topla((g) => g.doluKalem);
+        return { baslik: "Alışveriş Listesi Özeti", aciklama: "Listelerindeki ürünlerin toplamı ve ayırdığın bütçe.",
+          kutular: yok ? [] : [
+            { etiket: "Liste Tutarı", deger: money(target), renk: "#ddd6fe", alt: `${dolu} / ${kalem} kaleme fiyat girildi` },
+            { etiket: "Ayırdığın Bütçe", deger: money(resources), renk: "#a78bfa", alt: "Alışveriş bütçen" },
+            gapKutu,
+          ] };
+      }
+      default:
+        return { baslik: "Finansal Durum Özeti", aciklama: "Bu kategori için hedef oluşturduğunda özet burada görünür.", kutular: [] };
+    }
+  }, [aktifHedefler, activeType, aylikGelir]);
 
   return (
     <div style={{ display: "grid", gap: 16 }}>
       {/* Özet */}
       <section style={card}>
-        <h2 className="gradientTitle" style={{ margin: 0 }}>Finansal Durum Özeti</h2>
-        <p className="sectionDescription" style={{ marginTop: 4 }}>
-          Hedeflerinin gerçek maliyeti (masraflar dâhil) ve mevcut kaynakların.
-        </p>
+        <h2 className="gradientTitle" style={{ margin: 0 }}>{ozet.baslik}</h2>
+        <p className="sectionDescription" style={{ marginTop: 4 }}>{ozet.aciklama}</p>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 10, marginTop: 12 }}>
           <Kutu etiket="Likit Varlığın" deger={money(likitAvailable)} renk="#60a5fa" alt="BES hariç kullanılabilir" />
-          <Kutu etiket="Toplam Maliyet" deger={money(summary.totalTarget)} renk="#e2e8f0" alt="Masraflar dâhil" />
-          <Kutu etiket="Kaynakların" deger={money(summary.totalResources)} renk="#a78bfa" alt="Nakit + satış + kredi" />
-          <Kutu etiket="Eksik Kaynak" deger={money(summary.totalGap)} renk={summary.totalGap > 0 ? "#fbbf24" : "#34d399"} alt={summary.totalGap > 0 ? "Bulunması gereken" : "Hedefler karşılanıyor"} />
-          {summary.totalTaksit > 0 ? (
-            <Kutu etiket="Aylık Taksit Yükü" deger={money(summary.totalTaksit)} renk="#fb7185"
-              alt={aylikGelir > 0 ? `Gelire oranı %${((summary.totalTaksit / aylikGelir) * 100).toFixed(0)}` : "Kredi taksitleri"} />
-          ) : null}
+          {ozet.kutular.map((k) => <Kutu key={k.etiket} {...k} />)}
         </div>
       </section>
 
@@ -1733,29 +2026,32 @@ export default function FinancialGoals({ data, setData, financeTotals, investmen
               Yukarıdaki butonla ilk {aktifTur.label.toLowerCase()} hedefini oluştur.
             </div>
           ) : (
-            aktifHedefler.map((raw) => {
+            aktifHedefler.map((raw, i) => {
               const goal = migrate(raw);
               const c = calcGoal(goal);
+              const renk = KART_RENKLERI[i % KART_RENKLERI.length];
+              const acik = acikHedefler[goal.id] !== false; // varsayılan açık
+              const preset = (p) => mutateGoals((gs) => gs.map((g) => (g.id === goal.id ? { ...g, ...p } : g)));
               const ortak = {
                 goal, c, likit: likitAvailable, aylikGelir,
                 onChange: (f, v) => updateGoal(goal.id, f, v),
                 onDelete: () => deleteGoal(goal.id),
               };
-              if (goal.type === "konut") return <KonutKarti key={goal.id} {...ortak} />;
-              if (goal.type === "arac") return <AracKarti key={goal.id} {...ortak} />;
-              if (goal.type === "is") return (
-                <IsKarti key={goal.id} {...ortak}
-                  onApplyPreset={(p) => mutateGoals((gs) => gs.map((g) => (g.id === goal.id ? { ...g, ...p } : g)))} />
+              const icerik =
+                goal.type === "konut" ? <KonutKarti {...ortak} />
+                : goal.type === "arac" ? <AracKarti {...ortak} />
+                : goal.type === "is" ? <IsKarti {...ortak} onApplyPreset={preset} />
+                : goal.type === "alisveris" ? <AlisverisKarti {...ortak} />
+                : goal.type === "seyahat" ? <SeyahatKarti {...ortak} aylikKalanPara={monthlyBalance} onApplyPreset={preset} />
+                : goal.type === "evlilik" ? <EvlilikKarti {...ortak} aylikKalanPara={monthlyBalance} onApplyPreset={preset} />
+                : null;
+              if (!icerik) return null;
+              return (
+                <HedefKabuk key={goal.id} goal={goal} c={c} renk={renk} acik={acik} ikon={aktifTur.icon}
+                  onToggle={() => setAcikHedefler((s) => ({ ...s, [goal.id]: acik ? false : true }))}>
+                  {icerik}
+                </HedefKabuk>
               );
-              if (goal.type === "seyahat") return (
-                <SeyahatKarti key={goal.id} {...ortak} aylikKalanPara={monthlyBalance}
-                  onApplyPreset={(p) => mutateGoals((gs) => gs.map((g) => (g.id === goal.id ? { ...g, ...p } : g)))} />
-              );
-              if (goal.type === "evlilik") return (
-                <EvlilikKarti key={goal.id} {...ortak} aylikKalanPara={monthlyBalance}
-                  onApplyPreset={(p) => mutateGoals((gs) => gs.map((g) => (g.id === goal.id ? { ...g, ...p, label: undefined } : g)))} />
-              );
-              return null;
             })
           )}
         </>
