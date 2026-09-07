@@ -96,102 +96,82 @@ function calcArac(goal) {
 // Evlilik bütçesi iki ana bölüme ayrılır: DÜĞÜN (mavi) ve EV KURMA (yeşil).
 // Kalemler gerçek bir düğün bütçe çizelgesinden alınmıştır; varsayılanlar
 // 2026 piyasa ortalamalarıdır ve tek tıkla doldurulabilir.
-const EVLILIK_BOLUMLER = [
-  {
-    id: "dugun", ad: "DÜĞÜN MASRAFLARI", ikon: "💍",
-    ana: "#3b82f6", acik: "#bfdbfe", zemin: "rgba(59,130,246,.14)", kenar: "rgba(59,130,246,.34)",
-    gruplar: [
-      { no: 1, ad: "Söz ve Nişan Aşamaları", kalemler: [
-        ["sozYuzuk", "Söz Yüzükleri & Tepsisi", 25000],
-        ["sozGelinKiyafet", "Gelin İçin Kıyafet", 0],
-        ["sozDamatKiyafet", "Damat İçin Kıyafet", 0],
-        ["sozFoto", "Fotoğraf & Video Çekimi", 25000],
-        ["nisanMekan", "Nişan Mekânı & Organizasyonu", 80000],
-        ["nisanElbise", "Nişan Elbisesi & Damatlık", 20000],
-        ["nisanPasta", "Nişan Pastası & İkramlıklar", 10000],
-        ["nisanFoto", "Nişan Fotoğraf & Video", 15000],
-        ["nisanSusleme", "Süsleme & Masa Dekorları", 10000],
-        ["nisanTaki", "Takılar (Bilezik, Kolye vb.)", 120000],
-      ] },
-      { no: 2, ad: "Nikâh Töreni", kalemler: [
-        ["nikahSalon", "Nikâh Salonu Kirası", 10000],
-        ["nikahResmi", "Resmî İşlemler (Evrak, Harç)", 5000],
-        ["nikahKiyafet", "Gelinlik & Damatlık", 0],
-        ["nikahGelinHazirlik", "Gelin Çiçeği & Saç & Makyaj", 30000],
-        ["nikahFoto", "Fotoğraf & Video Çekimi", 0],
-        ["nikahSeker", "Nikâh Şekeri & Davetiye", 0],
-      ] },
-      { no: 3, ad: "Düğün Organizasyonu", kalemler: [
-        ["dugunSalon", "Düğün Salonu", 400000],
-        ["dugunKiyafet", "Gelinlik & Damatlık", 100000],
-        ["dugunMuzik", "Müzik Grubu / DJ", 50000],
-        ["dugunGelinHazirlik", "Gelin Saçı & Makyajı", 20000],
-        ["dugunPasta", "Düğün Pastası & İkramlar", 25000],
-        ["dugunDavetiye", "Davetiyeler", 10000],
-        ["dugunFoto", "Fotoğraf & Video Çekimi", 30000],
-        ["dugunAraba", "Gelin Arabası Kiralama", 3000],
-        ["dugunTaki", "Takı & Altın Masrafları", 120000],
-        ["balayi", "Balayı", 200000],
-      ] },
-    ],
-  },
-  {
-    id: "ev", ad: "EV MASRAFLARI", ikon: "🏡",
-    ana: "#22c55e", acik: "#bbf7d0", zemin: "rgba(34,197,94,.13)", kenar: "rgba(34,197,94,.32)",
-    gruplar: [
-      { no: 4, ad: "Beyaz Eşyalar", kalemler: [
-        ["buzdolabi", "Buzdolabı", 50000],
-        ["camasirMak", "Çamaşır Makinesi", 35000],
-        ["bulasikMak", "Bulaşık Makinesi", 30000],
-        ["firin", "Fırın", 30000],
-        ["kurutmaMak", "Kurutma Makinesi", 30000],
-        ["televizyon", "Televizyon", 80000],
-      ] },
-      { no: 5, ad: "Mobilyalar", kalemler: [
-        ["oturmaOdasi", "Oturma Odası Takımı", 80000],
-        ["yemekOdasi", "Yemek Odası Takımı", 80000],
-        ["yatakOdasi", "Yatak Odası Takımı", 120000],
-        ["mutfakMasa", "Mutfak Masası ve Sandalyeler", 35000],
-        ["sehpa", "Sehpa ve Yan Masalar", 15000],
-      ] },
-      { no: 6, ad: "Mutfak Gereçleri", kalemler: [
-        ["tencere", "Tencere ve Tava Seti", 30000],
-        ["yemekTakimi", "Yemek Takımı", 22000],
-        ["catalKasik", "Çatal, Kaşık, Bıçak Seti", 10000],
-        ["bardak", "Bardak ve Fincan Setleri", 15000],
-        ["mutfakAlet", "Mutfak Aletleri", 50000],
-      ] },
-      { no: 7, ad: "Ev Tekstili", kalemler: [
-        ["nevresim", "Nevresim Takımları", 20000],
-        ["yorgan", "Yorgan ve Yastıklar", 20000],
-        ["havlu", "Havlu Setleri", 7000],
-        ["perde", "Perdeler", 25000],
-        ["hali", "Halılar", 40000],
-        ["mutfakGerec", "Mutfak Gereçleri", 100000],
-      ] },
-      { no: 8, ad: "Diğer", kalemler: [
-        ["aydinlatma", "Aydınlatma Ürünleri", 50000],
-        ["supurge", "Elektrikli Süpürge", 35000],
-        ["utu", "Ütü ve Ütü Masası", 25000],
-        ["kurutmaAskisi", "Çamaşır Kurutma Askısı", 0],
-        ["kahveMak", "Kahve Makinesi", 35000],
-      ] },
-    ],
-  },
-];
+// Gruplar Türkiye'deki evlilik sürecinin gerçek aşamalarına göre dizilmiştir:
+// söz/kız isteme → nişan → kına → nikâh → düğün → takı & balayı, ardından ev kurma.
+// Bunlar yalnızca BAŞLANGIÇ şablonudur — kullanıcı her grubu ve kalemi yeniden
+// adlandırabilir, silebilir, yenisini ekleyebilir.
+const EVLILIK_SABLON = {
+  dugun: [
+    { ad: "Söz & Kız İsteme", kalemler: [
+      ["Söz yüzükleri & tepsi", 25000], ["İkramlık & tatlı", 5000],
+      ["Çiçek & süsleme", 4000], ["Bohça", 12000],
+    ] },
+    { ad: "Nişan", kalemler: [
+      ["Nişan mekânı & organizasyon", 80000], ["Nişan elbisesi & damatlık", 20000],
+      ["Nişan pastası & ikramlar", 10000], ["Fotoğraf & video", 15000],
+      ["Süsleme & masa dekoru", 10000], ["Takılar (bilezik, kolye)", 120000],
+    ] },
+    { ad: "Kına Gecesi", kalemler: [
+      ["Mekân & organizasyon", 35000], ["Bindallı / kına kıyafeti", 15000],
+      ["Kına malzemeleri & mumlar", 6000], ["Müzik / ekip", 12000],
+      ["İkramlık & hediyelikler", 10000],
+    ] },
+    { ad: "Nikâh Töreni", kalemler: [
+      ["Nikâh salonu kirası", 10000], ["Resmî işlemler (evrak, harç)", 5000],
+      ["Gelin çiçeği, saç & makyaj", 30000], ["Nikâh şekeri & davetiye", 8000],
+      ["Fotoğraf & video", 12000],
+    ] },
+    { ad: "Düğün", kalemler: [
+      ["Düğün salonu / kır düğünü", 400000], ["Gelinlik & damatlık", 100000],
+      ["Müzik grubu / DJ", 50000], ["Gelin saçı & makyajı", 20000],
+      ["Düğün pastası & ikramlar", 25000], ["Davetiyeler", 10000],
+      ["Fotoğraf & video çekimi", 30000], ["Gelin arabası kiralama", 3000],
+    ] },
+    { ad: "Takı & Balayı", kalemler: [
+      ["Alyans", 30000], ["Takı & altın masrafları", 120000], ["Balayı", 200000],
+    ] },
+  ],
+  ev: [
+    { ad: "Beyaz Eşyalar", kalemler: [
+      ["Buzdolabı", 50000], ["Çamaşır makinesi", 35000], ["Bulaşık makinesi", 30000],
+      ["Fırın", 30000], ["Kurutma makinesi", 30000], ["Televizyon", 80000],
+    ] },
+    { ad: "Mobilyalar", kalemler: [
+      ["Oturma odası takımı", 80000], ["Yemek odası takımı", 80000],
+      ["Yatak odası takımı", 120000], ["Mutfak masası ve sandalyeler", 35000],
+      ["Sehpa ve yan masalar", 15000],
+    ] },
+    { ad: "Mutfak Gereçleri", kalemler: [
+      ["Tencere ve tava seti", 30000], ["Yemek takımı", 22000],
+      ["Çatal, kaşık, bıçak seti", 10000], ["Bardak ve fincan setleri", 15000],
+      ["Küçük ev aletleri", 50000],
+    ] },
+    { ad: "Ev Tekstili & Çeyiz", kalemler: [
+      ["Nevresim takımları", 20000], ["Yorgan ve yastıklar", 20000],
+      ["Havlu setleri", 7000], ["Perdeler", 25000], ["Halılar", 40000],
+      ["Çeyiz bohçası", 30000],
+    ] },
+    { ad: "Diğer", kalemler: [
+      ["Aydınlatma ürünleri", 50000], ["Elektrikli süpürge", 35000],
+      ["Ütü ve ütü masası", 25000], ["Kahve makinesi", 35000],
+    ] },
+  ],
+};
 
 const EVLILIK_OLCEK = [
-  { id: "sade", label: "Sade", carpan: 0.6 },
+  { id: "sade", label: "Sade", carpan: 0.55 },
   { id: "standart", label: "Standart", carpan: 1 },
-  { id: "genis", label: "Gösterişli", carpan: 1.7 },
+  { id: "genis", label: "Gösterişli", carpan: 1.8 },
 ];
 
-function evlilikOnAyar(carpan) {
-  const items = {};
-  EVLILIK_BOLUMLER.forEach((b) => b.gruplar.forEach((g) => g.kalemler.forEach(([k, , v]) => {
-    items[k] = v > 0 ? String(Math.round((v * carpan) / 1000) * 1000) : "";
-  })));
-  return items;
+function evlilikSablonUret(carpan) {
+  const donustur = (liste) => liste.map((g) => ({
+    id: yeniId(), ad: g.ad, acik: true,
+    kalemler: g.kalemler.map(([ad, v]) => ({
+      id: yeniId(), ad, tutar: v > 0 ? String(Math.round((v * carpan) / 500) * 500) : "",
+    })),
+  }));
+  return { dugunGruplar: donustur(EVLILIK_SABLON.dugun), evGruplar: donustur(EVLILIK_SABLON.ev) };
 }
 
 // --- Seyahat -------------------------------------------------------------
@@ -275,22 +255,12 @@ function calcSeyahat(goal) {
 }
 
 function calcEvlilik(goal) {
-  const items = goal.items && typeof goal.items === "object" ? goal.items : {};
-  const deger = (k) => num(items[k]);
+  const dugunGruplar = Array.isArray(goal.dugunGruplar) ? goal.dugunGruplar : [];
+  const evGruplar = Array.isArray(goal.evGruplar) ? goal.evGruplar : [];
+  const dugunToplam = grupToplami(dugunGruplar);
+  const evToplam = grupToplami(evGruplar);
+  const target = dugunToplam + evToplam;
 
-  const bolumToplam = {};
-  const grupToplam = {};
-  EVLILIK_BOLUMLER.forEach((b) => {
-    let bt = 0;
-    b.gruplar.forEach((g) => {
-      const gt = g.kalemler.reduce((s, [k]) => s + deger(k), 0);
-      grupToplam[g.no] = gt;
-      bt += gt;
-    });
-    bolumToplam[b.id] = bt;
-  });
-
-  const target = Object.values(bolumToplam).reduce((s, v) => s + v, 0);
   const cash = num(goal.cash);
   const gifts = num(goal.expectedGifts);
   const family = num(goal.familyHelp);
@@ -302,7 +272,7 @@ function calcEvlilik(goal) {
   const davetli = num(goal.guests);
   const kisiBasiToplam = davetli > 0 ? target / davetli : 0;
 
-  return { deger, grupToplam, bolumToplam, target, resources, cash, gifts, family, gap, percent, takiKarsilama, davetli, kisiBasiToplam };
+  return { dugunGruplar, evGruplar, dugunToplam, evToplam, target, resources, cash, gifts, family, gap, percent, takiKarsilama, davetli, kisiBasiToplam };
 }
 
 // Anüite taksiti
@@ -525,6 +495,120 @@ function TabloKutu({ baslik, ikon, renk, children }) {
       </div>
       {children}
     </div>
+  );
+}
+
+// --- Düzenlenebilir bütçe grupları ---------------------------------------
+// Hem Evlilik hem Seyahat bunu kullanır: kullanıcı grup ve kalem adlarını
+// değiştirebilir, yenisini ekleyebilir, silebilir; gruplar açılıp kapanır.
+// Kalıp bir liste değil, kendi bütçesini kurduğu bir çalışma alanı.
+const yeniId = () => Math.random().toString(36).slice(2, 9);
+const grupToplami = (gruplar) =>
+  (gruplar || []).reduce((s, g) => s + (g.kalemler || []).reduce((t, k) => t + num(k.tutar), 0), 0);
+
+const adInput = {
+  width: "100%", boxSizing: "border-box", border: "1px solid transparent",
+  background: "transparent", color: "#f1f5f9", borderRadius: 8,
+  padding: "9px 10px", outline: "none", fontSize: 14,
+};
+const tutarInput = {
+  width: "100%", boxSizing: "border-box", textAlign: "right",
+  border: "1px solid rgba(255,255,255,.14)", background: "rgba(2,6,23,.55)",
+  color: "#f8fafc", borderRadius: 9, padding: "9px 10px", outline: "none",
+  fontSize: 14, fontVariantNumeric: "tabular-nums",
+};
+const kucukBtn = {
+  flex: "0 0 auto", width: 30, height: 30, borderRadius: 8, cursor: "pointer",
+  fontSize: 15, lineHeight: 1, display: "grid", placeItems: "center",
+};
+
+function ButceGrubu({ grup, tema, onDegis, onSil, paraSimge = "₺" }) {
+  const toplam = (grup.kalemler || []).reduce((s, k) => s + num(k.tutar), 0);
+  const acik = grup.acik !== false;
+  const kalemDegis = (id, alan, deger) =>
+    onDegis({ ...grup, kalemler: grup.kalemler.map((k) => (k.id === id ? { ...k, [alan]: deger } : k)) });
+  const kalemSil = (id) => onDegis({ ...grup, kalemler: grup.kalemler.filter((k) => k.id !== id) });
+  const kalemEkle = () => onDegis({ ...grup, acik: true, kalemler: [...(grup.kalemler || []), { id: yeniId(), ad: "", tutar: "" }] });
+
+  return (
+    <div style={{ border: `1px solid ${tema.kenar}`, borderRadius: 14, overflow: "hidden", background: "rgba(2,6,23,.42)" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 7, padding: "8px 9px", background: tema.zemin, borderBottom: acik ? `1px solid ${tema.kenar}` : "none" }}>
+        <button type="button" onClick={() => onDegis({ ...grup, acik: !acik })} title={acik ? "Kapat" : "Aç"}
+          style={{ ...kucukBtn, border: `1px solid ${tema.kenar}`, background: "rgba(2,6,23,.4)", color: tema.acik, fontWeight: 900 }}>
+          {acik ? "−" : "+"}
+        </button>
+        <input value={grup.ad || ""} placeholder="Grup adı"
+          onChange={(e) => onDegis({ ...grup, ad: e.target.value })}
+          style={{ ...adInput, flex: 1, minWidth: 0, color: tema.acik, fontWeight: 800, fontSize: 14.5 }}
+          onFocus={(e) => { e.target.style.borderColor = tema.kenar; e.target.style.background = "rgba(2,6,23,.5)"; }}
+          onBlur={(e) => { e.target.style.borderColor = "transparent"; e.target.style.background = "transparent"; }} />
+        <strong style={{ flex: "0 0 auto", color: "#fff", fontSize: 14.5, whiteSpace: "nowrap" }}>
+          {paraSimge}{toplam.toLocaleString("tr-TR", { maximumFractionDigits: 0 })}
+        </strong>
+        <button type="button" onClick={onSil} title="Grubu sil"
+          style={{ ...kucukBtn, border: "1px solid rgba(248,113,113,.3)", background: "rgba(248,113,113,.12)", color: "#fca5a5" }}>×</button>
+      </div>
+
+      {acik ? (
+        <div style={{ padding: "7px 8px 9px" }}>
+          {(grup.kalemler || []).map((k) => (
+            <div key={k.id} style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) 120px 30px", gap: 6, alignItems: "center", marginBottom: 5 }}>
+              <input value={k.ad || ""} placeholder="Kalem adı"
+                onChange={(e) => kalemDegis(k.id, "ad", e.target.value)} style={adInput}
+                onFocus={(e) => { e.target.style.borderColor = "rgba(255,255,255,.16)"; e.target.style.background = "rgba(2,6,23,.45)"; }}
+                onBlur={(e) => { e.target.style.borderColor = "transparent"; e.target.style.background = "transparent"; }} />
+              <input value={k.tutar || ""} placeholder="0" inputMode="decimal"
+                onChange={(e) => kalemDegis(k.id, "tutar", e.target.value)} style={tutarInput}
+                onFocus={(e) => { e.target.style.borderColor = tema.ana; }}
+                onBlur={(e) => { e.target.style.borderColor = "rgba(255,255,255,.14)"; }} />
+              <button type="button" onClick={() => kalemSil(k.id)} title="Kalemi sil"
+                style={{ ...kucukBtn, width: 30, border: "1px solid rgba(148,163,184,.25)", background: "rgba(2,6,23,.4)", color: "#94a3b8", fontSize: 14 }}>×</button>
+            </div>
+          ))}
+          <button type="button" onClick={kalemEkle}
+            style={{ marginTop: 4, width: "100%", border: `1px dashed ${tema.kenar}`, background: "transparent", color: tema.acik, borderRadius: 9, padding: "9px 12px", fontSize: 13.5, fontWeight: 700, cursor: "pointer" }}>
+            + Kalem ekle
+          </button>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function ButceBolumu({ baslik, ikon, tema, gruplar, onGruplar, paraSimge = "₺", ekBilgi }) {
+  const toplam = grupToplami(gruplar);
+  const grupDegis = (g) => onGruplar(gruplar.map((x) => (x.id === g.id ? g : x)));
+  const grupSil = (id) => onGruplar(gruplar.filter((x) => x.id !== id));
+  const grupEkle = () => onGruplar([...gruplar, { id: yeniId(), ad: "", acik: true, kalemler: [{ id: yeniId(), ad: "", tutar: "" }] }]);
+  const hepsiKapali = gruplar.length > 0 && gruplar.every((g) => g.acik === false);
+
+  return (
+    <section style={{ border: `1px solid ${tema.kenar}`, borderRadius: 17, overflow: "hidden", background: "rgba(2,6,23,.3)" }}>
+      <header style={{
+        display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap",
+        padding: "12px 14px", background: `linear-gradient(120deg, ${tema.ana}44, ${tema.ana}18)`, borderBottom: `1px solid ${tema.kenar}`,
+      }}>
+        <span style={{ display: "flex", alignItems: "center", gap: 9, minWidth: 0 }}>
+          <span style={{ color: "#fff", fontWeight: 900, fontSize: 15 }}>{ikon} {baslik}</span>
+          <button type="button" onClick={() => onGruplar(gruplar.map((g) => ({ ...g, acik: hepsiKapali })))}
+            style={{ border: `1px solid ${tema.kenar}`, background: "rgba(2,6,23,.35)", color: tema.acik, borderRadius: 8, padding: "4px 9px", fontSize: 11.5, fontWeight: 700, cursor: "pointer" }}>
+            {hepsiKapali ? "Tümünü aç" : "Tümünü kapat"}
+          </button>
+        </span>
+        <span style={{ color: tema.acik, fontWeight: 900, fontSize: 16, whiteSpace: "nowrap" }}>
+          {paraSimge}{toplam.toLocaleString("tr-TR", { maximumFractionDigits: 0 })}{ekBilgi}
+        </span>
+      </header>
+      <div style={{ padding: 11, display: "grid", gap: 9 }}>
+        {gruplar.map((g) => (
+          <ButceGrubu key={g.id} grup={g} tema={tema} paraSimge={paraSimge} onDegis={grupDegis} onSil={() => grupSil(g.id)} />
+        ))}
+        <button type="button" onClick={grupEkle}
+          style={{ border: `1px dashed ${tema.kenar}`, background: "rgba(2,6,23,.3)", color: tema.acik, borderRadius: 11, padding: "10px 14px", fontSize: 13.5, fontWeight: 800, cursor: "pointer" }}>
+          + Yeni grup ekle
+        </button>
+      </div>
+    </section>
   );
 }
 
@@ -916,59 +1000,6 @@ function AracKarti({ goal, c, onChange, onDelete, likit, aylikGelir }) {
   );
 }
 
-// Evlilik ekranı bilinçli olarak diğerlerinden FARKLI kurgulanmıştır:
-// blok blok form yerine, düğün planlamacılarının kullandığı gibi tek bir
-// DÜZENLENEBİLİR ÇİZELGE. Her satır bir bütçe kalemi; tutarı satırın içinde
-// değiştirirsin, payı ve çubuğu anında güncellenir.
-// Evlilik ekranı diğer kategorilerden bilinçli olarak farklı kurgulanmıştır:
-// gerçek bir düğün bütçe çizelgesi gibi, iki renk ailesine ayrılmış 8 grup
-// (DÜĞÜN = mavi, EV KURMA = yeşil) ve her grubun kendi alt toplamı.
-function KalemSatiri({ ad, value, onChange, varsayilan, renk }) {
-  return (
-    <div style={{
-      display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8,
-      padding: "5px 10px", borderBottom: "1px solid rgba(255,255,255,.05)",
-    }}>
-      <span style={{ color: "#cbd5e1", fontSize: 11.5, minWidth: 0, flex: 1, lineHeight: 1.35 }}>{ad}</span>
-      <input
-        style={{
-          width: 104, flex: "0 0 auto", boxSizing: "border-box", textAlign: "right",
-          border: "1px solid rgba(255,255,255,.12)", background: "rgba(2,6,23,.55)",
-          color: value ? "#f8fafc" : "#64748b", borderRadius: 7, padding: "5px 8px",
-          outline: "none", fontSize: 11.5, fontVariantNumeric: "tabular-nums",
-        }}
-        inputMode="decimal" value={value || ""} placeholder={varsayilan > 0 ? String(varsayilan) : "0"}
-        onFocus={(e) => { e.target.style.borderColor = renk; }}
-        onBlur={(e) => { e.target.style.borderColor = "rgba(255,255,255,.12)"; }}
-        onChange={(e) => onChange(e.target.value)}
-      />
-    </div>
-  );
-}
-
-function GrupKarti({ grup, bolum, c, onItem }) {
-  return (
-    <div style={{ border: `1px solid ${bolum.kenar}`, borderRadius: 13, overflow: "hidden", background: "rgba(2,6,23,.42)" }}>
-      <div style={{
-        display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8,
-        padding: "7px 10px", background: bolum.zemin, borderBottom: `1px solid ${bolum.kenar}`,
-      }}>
-        <span style={{ color: bolum.acik, fontSize: 11.5, fontWeight: 800 }}>{grup.no}. {grup.ad}</span>
-        <span style={{ color: "#fff", fontSize: 11.5, fontWeight: 900, whiteSpace: "nowrap" }}>{money(c.grupToplam[grup.no] || 0)}</span>
-      </div>
-      <div>
-        {grup.kalemler.map(([k, ad, v]) => (
-          <KalemSatiri key={k} ad={ad} varsayilan={v} renk={bolum.ana}
-            value={(c.rawItems || {})[k]} onChange={(val) => onItem(k, val)} />
-        ))}
-      </div>
-    </div>
-  );
-}
-
-// Seyahat kartı: "birim fiyat × çarpan" mantığını görünür kılan çarpım tablosu.
-// Kullanıcı küçük rakamlar girer (kişi başı bilet, kişi/gün yemek), toplamı ekran
-// hesaplar — diğer kategorilerdeki düz tutar girişinden bilinçli olarak farklı.
 function SeyahatSatiri({ kalem, deger, onChange, renk, simge, dovizli, tl }) {
   return (
     <tr style={{ borderBottom: "1px solid rgba(255,255,255,.05)" }}>
@@ -1192,9 +1223,7 @@ function SeyahatKarti({ goal, c, onChange, onDelete, likit, aylikKalanPara }) {
 function EvlilikKarti({ goal, c, onChange, onApplyPreset, onDelete, likit, aylikKalanPara }) {
   const ayKalan = aylikKalan(goal.targetDate);
   const aylikBirikim = c.gap > 0 && ayKalan && ayKalan > 0 ? c.gap / ayKalan : null;
-  const rawItems = goal.items && typeof goal.items === "object" ? goal.items : {};
-  const cc = { ...c, rawItems };
-  const onItem = (k, v) => onChange("items", { ...rawItems, [k]: v });
+  const bosMu = c.dugunGruplar.length === 0 && c.evGruplar.length === 0;
 
   const uyarilar = [];
   if (c.takiKarsilama > 60)
@@ -1226,22 +1255,22 @@ function EvlilikKarti({ goal, c, onChange, onApplyPreset, onDelete, likit, aylik
       {/* Künye */}
       <div style={{ display: "flex", gap: 11, alignItems: "flex-end", flexWrap: "wrap" }}>
         <label style={{ flex: "1 1 180px" }}>
-          <span style={{ display: "block", color: "#cbd5e1", fontSize: 11, fontWeight: 800, marginBottom: 5 }}>💍 HEDEF ADI</span>
+          <span style={{ display: "block", color: "#cbd5e1", fontSize: 12, fontWeight: 800, marginBottom: 5 }}>💍 HEDEF ADI</span>
           <input style={inputStyle} value={goal.name || ""} placeholder="Evlilik Hedefi" onChange={(e) => onChange("name", e.target.value)} />
         </label>
         <label style={{ flex: "0 1 165px" }}>
-          <span style={{ display: "block", color: "#cbd5e1", fontSize: 11, fontWeight: 800, marginBottom: 5 }}>DÜĞÜN TARİHİ</span>
+          <span style={{ display: "block", color: "#cbd5e1", fontSize: 12, fontWeight: 800, marginBottom: 5 }}>DÜĞÜN TARİHİ</span>
           <input style={inputStyle} type="date" value={goal.targetDate || ""} onChange={(e) => onChange("targetDate", e.target.value)} />
         </label>
         <label style={{ flex: "0 1 120px" }}>
-          <span style={{ display: "block", color: "#cbd5e1", fontSize: 11, fontWeight: 800, marginBottom: 5 }}>DAVETLİ</span>
+          <span style={{ display: "block", color: "#cbd5e1", fontSize: 12, fontWeight: 800, marginBottom: 5 }}>DAVETLİ</span>
           <input style={inputStyle} inputMode="decimal" value={goal.guests || ""} placeholder="200" onChange={(e) => onChange("guests", e.target.value)} />
         </label>
         <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
           {EVLILIK_OLCEK.map((o) => (
-            <button key={o.id} type="button" onClick={() => onApplyPreset({ items: evlilikOnAyar(o.carpan) })}
-              title="Bu ölçeğin 2026 ortalamalarıyla tüm kalemleri doldur"
-              style={{ border: "1px solid rgba(148,163,184,.32)", background: "rgba(2,6,23,.5)", color: "#e2e8f0", borderRadius: 9, padding: "8px 12px", fontSize: 11.5, fontWeight: 800, cursor: "pointer" }}>
+            <button key={o.id} type="button" onClick={() => onApplyPreset(evlilikSablonUret(o.carpan))}
+              title="Bu ölçeğin 2026 ortalamalarıyla tüm grupları ve kalemleri doldur"
+              style={{ border: "1px solid rgba(148,163,184,.32)", background: "rgba(2,6,23,.5)", color: "#e2e8f0", borderRadius: 9, padding: "9px 13px", fontSize: 12.5, fontWeight: 800, cursor: "pointer" }}>
               {o.label}
             </button>
           ))}
@@ -1249,23 +1278,23 @@ function EvlilikKarti({ goal, c, onChange, onApplyPreset, onDelete, likit, aylik
         <button type="button" className="deleteButton" onClick={onDelete}>Sil</button>
       </div>
 
+      {bosMu ? (
+        <div style={{ border: "1px dashed rgba(148,163,184,.3)", borderRadius: 14, padding: "18px 16px", textAlign: "center", color: "#94a3b8", fontSize: 13.5, lineHeight: 1.6 }}>
+          Bütçen boş. Yukarıdaki <strong style={{ color: "#e2e8f0" }}>Sade / Standart / Gösterişli</strong> düğmelerinden biriyle hazır
+          şablonla başla — sonra her grubu ve kalemi kendine göre düzenle, sil, yenisini ekle.
+        </div>
+      ) : null}
+
       {/* İKİ RENK AİLESİ: düğün (mavi) / ev (yeşil) */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(330px, 1fr))", gap: 13 }}>
-        {EVLILIK_BOLUMLER.map((b) => (
-          <section key={b.id} style={{ border: `1px solid ${b.kenar}`, borderRadius: 17, overflow: "hidden", background: "rgba(2,6,23,.3)" }}>
-            <header style={{
-              display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10,
-              padding: "11px 14px", background: `linear-gradient(120deg, ${b.ana}44, ${b.ana}18)`,
-              borderBottom: `1px solid ${b.kenar}`,
-            }}>
-              <span style={{ color: "#fff", fontWeight: 900, fontSize: 13, letterSpacing: ".03em" }}>{b.ikon} {b.ad}</span>
-              <span style={{ color: b.acik, fontWeight: 900, fontSize: 14, whiteSpace: "nowrap" }}>{money(c.bolumToplam[b.id] || 0)}</span>
-            </header>
-            <div style={{ padding: 11, display: "grid", gap: 10 }}>
-              {b.gruplar.map((g) => <GrupKarti key={g.no} grup={g} bolum={b} c={cc} onItem={onItem} />)}
-            </div>
-          </section>
-        ))}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: 13 }}>
+        <ButceBolumu
+          baslik="DÜĞÜN SÜRECİ" ikon="💍"
+          tema={{ ana: "#3b82f6", acik: "#bfdbfe", zemin: "rgba(59,130,246,.14)", kenar: "rgba(59,130,246,.34)" }}
+          gruplar={c.dugunGruplar} onGruplar={(g) => onChange("dugunGruplar", g)} />
+        <ButceBolumu
+          baslik="EV KURMA" ikon="🏡"
+          tema={{ ana: "#22c55e", acik: "#bbf7d0", zemin: "rgba(34,197,94,.13)", kenar: "rgba(34,197,94,.32)" }}
+          gruplar={c.evGruplar} onGruplar={(g) => onChange("evGruplar", g)} />
       </div>
 
       {/* GENEL TOPLAM — mor */}
@@ -1279,13 +1308,13 @@ function EvlilikKarti({ goal, c, onChange, onApplyPreset, onDelete, likit, aylik
           <div style={{ color: "#fff", fontSize: "clamp(24px, 4vw, 34px)", fontWeight: 900, lineHeight: 1.15 }}>{money(c.target)}</div>
         </div>
         <div style={{ display: "flex", gap: 20, flexWrap: "wrap" }}>
-          <span><span style={{ display: "block", color: "#c4b5fd", fontSize: 10, fontWeight: 800, textTransform: "uppercase" }}>Düğün</span>
-            <strong style={{ color: "#bfdbfe", fontSize: 15 }}>{money(c.bolumToplam.dugun || 0)}</strong></span>
-          <span><span style={{ display: "block", color: "#c4b5fd", fontSize: 10, fontWeight: 800, textTransform: "uppercase" }}>Ev Kurma</span>
-            <strong style={{ color: "#bbf7d0", fontSize: 15 }}>{money(c.bolumToplam.ev || 0)}</strong></span>
+          <span><span style={{ display: "block", color: "#c4b5fd", fontSize: 11, fontWeight: 800, textTransform: "uppercase" }}>Düğün</span>
+            <strong style={{ color: "#bfdbfe", fontSize: 16 }}>{money(c.dugunToplam)}</strong></span>
+          <span><span style={{ display: "block", color: "#c4b5fd", fontSize: 11, fontWeight: 800, textTransform: "uppercase" }}>Ev Kurma</span>
+            <strong style={{ color: "#bbf7d0", fontSize: 16 }}>{money(c.evToplam)}</strong></span>
           {c.davetli > 0 ? (
-            <span><span style={{ display: "block", color: "#c4b5fd", fontSize: 10, fontWeight: 800, textTransform: "uppercase" }}>Davetli Başına</span>
-              <strong style={{ color: "#fff", fontSize: 15 }}>{money(c.kisiBasiToplam)}</strong></span>
+            <span><span style={{ display: "block", color: "#c4b5fd", fontSize: 11, fontWeight: 800, textTransform: "uppercase" }}>Davetli Başına</span>
+              <strong style={{ color: "#fff", fontSize: 16 }}>{money(c.kisiBasiToplam)}</strong></span>
           ) : null}
         </div>
       </div>
@@ -1400,7 +1429,7 @@ export default function FinancialGoals({ data, setData, financeTotals, investmen
         : type === "seyahat"
         ? { ...base, name: "Seyahat Hedefi", destination: "", people: "2", nights: "5", currency: "TRY", rate: "", contingency: "10", items: {} }
         : type === "evlilik"
-        ? { ...base, name: "Evlilik Hedefi", guests: "", items: {}, expectedGifts: "", familyHelp: "" }
+        ? { ...base, name: "Evlilik Hedefi", guests: "", expectedGifts: "", familyHelp: "", ...evlilikSablonUret(1) }
         : { ...base, name: "Ev Alma Hedefi", housePrice: "", extraCost: "", loan: "",
             sellHome: "", sellHomeDebt: "", loanMonths: "120", loanRate: "2,75" };
     mutateGoals((gs) => [yeni, ...gs]);
