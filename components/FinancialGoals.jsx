@@ -53,8 +53,6 @@ const NOTER_HARC_MIN = 1000;      // asgari harç
 const NOTER_HIZMET_ORANI = 0.30;  // harcın %30'u
 const NOTER_SABIT = 1500;         // sayfa / nüsha / tescil / bildirim
 const TESCIL_PLAKA = 2500;
-const YILLIK_SIGORTA_VERGI = 0.045; // kasko + trafik + MTV, araç değerine oranla (tahmini)
-const SAHIPLIK_YIL = 3;             // "gerçek maliyet" ufku
 
 function krediLimiti(price, fuel) {
   const tablo = KREDI_KADEMELERI[fuel === "ev" ? "ev" : "ice"];
@@ -62,18 +60,11 @@ function krediLimiti(price, fuel) {
   return { maxKredi: price * kademe.oran, maxVade: kademe.vade, oran: kademe.oran };
 }
 
-// Değer kaybı: sıfır araç ilk yıl ~%20, sonraki yıllar ~%10; ikinci el ~%10/yıl.
-function kalanDeger(price, yil, sifirMi) {
-  let v = price;
-  for (let y = 1; y <= yil; y++) v *= sifirMi && y === 1 ? 0.80 : 0.90;
-  return v;
-}
-
 function calcArac(goal) {
   const price = num(goal.price);
   const loan = num(goal.loan);
   const cash = num(goal.cash);
-  const tradeNet = Math.max(0, num(goal.tradeIn) - num(goal.tradeInDebt));
+  const tradeNet = Math.max(0, num(goal.tradeIn));
   const sifirMi = goal.condition !== "used";
 
   const noterHarc = price > 0 ? Math.max(price * NOTER_HARC_ORANI, NOTER_HARC_MIN) : 0;
@@ -88,28 +79,14 @@ function calcArac(goal) {
 
   const ay = num(goal.loanMonths);
   const taksit = taksitHesapla(loan, num(goal.loanRate), ay);
-
-  // Sahip olma giderleri
-  const aylikSigortaVergi = (price * YILLIK_SIGORTA_VERGI) / 12;
-  const aylikKullanim = num(goal.monthlyRun);
-  const aylikToplamGider = taksit + aylikSigortaVergi + aylikKullanim;
-
-  // 3 yıllık gerçek maliyet: ödenenler − kalan değer
-  const odenenTaksit = taksit * Math.min(ay, SAHIPLIK_YIL * 12);
-  const odenenGider = (aylikSigortaVergi + aylikKullanim) * SAHIPLIK_YIL * 12;
-  const pesinatCikan = cash + tradeNet;
-  const kalan = kalanDeger(price, SAHIPLIK_YIL, sifirMi);
-  const kalanKrediBorcu = Math.max(0, loan - (ay > 0 ? loan * (Math.min(ay, SAHIPLIK_YIL * 12) / ay) : 0));
-  const gercekMaliyet = pesinatCikan + masrafToplam + odenenTaksit + odenenGider - (kalan - kalanKrediBorcu);
-
+  const toplamGeriOdeme = taksit * ay;
   const limit = krediLimiti(price, goal.fuel);
 
   return {
     price, loan, cash, tradeNet, sifirMi,
     masraflar: { noterHarc, noterHizmet, tescil },
     masrafToplam, target, resources, gap, percent,
-    taksit, ay, aylikSigortaVergi, aylikKullanim, aylikToplamGider,
-    kalan, degerKaybi: price - kalan, gercekMaliyet, limit,
+    taksit, ay, toplamGeriOdeme, limit,
   };
 }
 
@@ -748,7 +725,7 @@ function AracKarti({ goal, c, onChange, onDelete, likit, aylikGelir }) {
   const ayKalan = aylikKalan(goal.targetDate);
   const aylikBirikim = c.gap > 0 && ayKalan && ayKalan > 0 ? c.gap / ayKalan : null;
   // Araçta ödenebilirlik TAKSİT değil, TOPLAM aylık araç gideri üzerinden ölçülür.
-  const yuk = aylikGelir > 0 ? (c.aylikToplamGider / aylikGelir) * 100 : null;
+  const yuk = aylikGelir > 0 ? (c.taksit / aylikGelir) * 100 : null;
 
   const uyarilar = [];
   if (c.price > 0 && c.limit.oran === 0 && c.loan > 0)
@@ -757,8 +734,8 @@ function AracKarti({ goal, c, onChange, onDelete, likit, aylikGelir }) {
     uyarilar.push(`Bu araç için azami kredi ${money(c.limit.maxKredi)} (değerin %${(c.limit.oran * 100).toFixed(0)}'i). En az ${money(c.price - c.limit.maxKredi)} peşinat gerekir.`);
   if (c.ay > c.limit.maxVade && c.limit.maxVade > 0)
     uyarilar.push(`Bu fiyat bandında azami vade ${c.limit.maxVade} ay. ${c.ay} ay yazdın — banka kabul etmez.`);
-  if (yuk !== null && yuk > 20)
-    uyarilar.push(`Toplam araç gideri gelirinin %${yuk.toFixed(0)}'i. Danışmanlıkta kabul gören sınır %20 — daha uygun bir araç ya da uzun vade düşün.`);
+  if (yuk !== null && yuk > 35)
+    uyarilar.push(`Taksit / gelir oranı %${yuk.toFixed(0)}. Rahat sayılan sınır %35 — vadeyi uzatmayı ya da krediyi düşürmeyi düşün.`);
 
   const tamam = c.gap <= 0;
 
@@ -802,9 +779,6 @@ function AracKarti({ goal, c, onChange, onDelete, likit, aylikGelir }) {
             <option value="used">İkinci El</option>
           </select>
         </Alan>
-        <Alan label="Aylık Yakıt + Bakım (₺)" hint="Otopark, lastik, servis dâhil">
-          <input style={inputStyle} inputMode="decimal" value={goal.monthlyRun || ""} placeholder="0" onChange={(e) => onChange("monthlyRun", e.target.value)} />
-        </Alan>
       </div>
 
       <Blok renk="#fcd34d" zemin="rgba(245,158,11,.22)" no="1" baslik="Elindeki kaynaklar">
@@ -822,9 +796,6 @@ function AracKarti({ goal, c, onChange, onDelete, likit, aylikGelir }) {
         </Alan>
         <Alan label="Takas / Satacağın Araç (₺)" hint="Mevcut aracını verecekesen değerini yaz">
           <input style={inputStyle} inputMode="decimal" value={goal.tradeIn || ""} placeholder="0" onChange={(e) => onChange("tradeIn", e.target.value)} />
-        </Alan>
-        <Alan label="O Aracın Kalan Kredi Borcu (₺)" hint="Takastan düşülür — eline net bu kadar geçer">
-          <input style={inputStyle} inputMode="decimal" value={goal.tradeInDebt || ""} placeholder="0" onChange={(e) => onChange("tradeInDebt", e.target.value)} />
         </Alan>
       </Blok>
 
@@ -867,32 +838,19 @@ function AracKarti({ goal, c, onChange, onDelete, likit, aylikGelir }) {
 
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 9, marginTop: 14 }}>
           <Kutu etiket="Alım Maliyeti" deger={money(c.target)} renk="#e2e8f0" alt={`Fiyat + ${money(c.masrafToplam)} noter/tescil`} />
-          {c.aylikToplamGider > 0 ? (
-            <Kutu etiket="Aylık Araç Gideri" deger={money(c.aylikToplamGider)}
-              renk={yuk === null ? "#a78bfa" : yuk <= 20 ? "#34d399" : yuk <= 30 ? "#fbbf24" : "#fb7185"}
-              alt={yuk === null ? "Taksit + sigorta + kullanım" : `Gelire oranı %${yuk.toFixed(0)} · sınır %20`} />
+          {c.taksit > 0 ? (
+            <Kutu etiket="Aylık Kredi Ödemesi" deger={money(c.taksit)}
+              renk={yuk === null ? "#fbbf24" : yuk <= 35 ? "#34d399" : yuk <= 50 ? "#fbbf24" : "#fb7185"}
+              alt={yuk === null ? `${c.ay || 0} ay vade` : `Gelire oranı %${yuk.toFixed(0)} · ${c.ay} ay`} />
           ) : null}
-          {c.price > 0 ? (
-            <Kutu etiket={`${SAHIPLIK_YIL} Yıl Sonra Değeri`} deger={money(c.kalan)} renk="#fb7185" alt={`${money(c.degerKaybi)} değer kaybı`} />
+          {c.toplamGeriOdeme > 0 ? (
+            <Kutu etiket="Toplam Geri Ödeme" deger={money(c.toplamGeriOdeme)} renk="#a78bfa"
+              alt={`${money(c.toplamGeriOdeme - c.loan)} faiz`} />
           ) : null}
           {aylikBirikim ? (
             <Kutu etiket="Aylık Biriktirmelisin" deger={money(aylikBirikim)} renk="#fbbf24" alt={`${ayKalan} ay içinde yetişmek için`} />
           ) : null}
         </div>
-
-        {/* Gerçek maliyet — araçtaki asıl mesele */}
-        {c.price > 0 ? (
-          <div style={{ marginTop: 13, border: "1px solid rgba(251,113,133,.3)", background: "rgba(251,113,133,.08)", borderRadius: 14, padding: "12px 14px" }}>
-            <div style={{ color: "#fda4af", fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".03em" }}>
-              {SAHIPLIK_YIL} yılda sana gerçek maliyeti
-            </div>
-            <div style={{ color: "#fb7185", fontSize: 26, fontWeight: 900, margin: "3px 0 4px" }}>{money(c.gercekMaliyet)}</div>
-            <div style={{ color: "#94a3b8", fontSize: 11, lineHeight: 1.5 }}>
-              Peşinat + masraf + ödenen taksitler + sigorta/vergi + yakıt/bakım − {SAHIPLIK_YIL}. yıl sonundaki araç değeri.
-              Ev değer kazanır, araç kaybeder; asıl maliyet burada görünür.
-            </div>
-          </div>
-        ) : null}
 
         {/* İlerleme */}
         <div style={{ marginTop: 13 }}>
@@ -924,37 +882,20 @@ function AracKarti({ goal, c, onChange, onDelete, likit, aylikGelir }) {
               />
             </TabloKutu>
 
-            <TabloKutu baslik="Değer kaybı projeksiyonu" ikon="📉">
-              <Tablo
-                renk="#fca5a5"
-                basliklar={["Yıl", "Tahmini değer", "Kayıp"]}
-                not={`${c.sifirMi ? "Sıfır araç ilk yıl ~%20, sonrasında ~%10" : "İkinci el ~%10/yıl"} değer kaybı varsayımıyla. Tahmindir.`}
-                satirlar={[1, 2, 3, 4, 5].map((y) => {
-                  const d = kalanDeger(c.price, y, c.sifirMi);
-                  return {
-                    hucreler: [`${y}. yıl`, money(d), `− ${money(c.price - d)}`],
-                    vurgu: y === SAHIPLIK_YIL,
-                    kalin: y === SAHIPLIK_YIL,
-                    renk: "#fda4af",
-                  };
-                })}
-              />
-            </TabloKutu>
-
-            <TabloKutu baslik="Alım masrafları ve aylık giderler" ikon="🧾">
+            <TabloKutu baslik="Alım masrafları ve kredi" ikon="🧾">
               <Tablo
                 renk="#fcd34d"
                 basliklar={["Kalem", "Tutar"]}
-                not="Noter tarifesi 2026'ya göredir. Sigorta/vergi tahminidir; araç yaşı ve motor hacmine göre değişir."
+                not="Noter tarifesi 2026'ya göredir."
                 satirlar={[
                   { hucreler: ["Noter satış harcı (binde 2)", money(c.masraflar.noterHarc)], not: "Asgari 1.000 ₺" },
                   { hucreler: ["Noter hizmet bedeli", money(c.masraflar.noterHizmet)], not: "Harcın %30'u + sayfa/nüsha/bildirim" },
                   { hucreler: ["Tescil / plaka", money(c.masraflar.tescil)] },
                   { hucreler: ["ALIM MASRAFI TOPLAMI", money(c.masrafToplam)], kalin: true, vurgu: true },
-                  ...(c.taksit > 0 ? [{ hucreler: ["Aylık kredi taksiti", money(c.taksit)] }] : []),
-                  { hucreler: ["Aylık sigorta + vergi", money(c.aylikSigortaVergi)], not: "Kasko + trafik + MTV (tahmini)" },
-                  ...(c.aylikKullanim > 0 ? [{ hucreler: ["Aylık yakıt + bakım", money(c.aylikKullanim)] }] : []),
-                  { hucreler: ["AYLIK TOPLAM GİDER", money(c.aylikToplamGider)], kalin: true, vurgu: true, renk: "#fbbf24" },
+                  ...(c.taksit > 0 ? [
+                    { hucreler: ["Aylık kredi taksiti", money(c.taksit)], not: `${c.ay} ay vade` },
+                    { hucreler: ["TOPLAM GERİ ÖDEME", money(c.toplamGeriOdeme)], kalin: true, vurgu: true, renk: "#fbbf24" },
+                  ] : []),
                 ]}
               />
             </TabloKutu>
@@ -1455,7 +1396,7 @@ export default function FinancialGoals({ data, setData, financeTotals, investmen
     const yeni =
       type === "arac"
         ? { ...base, name: "Araç Alma Hedefi", price: "", fuel: "ice", condition: "new", loan: "",
-            tradeIn: "", tradeInDebt: "", monthlyRun: "", loanMonths: "24", loanRate: "3,25" }
+            tradeIn: "", loanMonths: "24", loanRate: "3,25" }
         : type === "seyahat"
         ? { ...base, name: "Seyahat Hedefi", destination: "", people: "2", nights: "5", currency: "TRY", rate: "", contingency: "10", items: {} }
         : type === "evlilik"
