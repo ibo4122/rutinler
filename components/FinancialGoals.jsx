@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { money } from "../lib/format";
 import { IS_KOLLARI, isKolu, IS_OLCEK } from "../lib/isKollari";
 import { ALISVERIS_KATEGORILER, alisverisKategori } from "../lib/alisveris";
+import { SAGLIK_GRUPLARI, SAGLIK_DUZENLI, saglikGrubu } from "../lib/saglik";
 
 // Hedef türleri — her tür kendi ekranına sahip. Tür seçilince ekran o türe göre kurulur.
 const GOAL_TYPES = [
@@ -13,7 +14,7 @@ const GOAL_TYPES = [
   { id: "seyahat", label: "Seyahat", icon: "✈️", ready: true },
   { id: "is", label: "İş Kurma", icon: "💼", ready: true },
   { id: "alisveris", label: "Alışveriş", icon: "🛍️", ready: true },
-  { id: "ozel", label: "Özel", icon: "🎯", ready: false },
+  { id: "saglik", label: "Sağlık / Estetik", icon: "🩺", ready: true },
 ];
 const typeMeta = (id) => GOAL_TYPES.find((t) => t.id === id) || { label: "Hedef", icon: "🎯" };
 
@@ -239,6 +240,41 @@ function calcSeyahat(goal) {
   };
 }
 
+// --- Sağlık / Estetik ----------------------------------------------------
+// Sağlık harcaması iki farklı paradır: TEK SEFERLİK işlemler (implant, saç
+// ekimi, LASIK) ve HER AY TEKRAR EDEN giderler (sigorta, ilaç, terapi).
+// İkincisinin yıllık toplamı çoğu insanın tahmininden büyüktür; ekran ayırır.
+function saglikGruplariUret(katId) {
+  const k = katId === "duzenli" ? SAGLIK_DUZENLI : saglikGrubu(katId);
+  if (!k) return [];
+  return k.gruplar.map((g) => ({
+    id: yeniId(), ad: `${k.ikon} ${g.ad}`, acik: true, katId, tur: k.tur,
+    kalemler: g.kalemler.map(([ad, v]) => ({ id: yeniId(), ad, tutar: String(v) })),
+  }));
+}
+
+function calcSaglik(goal) {
+  const gruplar = Array.isArray(goal.gruplar) ? goal.gruplar : [];
+  const tekGruplar = gruplar.filter((g) => g.tur !== "aylik");
+  const aylikGruplar = gruplar.filter((g) => g.tur === "aylik");
+
+  const tekToplam = grupToplami(tekGruplar);       // biriktirip ödenecek
+  const aylikToplam = grupToplami(aylikGruplar);   // her ay tekrar eden
+  const yillikDuzenli = aylikToplam * 12;
+  const yillikToplam = tekToplam + yillikDuzenli;
+
+  const cash = num(goal.cash);
+  const gap = tekToplam - cash;                    // hedef: tek seferlik işlemler
+  const percent = tekToplam > 0 ? Math.min(100, (cash / tekToplam) * 100) : 0;
+  const seciliKategoriler = [...new Set(gruplar.map((g) => g.katId).filter(Boolean))];
+  const kalemSayisi = gruplar.reduce((s, g) => s + (g.kalemler || []).length, 0);
+
+  return {
+    gruplar, tekGruplar, aylikGruplar, tekToplam, aylikToplam, yillikDuzenli, yillikToplam,
+    target: tekToplam, cash, resources: cash, gap, percent, seciliKategoriler, kalemSayisi,
+  };
+}
+
 // --- Alışveriş -----------------------------------------------------------
 // Mağaza reyonu mantığı: kategori seç, o reyonun kalemleri listeye eklenir.
 // Kategoriler ÜST ÜSTE eklenir — tek listede hem giyim hem teknoloji olabilir.
@@ -421,6 +457,7 @@ function calcGoal(goal) {
   if (goal.type === "seyahat") return calcSeyahat(goal);
   if (goal.type === "is") return calcIs(goal);
   if (goal.type === "alisveris") return calcAlisveris(goal);
+  if (goal.type === "saglik") return calcSaglik(goal);
   // Diğer türler eklendikçe buraya gelecek.
   const target = num(goal.targetValue);
   return { target, resources: 0, gap: target, percent: 0, taksit: 0, ltv: 0, masrafToplam: 0, masraflar: {} };
@@ -444,7 +481,7 @@ const HERO = {
   seyahat: { renk: ["#22d3ee", "#3b82f6"], baslik: "Seyahat Hedefi", alt: "Sabit giderler ve günlük harcamaları kişi/gece çarpanıyla hesaplar." },
   is: { renk: ["#10b981", "#059669"], baslik: "İş Kurma Hedefi", alt: "10 iş kolu, sektöre özel sermaye planı ve adım adım yol haritası." },
   alisveris: { renk: ["#a78bfa", "#f472b6"], baslik: "Alışveriş Listesi", alt: "14 reyon: giyim, teknoloji, ev, kamp, hobi… Kategoriyi seç, ürünler hazır gelsin." },
-  ozel: { renk: ["#a78bfa", "#6366f1"], baslik: "Özel Hedef", alt: "Hazırlanıyor." },
+  saglik: { renk: ["#22d3ee", "#a78bfa"], baslik: "Sağlık / Estetik Planı", alt: "Diş, estetik, göz, kontroller ve düzenli sağlık giderleri — 2026 ortalama fiyatlarıyla." },
 };
 
 function HeroCizim({ type }) {
@@ -1240,6 +1277,172 @@ function MetrikKutu({ etiket, deger, alt, renk }) {
 
 // Alışveriş kartı: mağaza reyonu gibi. Kategori rozetine basınca o reyonun
 // kalemleri listeye eklenir; her grup kendi kategorisinin rengini taşır.
+// Sağlık kartı: tek seferlik işlemler ile düzenli giderler ayrı ayrı toplanır;
+// altta yıllık toplam sağlık maliyeti gösterilir.
+function SaglikKarti({ goal, c, onChange, onDelete, likit, aylikGelir }) {
+  const ayKalan = aylikKalan(goal.targetDate);
+  const aylikBirikim = c.gap > 0 && ayKalan && ayKalan > 0 ? c.gap / ayKalan : null;
+  const gelirOrani = aylikGelir > 0 ? (c.aylikToplam / aylikGelir) * 100 : null;
+
+  const tumKategoriler = [...SAGLIK_GRUPLARI, { ...SAGLIK_DUZENLI, id: "duzenli" }];
+  const kategoriDegis = (kat) => {
+    if (c.seciliKategoriler.includes(kat.id)) {
+      onChange("gruplar", c.gruplar.filter((g) => g.katId !== kat.id));
+    } else {
+      onChange("gruplar", [...c.gruplar, ...saglikGruplariUret(kat.id)]);
+    }
+  };
+  const bolumGuncelle = (katId, yeni, tur) => {
+    const digerleri = c.gruplar.filter((g) => g.katId !== katId);
+    onChange("gruplar", [...digerleri, ...yeni.map((g) => ({ ...g, katId, tur }))]);
+  };
+
+  return (
+    <article style={{
+      borderTop: "1px solid rgba(148,163,184,.14)", padding: 16,
+      background: "linear-gradient(165deg, rgba(15,45,55,.5), rgba(15,23,42,.85))",
+      display: "grid", gap: 13,
+    }}>
+      <div style={{ display: "flex", gap: 11, alignItems: "flex-end", flexWrap: "wrap" }}>
+        <label style={{ flex: "1 1 190px" }}>
+          <span style={{ display: "block", color: "#cbd5e1", fontSize: 12, fontWeight: 800, marginBottom: 5 }}>🩺 PLAN ADI</span>
+          <input style={inputStyle} value={goal.name || ""} placeholder="Örn: Diş Tedavisi Planı" onChange={(e) => onChange("name", e.target.value)} />
+        </label>
+        <label style={{ flex: "0 1 170px" }}>
+          <span style={{ display: "block", color: "#cbd5e1", fontSize: 12, fontWeight: 800, marginBottom: 5 }}>HEDEF TARİH</span>
+          <input style={inputStyle} type="date" value={goal.targetDate || ""} onChange={(e) => onChange("targetDate", e.target.value)} />
+        </label>
+        <button type="button" className="deleteButton" onClick={onDelete}>Sil</button>
+      </div>
+
+      {/* ALANLAR */}
+      <div style={{ border: "1px solid rgba(148,163,184,.2)", borderRadius: 16, padding: "13px 14px", background: "rgba(2,6,23,.4)" }}>
+        <div style={{ color: "#cbd5e1", fontSize: 12, fontWeight: 900, textTransform: "uppercase", letterSpacing: ".05em", marginBottom: 4 }}>
+          🩹 Sağlık Alanları
+        </div>
+        <div style={{ color: "#64748b", fontSize: 11.5, marginBottom: 11 }}>
+          İhtiyacın olan alanı seç — işlemler ve 2026 ortalama fiyatlarıyla listene eklenir.
+        </div>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 7 }}>
+          {tumKategoriler.map((kat) => {
+            const secili = c.seciliKategoriler.includes(kat.id);
+            return (
+              <button key={kat.id} type="button" onClick={() => kategoriDegis(kat)}
+                style={{
+                  display: "flex", alignItems: "center", gap: 6, padding: "8px 12px", borderRadius: 11, cursor: "pointer",
+                  border: `1px solid ${secili ? kat.renk : "rgba(255,255,255,.12)"}`,
+                  background: secili ? `${kat.renk}28` : "rgba(2,6,23,.5)",
+                  color: secili ? "#fff" : "#cbd5e1", fontSize: 12.5, fontWeight: 700,
+                }}>
+                <span style={{ fontSize: 15 }}>{kat.ikon}</span>
+                <span>{kat.ad}</span>
+                {kat.tur === "aylik" ? <span style={{ color: "#fbbf24", fontSize: 10, fontWeight: 800 }}>aylık</span> : null}
+                {secili ? <span style={{ color: kat.renk, fontWeight: 900 }}>✓</span> : null}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {c.gruplar.length === 0 ? (
+        <div style={{ border: "1px dashed rgba(148,163,184,.3)", borderRadius: 14, padding: "18px 16px", textAlign: "center", color: "#94a3b8", fontSize: 13.5, lineHeight: 1.6 }}>
+          Planın boş. Yukarıdan bir alan seç — işlemler hazır fiyatlarıyla gelir.
+          İhtiyacın olmayanı sil, fiyatları kendi teklifine göre güncelle.
+        </div>
+      ) : (
+        <div style={{ display: "grid", gap: 10 }}>
+          {SAGLIK_GRUPLARI.filter((k) => c.seciliKategoriler.includes(k.id)).map((kat) => (
+            <ButceBolumu key={kat.id} baslik={kat.ad} ikon={kat.ikon}
+              tema={{ ana: kat.renk, acik: kat.renk, zemin: `${kat.renk}1f`, kenar: `${kat.renk}4d` }}
+              gruplar={c.gruplar.filter((g) => g.katId === kat.id)}
+              onGruplar={(yeni) => bolumGuncelle(kat.id, yeni, "tek")} />
+          ))}
+          {c.seciliKategoriler.includes("duzenli") ? (
+            <ButceBolumu baslik={SAGLIK_DUZENLI.ad} ikon={SAGLIK_DUZENLI.ikon}
+              tema={{ ana: SAGLIK_DUZENLI.renk, acik: "#fde68a", zemin: `${SAGLIK_DUZENLI.renk}1f`, kenar: `${SAGLIK_DUZENLI.renk}4d` }}
+              gruplar={c.gruplar.filter((g) => g.katId === "duzenli")}
+              onGruplar={(yeni) => bolumGuncelle("duzenli", yeni, "aylik")}
+              ekBilgi={<span style={{ color: "#fde68a", fontSize: 12.5, fontWeight: 700, marginLeft: 8 }}>/ay</span>} />
+          ) : null}
+        </div>
+      )}
+
+      {/* SONUÇ: iki para ayrı */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(230px, 1fr))", gap: 11 }}>
+        <div style={{
+          border: "1px solid rgba(34,211,238,.4)", borderRadius: 16, padding: "14px 16px",
+          background: "linear-gradient(120deg, rgba(34,211,238,.2), rgba(15,23,42,.5))",
+        }}>
+          <div style={{ color: "#a5f3fc", fontSize: 11, fontWeight: 900, textTransform: "uppercase", letterSpacing: ".05em" }}>Tek Seferlik İşlemler</div>
+          <div style={{ color: "#fff", fontSize: "clamp(23px, 3.5vw, 31px)", fontWeight: 900, lineHeight: 1.15 }}>{money(c.tekToplam)}</div>
+          <div style={{ color: "#94a3b8", fontSize: 12 }}>Biriktirip ödeyeceğin tutar</div>
+        </div>
+        <div style={{
+          border: "1px solid rgba(245,158,11,.4)", borderRadius: 16, padding: "14px 16px",
+          background: "linear-gradient(120deg, rgba(245,158,11,.18), rgba(15,23,42,.5))",
+        }}>
+          <div style={{ color: "#fde68a", fontSize: 11, fontWeight: 900, textTransform: "uppercase", letterSpacing: ".05em" }}>Aylık Düzenli Gider</div>
+          <div style={{ color: "#fff", fontSize: "clamp(23px, 3.5vw, 31px)", fontWeight: 900, lineHeight: 1.15 }}>{money(c.aylikToplam)}</div>
+          <div style={{ color: "#94a3b8", fontSize: 12 }}>
+            Yılda {money(c.yillikDuzenli)}
+            {gelirOrani !== null && gelirOrani > 0 ? ` · gelirin %${gelirOrani.toFixed(1)}'i` : ""}
+          </div>
+        </div>
+        <div style={{
+          border: "1px solid rgba(167,139,250,.4)", borderRadius: 16, padding: "14px 16px",
+          background: "linear-gradient(120deg, rgba(167,139,250,.2), rgba(15,23,42,.5))",
+        }}>
+          <div style={{ color: "#ddd6fe", fontSize: 11, fontWeight: 900, textTransform: "uppercase", letterSpacing: ".05em" }}>1 Yıllık Sağlık Maliyeti</div>
+          <div style={{ color: "#fff", fontSize: "clamp(23px, 3.5vw, 31px)", fontWeight: 900, lineHeight: 1.15 }}>{money(c.yillikToplam)}</div>
+          <div style={{ color: "#94a3b8", fontSize: 12 }}>İşlemler + 12 ay düzenli gider</div>
+        </div>
+      </div>
+
+      {/* BÜTÇE */}
+      {c.tekToplam > 0 ? (
+        <div style={{
+          display: "flex", alignItems: "center", justifyContent: "space-between", gap: 14, flexWrap: "wrap",
+          border: `1px solid ${c.gap <= 0 ? "rgba(34,197,94,.42)" : "rgba(248,113,113,.4)"}`, borderRadius: 16, padding: "13px 16px",
+          background: c.gap <= 0 ? "linear-gradient(120deg, rgba(34,197,94,.16), rgba(15,23,42,.5))" : "linear-gradient(120deg, rgba(248,113,113,.14), rgba(15,23,42,.5))",
+        }}>
+          <span>
+            <span style={{ display: "block", color: "#cbd5e1", fontSize: 11, fontWeight: 800, textTransform: "uppercase" }}>Ayırdığın bütçe</span>
+            <span style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4, flexWrap: "wrap" }}>
+              <input style={{ width: 140, boxSizing: "border-box", textAlign: "right", border: "1px solid rgba(255,255,255,.14)", background: "rgba(2,6,23,.55)", color: "#f8fafc", borderRadius: 9, padding: "8px 10px", outline: "none", fontSize: 14 }}
+                inputMode="decimal" value={goal.cash || ""} placeholder="0" onChange={(e) => onChange("cash", e.target.value)} />
+              {likit > 0 ? (
+                <button type="button" onClick={() => onChange("cash", String(Math.round(likit)))}
+                  style={{ background: "none", border: "none", color: "#67e8f9", fontSize: 12, fontWeight: 700, cursor: "pointer", padding: 0, whiteSpace: "nowrap" }}>
+                  Portföyümden al
+                </button>
+              ) : null}
+            </span>
+          </span>
+          <div style={{ textAlign: "right" }}>
+            <div style={{ color: "#cbd5e1", fontSize: 11, fontWeight: 800, textTransform: "uppercase" }}>{c.gap <= 0 ? "Bütçen yeterli" : "Eksik"}</div>
+            <div style={{ color: c.gap <= 0 ? "#86efac" : "#fca5a5", fontSize: 24, fontWeight: 900, lineHeight: 1.2 }}>
+              {c.gap <= 0 ? `+${money(Math.abs(c.gap))}` : money(c.gap)}
+            </div>
+            {aylikBirikim ? <div style={{ color: "#fbbf24", fontSize: 12 }}>Ayda {money(aylikBirikim)} · {ayKalan} ay kaldı</div> : null}
+          </div>
+        </div>
+      ) : null}
+
+      {gelirOrani !== null && gelirOrani > 10 ? (
+        <div style={{ display: "flex", gap: 8, color: "#fbbf24", fontSize: 12.5, lineHeight: 1.5, background: "rgba(251,191,36,.09)", border: "1px solid rgba(251,191,36,.24)", borderRadius: 11, padding: "10px 12px" }}>
+          <span>⚠</span>
+          <span>Düzenli sağlık giderin gelirinin %{gelirOrani.toFixed(0)} kadarı. Sigorta ve takviye kalemlerini gözden geçirmekte fayda var.</span>
+        </div>
+      ) : null}
+
+      <div style={{ color: "#64748b", fontSize: 11, lineHeight: 1.5 }}>
+        Fiyatlar 2026 piyasa ortalamalarıdır; klinik, şehir ve doktora göre ciddi fark eder.
+        Aldığın teklifle güncelle. Sağlık sigortan varsa kapsadığı kalemleri listeden çıkar.
+      </div>
+    </article>
+  );
+}
+
 function AlisverisKarti({ goal, c, onChange, onDelete, likit }) {
   const ayKalan = aylikKalan(goal.targetDate);
   const aylikBirikim = c.gap > 0 && ayKalan && ayKalan > 0 ? c.gap / ayKalan : null;
@@ -1780,6 +1983,10 @@ function hedefOzeti(goal, c) {
     case "seyahat": return { etiket: "Seyahat bütçesi", deger: money(c.target), ikinci: c.gap > 0 ? `${money(c.gap)} eksik` : "Karşılanıyor" };
     case "is": return { etiket: "Gereken sermaye", deger: money(c.target), ikinci: c.sektor ? c.sektor.ad : "İş kolu seçilmedi" };
     case "alisveris": return { etiket: "Liste tutarı", deger: money(c.target), ikinci: `${c.kalemSayisi} kalem` };
+    case "saglik": return {
+      etiket: "Tek seferlik", deger: money(c.tekToplam),
+      ikinci: c.aylikToplam > 0 ? `+ ${money(c.aylikToplam)}/ay düzenli` : `${c.kalemSayisi} kalem`,
+    };
     default: return { etiket: "Tutar", deger: money(c.target || 0), ikinci: "" };
   }
 }
@@ -1869,6 +2076,8 @@ export default function FinancialGoals({ data, setData, financeTotals, investmen
       type === "arac"
         ? { ...base, name: "Araç Alma Hedefi", price: "", fuel: "ice", condition: "new", loan: "",
             tradeIn: "", loanMonths: "24", loanRate: "3,25" }
+        : type === "saglik"
+        ? { ...base, name: "Sağlık Planı", gruplar: [] }
         : type === "alisveris"
         ? { ...base, name: "Alışveriş Listesi", gruplar: [] }
         : type === "is"
@@ -1963,6 +2172,18 @@ export default function FinancialGoals({ data, setData, financeTotals, investmen
             gapKutu,
           ] };
       }
+      case "saglik": {
+        const tek = topla((g) => g.tekToplam);
+        const ayl = topla((g) => g.aylikToplam);
+        return { baslik: "Sağlık / Estetik Özeti", aciklama: "Tek seferlik işlemler ile her ay tekrar eden sağlık giderlerin ayrı ayrı.",
+          kutular: yok ? [] : [
+            { etiket: "Tek Seferlik İşlemler", deger: money(tek), renk: "#a5f3fc", alt: "Biriktirip ödenecek" },
+            { etiket: "Aylık Düzenli Gider", deger: money(ayl), renk: "#fde68a",
+              alt: aylikGelir > 0 && ayl > 0 ? `Gelirin %${((ayl / aylikGelir) * 100).toFixed(1)}'i` : "Sigorta, ilaç, terapi" },
+            { etiket: "1 Yıllık Sağlık Maliyeti", deger: money(tek + ayl * 12), renk: "#ddd6fe", alt: "İşlemler + 12 ay" },
+            gapKutu,
+          ] };
+      }
       default:
         return { baslik: "Finansal Durum Özeti", aciklama: "Bu kategori için hedef oluşturduğunda özet burada görünür.", kutular: [] };
     }
@@ -2042,6 +2263,7 @@ export default function FinancialGoals({ data, setData, financeTotals, investmen
                 : goal.type === "arac" ? <AracKarti {...ortak} />
                 : goal.type === "is" ? <IsKarti {...ortak} onApplyPreset={preset} />
                 : goal.type === "alisveris" ? <AlisverisKarti {...ortak} />
+                : goal.type === "saglik" ? <SaglikKarti {...ortak} />
                 : goal.type === "seyahat" ? <SeyahatKarti {...ortak} aylikKalanPara={monthlyBalance} onApplyPreset={preset} />
                 : goal.type === "evlilik" ? <EvlilikKarti {...ortak} aylikKalanPara={monthlyBalance} onApplyPreset={preset} />
                 : null;
