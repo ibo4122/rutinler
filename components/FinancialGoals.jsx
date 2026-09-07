@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { money } from "../lib/format";
+import { IS_KOLLARI, isKolu, IS_OLCEK } from "../lib/isKollari";
 
 // Hedef türleri — her tür kendi ekranına sahip. Tür seçilince ekran o türe göre kurulur.
 const GOAL_TYPES = [
@@ -9,7 +10,7 @@ const GOAL_TYPES = [
   { id: "arac", label: "Araç", icon: "🚗", ready: true },
   { id: "evlilik", label: "Evlilik", icon: "💍", ready: true },
   { id: "seyahat", label: "Seyahat", icon: "✈️", ready: true },
-  { id: "is", label: "İş Kurma", icon: "💼", ready: false },
+  { id: "is", label: "İş Kurma", icon: "💼", ready: true },
   { id: "alisveris", label: "Alışveriş", icon: "🛍️", ready: false },
   { id: "ozel", label: "Özel", icon: "🎯", ready: false },
 ];
@@ -237,6 +238,78 @@ function calcSeyahat(goal) {
   };
 }
 
+// --- İş Kurma ------------------------------------------------------------
+// Girişimci metrikleri: bu ekran "biriktir ve al" değil, "yatır–yak–kazan"
+// mantığıyla çalışır. Üç para vardır: kuruluş yatırımı, aylık gider ve
+// gelir oturana kadar dayanma parası (runway).
+function isSablonUret(sektorId, carpan) {
+  const s = isKolu(sektorId);
+  if (!s) return { capexGruplar: [], opexGruplar: [] };
+  const yuvarla = (v) => String(Math.round((v * carpan) / 1000) * 1000);
+  return {
+    capexGruplar: s.capex.map(([ad, kalemler]) => ({
+      id: yeniId(), ad, acik: true,
+      kalemler: kalemler.map(([k, v]) => ({ id: yeniId(), ad: k, tutar: yuvarla(v) })),
+    })),
+    opexGruplar: [{
+      id: yeniId(), ad: "Aylık Sabit Giderler", acik: true,
+      kalemler: s.opex.map(([k, v]) => ({ id: yeniId(), ad: k, tutar: yuvarla(v) })),
+    }],
+    adet: s.varsayilan.adet,
+    birimFiyat: s.varsayilan.fiyat,
+    marj: s.varsayilan.marj,
+  };
+}
+
+function calcIs(goal) {
+  const sektor = isKolu(goal.sector);
+  const capexGruplar = Array.isArray(goal.capexGruplar) ? goal.capexGruplar : [];
+  const opexGruplar = Array.isArray(goal.opexGruplar) ? goal.opexGruplar : [];
+
+  const capex = grupToplami(capexGruplar);      // kuruluş yatırımı (bir kez)
+  const opex = grupToplami(opexGruplar);        // aylık işletme gideri
+
+  // Gelir modeli: günlük iş kollarında ay = 30 gün kabul edilir.
+  const adet = num(goal.adet);
+  const fiyat = num(goal.birimFiyat);
+  const marj = num(goal.marj) / 100;
+  const aylikAdet = sektor?.periyot === "gün" ? adet * 30 : adet;
+  const aylikCiro = aylikAdet * fiyat;
+  const brutKar = aylikCiro * marj;             // katkı payı
+  const aylikNet = brutKar - opex;              // aylık kâr / zarar
+
+  // Başabaş: sabit gideri karşılamak için gereken satış adedi
+  const basabasAdet = fiyat > 0 && marj > 0 ? opex / (fiyat * marj) : 0;
+  const basabasPeriyot = sektor?.periyot === "gün" ? basabasAdet / 30 : basabasAdet;
+  const dolulukOrani = basabasAdet > 0 ? (aylikAdet / basabasAdet) * 100 : 0;
+
+  // Nakit tamponu: gelir oturana kadar kaç ay gider karşılanacak
+  const tamponAy = Math.max(0, num(goal.runwayAy ?? 6));
+  const tampon = opex * tamponAy;
+  const target = capex + tampon;                // toplam gereken sermaye
+
+  const cash = num(goal.cash);
+  const gap = target - cash;
+  const percent = target > 0 ? Math.min(100, (cash / target) * 100) : 0;
+
+  // Geri dönüş (payback): yatırım kaç ayda geri gelir
+  const geriDonusAy = aylikNet > 0 ? capex / aylikNet : null;
+  // Dayanma süresi: zarardaysa eldeki para kaç ay yeter
+  const dayanmaAy = aylikNet < 0 ? Math.max(0, cash - capex) / Math.abs(aylikNet) : null;
+
+  const gorevler = goal.gorevler && typeof goal.gorevler === "object" ? goal.gorevler : {};
+  const tumGorev = (sektor?.yol || []).reduce((s, f) => s + f.gorevler.length, 0);
+  const biten = Object.values(gorevler).filter(Boolean).length;
+
+  return {
+    sektor, capexGruplar, opexGruplar, capex, opex,
+    adet, fiyat, marj, aylikAdet, aylikCiro, brutKar, aylikNet,
+    basabasAdet, basabasPeriyot, dolulukOrani,
+    tamponAy, tampon, target, cash, resources: cash, gap, percent,
+    geriDonusAy, dayanmaAy, gorevler, tumGorev, biten,
+  };
+}
+
 function calcEvlilik(goal) {
   const dugunGruplar = Array.isArray(goal.dugunGruplar) ? goal.dugunGruplar : [];
   const evGruplar = Array.isArray(goal.evGruplar) ? goal.evGruplar : [];
@@ -319,6 +392,7 @@ function calcGoal(goal) {
   if (goal.type === "arac") return calcArac(goal);
   if (goal.type === "evlilik") return calcEvlilik(goal);
   if (goal.type === "seyahat") return calcSeyahat(goal);
+  if (goal.type === "is") return calcIs(goal);
   // Diğer türler eklendikçe buraya gelecek.
   const target = num(goal.targetValue);
   return { target, resources: 0, gap: target, percent: 0, taksit: 0, ltv: 0, masrafToplam: 0, masraflar: {} };
@@ -340,7 +414,7 @@ const HERO = {
   arac: { renk: ["#f59e0b", "#ef4444"], baslik: "Araç Hedefi", alt: "Kademeli kredi limitini, sahip olma giderini ve değer kaybını gösterir." },
   evlilik: { renk: ["#f472b6", "#a78bfa"], baslik: "Evlilik Hedefi", alt: "Düğün, takı, ev kurma ve balayını tek bütçede toplar." },
   seyahat: { renk: ["#22d3ee", "#3b82f6"], baslik: "Seyahat Hedefi", alt: "Sabit giderler ve günlük harcamaları kişi/gece çarpanıyla hesaplar." },
-  is: { renk: ["#34d399", "#059669"], baslik: "İş Kurma Hedefi", alt: "Hazırlanıyor." },
+  is: { renk: ["#10b981", "#059669"], baslik: "İş Kurma Hedefi", alt: "10 iş kolu, sektöre özel sermaye planı ve adım adım yol haritası." },
   alisveris: { renk: ["#fb7185", "#f59e0b"], baslik: "Alışveriş Hedefi", alt: "Hazırlanıyor." },
   ozel: { renk: ["#a78bfa", "#6366f1"], baslik: "Özel Hedef", alt: "Hazırlanıyor." },
 };
@@ -1123,6 +1197,246 @@ function SeyahatKarti({ goal, c, onChange, onApplyPreset, onDelete, likit, aylik
   );
 }
 
+// İş Kurma kartı: zümrüt tema. Diğer hedeflerden farkı, sonucun tek bir
+// "eksik tutar" değil, dört girişimci metriği olması: başabaş, geri dönüş,
+// dayanma süresi ve doluluk. Ayrıca sektöre özel işaretlenebilir yol haritası.
+function MetrikKutu({ etiket, deger, alt, renk }) {
+  return (
+    <div style={{ border: `1px solid ${renk}44`, borderRadius: 14, padding: "12px 14px", background: `${renk}12`, minWidth: 0 }}>
+      <div style={{ color: "#94a3b8", fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".03em" }}>{etiket}</div>
+      <div style={{ color: renk, fontSize: 20, fontWeight: 900, marginTop: 3, lineHeight: 1.15, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{deger}</div>
+      {alt ? <div style={{ color: "#64748b", fontSize: 11, marginTop: 3, lineHeight: 1.4 }}>{alt}</div> : null}
+    </div>
+  );
+}
+
+function IsKarti({ goal, c, onChange, onApplyPreset, onDelete, likit }) {
+  const [yolAcik, setYolAcik] = useState(true);
+  const sektor = c.sektor;
+  const tema = { ana: "#10b981", acik: "#a7f3d0", zemin: "rgba(16,185,129,.13)", kenar: "rgba(16,185,129,.32)" };
+  const opexTema = { ana: "#f97316", acik: "#fed7aa", zemin: "rgba(249,115,22,.13)", kenar: "rgba(249,115,22,.3)" };
+  const ayKalan = aylikKalan(goal.targetDate);
+  const aylikBirikim = c.gap > 0 && ayKalan && ayKalan > 0 ? c.gap / ayKalan : null;
+
+  const gorevDegis = (id) => onChange("gorevler", { ...c.gorevler, [id]: !c.gorevler[id] });
+
+  const uyarilar = [];
+  if (c.aylikNet < 0 && c.aylikCiro > 0)
+    uyarilar.push(`Bu hacimde aylık ${money(Math.abs(c.aylikNet))} zarar edersin. Başabaş için ${sektor?.periyot === "gün" ? "günde" : "ayda"} ${Math.ceil(c.basabasPeriyot)} ${sektor?.birim} gerekiyor.`);
+  if (c.tamponAy < 6)
+    uyarilar.push("Nakit tamponu 6 aydan az. Gelir oturana kadar giderler devam eder; sektör önerisi en az 6 ay.");
+  if (c.dolulukOrani > 0 && c.dolulukOrani < 100)
+    uyarilar.push(`Hedeflediğin hacim başabaşın %${c.dolulukOrani.toFixed(0)} kadarı. Fiyatı, marjı ya da hacmi gözden geçir.`);
+
+  return (
+    <article style={{
+      border: "1px solid rgba(16,185,129,.26)", borderRadius: 20, padding: 17,
+      background: "linear-gradient(165deg, rgba(6,44,34,.5), rgba(15,23,42,.85))",
+      display: "grid", gap: 13,
+    }}>
+      {/* İŞ KOLU SEÇİMİ */}
+      <div style={{ border: `1px solid ${tema.kenar}`, borderRadius: 16, padding: "13px 14px", background: "rgba(2,6,23,.4)" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, marginBottom: 10, flexWrap: "wrap" }}>
+          <span style={{ color: tema.acik, fontSize: 12, fontWeight: 900, textTransform: "uppercase", letterSpacing: ".05em" }}>💼 İş Kolunu Seç</span>
+          <button type="button" className="deleteButton" onClick={onDelete}>Sil</button>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(148px, 1fr))", gap: 8 }}>
+          {IS_KOLLARI.map((s) => {
+            const secili = s.id === goal.sector;
+            return (
+              <button key={s.id} type="button"
+                onClick={() => onApplyPreset({ sector: s.id, name: s.ad, ...isSablonUret(s.id, (IS_OLCEK.find((o) => o.id === (goal.scale || "orta")) || IS_OLCEK[1]).carpan) })}
+                style={{
+                  display: "grid", gap: 3, padding: "11px 10px", borderRadius: 13, cursor: "pointer", textAlign: "left",
+                  border: `1px solid ${secili ? tema.ana : "rgba(255,255,255,.1)"}`,
+                  background: secili ? `linear-gradient(140deg, ${tema.ana}33, ${tema.ana}12)` : "rgba(2,6,23,.45)",
+                  color: "#fff",
+                }}>
+                <span style={{ fontSize: 18 }}>{s.ikon}</span>
+                <span style={{ fontSize: 13, fontWeight: 800, lineHeight: 1.25 }}>{s.ad}</span>
+                <span style={{ fontSize: 10.5, color: "#94a3b8", lineHeight: 1.35 }}>{s.ozet}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {!sektor ? (
+        <div style={{ border: "1px dashed rgba(148,163,184,.3)", borderRadius: 14, padding: "18px 16px", textAlign: "center", color: "#94a3b8", fontSize: 13.5, lineHeight: 1.6 }}>
+          Yukarıdan bir iş kolu seç — sermaye kalemleri, gelir modeli ve yol haritası o sektöre göre yüklenir.
+        </div>
+      ) : (
+        <>
+          {/* KÜNYE */}
+          <div style={{
+            border: `1px solid ${tema.kenar}`, borderRadius: 16, padding: "13px 15px",
+            background: `linear-gradient(120deg, ${tema.ana}22, rgba(2,6,23,.5))`,
+            display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 12, alignItems: "start",
+          }}>
+            <div style={{ gridColumn: "1 / -1", color: tema.acik, fontSize: 12, fontWeight: 900 }}>
+              {sektor.ikon} {sektor.ad}
+            </div>
+            <Alan label="İşletme Adı">
+              <input style={inputStyle} value={goal.name || ""} placeholder={sektor.ad} onChange={(e) => onChange("name", e.target.value)} />
+            </Alan>
+            <Alan label="Ölçek" hint="Kalemleri yeniden hesaplar">
+              <select style={inputStyle} value={goal.scale || "orta"}
+                onChange={(e) => onApplyPreset({ scale: e.target.value, ...isSablonUret(goal.sector, (IS_OLCEK.find((o) => o.id === e.target.value) || IS_OLCEK[1]).carpan) })}>
+                {IS_OLCEK.map((o) => <option key={o.id} value={o.id}>{o.label} — {o.aciklama}</option>)}
+              </select>
+            </Alan>
+            <Alan label="Açılış Hedefi" hint="Birikim planı için">
+              <input style={inputStyle} type="date" value={goal.targetDate || ""} onChange={(e) => onChange("targetDate", e.target.value)} />
+            </Alan>
+            <Alan label="Nakit Tamponu (ay)" hint="Gelir oturana kadar; en az 6">
+              <input style={inputStyle} inputMode="decimal" value={goal.runwayAy ?? "6"} onChange={(e) => onChange("runwayAy", e.target.value)} />
+            </Alan>
+          </div>
+
+          {/* SERMAYE + İŞLETME GİDERİ */}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: 13 }}>
+            <ButceBolumu baslik="KURULUŞ YATIRIMI" ikon="🏗️" tema={tema}
+              gruplar={c.capexGruplar} onGruplar={(g) => onChange("capexGruplar", g)} />
+            <ButceBolumu baslik="AYLIK İŞLETME GİDERİ" ikon="🔥" tema={opexTema}
+              gruplar={c.opexGruplar} onGruplar={(g) => onChange("opexGruplar", g)} />
+          </div>
+
+          {/* GELİR MODELİ */}
+          <div style={{
+            border: "1px solid rgba(96,165,250,.3)", borderRadius: 16, padding: "13px 15px",
+            background: "linear-gradient(120deg, rgba(96,165,250,.14), rgba(2,6,23,.5))",
+            display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 12, alignItems: "start",
+          }}>
+            <div style={{ gridColumn: "1 / -1", color: "#bfdbfe", fontSize: 12, fontWeight: 900, textTransform: "uppercase", letterSpacing: ".04em" }}>
+              📈 Gelir Modeli
+            </div>
+            <Alan label={`${sektor.birim} / ${sektor.periyot}`} hint={`Beklediğin ${sektor.periyot}lük hacim`}>
+              <input style={inputStyle} inputMode="decimal" value={goal.adet || ""} placeholder={sektor.varsayilan.adet} onChange={(e) => onChange("adet", e.target.value)} />
+            </Alan>
+            <Alan label={`${sektor.birim} başı tutar (₺)`} hint="Ortalama sepet / ücret">
+              <input style={inputStyle} inputMode="decimal" value={goal.birimFiyat || ""} placeholder={sektor.varsayilan.fiyat} onChange={(e) => onChange("birimFiyat", e.target.value)} />
+            </Alan>
+            <Alan label="Brüt Kâr Marjı (%)" hint="Ciro − doğrudan maliyet">
+              <input style={inputStyle} inputMode="decimal" value={goal.marj || ""} placeholder={sektor.varsayilan.marj} onChange={(e) => onChange("marj", e.target.value)} />
+            </Alan>
+            <div style={{ alignSelf: "end", color: "#cbd5e1", fontSize: 12.5, lineHeight: 1.5 }}>
+              Aylık ciro <strong style={{ color: "#fff" }}>{money(c.aylikCiro)}</strong><br />
+              Brüt kâr <strong style={{ color: "#93c5fd" }}>{money(c.brutKar)}</strong>
+            </div>
+          </div>
+
+          {/* GİRİŞİMCİ METRİKLERİ */}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(165px, 1fr))", gap: 10 }}>
+            <MetrikKutu etiket="Aylık Kâr / Zarar" renk={c.aylikNet >= 0 ? "#34d399" : "#fb7185"}
+              deger={money(c.aylikNet)} alt={c.aylikNet >= 0 ? "Giderler karşılandıktan sonra" : "Bu hacimde zarardasın"} />
+            <MetrikKutu etiket="Başabaş Noktası" renk="#fbbf24"
+              deger={`${Math.ceil(c.basabasPeriyot)} ${sektor.birim}`}
+              alt={`${sektor.periyot === "gün" ? "Her gün" : "Her ay"} bu kadar gerekli`} />
+            <MetrikKutu etiket="Geri Dönüş Süresi" renk="#a78bfa"
+              deger={c.geriDonusAy === null ? "—" : c.geriDonusAy > 120 ? "10+ yıl" : `${Math.ceil(c.geriDonusAy)} ay`}
+              alt={c.geriDonusAy === null ? "Kâra geçmeden hesaplanmaz" : "Yatırımın kendini amorti etmesi"} />
+            <MetrikKutu etiket="Nakit Dayanma" renk={c.dayanmaAy === null ? "#34d399" : c.dayanmaAy < 6 ? "#fb7185" : "#fbbf24"}
+              deger={c.dayanmaAy === null ? "Kârda" : `${Math.floor(c.dayanmaAy)} ay`}
+              alt={c.dayanmaAy === null ? "Zarar yok, tampon erimiyor" : "Elindeki parayla dayanma süresi"} />
+          </div>
+
+          {/* SERMAYE İHTİYACI */}
+          <div style={{
+            display: "flex", alignItems: "center", justifyContent: "space-between", gap: 14, flexWrap: "wrap",
+            border: `1px solid ${c.gap <= 0 ? "rgba(34,197,94,.42)" : "rgba(16,185,129,.4)"}`, borderRadius: 16, padding: "14px 18px",
+            background: c.gap <= 0
+              ? "linear-gradient(120deg, rgba(34,197,94,.2), rgba(15,23,42,.5))"
+              : "linear-gradient(120deg, rgba(16,185,129,.2), rgba(15,23,42,.5))",
+          }}>
+            <div>
+              <div style={{ color: "#a7f3d0", fontSize: 11, fontWeight: 900, textTransform: "uppercase", letterSpacing: ".06em" }}>Gereken Toplam Sermaye</div>
+              <div style={{ color: "#fff", fontSize: "clamp(25px, 4vw, 34px)", fontWeight: 900, lineHeight: 1.15 }}>{money(c.target)}</div>
+              <div style={{ color: "#94a3b8", fontSize: 12 }}>
+                {money(c.capex)} kuruluş + {money(c.tampon)} nakit tamponu ({c.tamponAy} ay × {money(c.opex)})
+              </div>
+            </div>
+            <div style={{ textAlign: "right" }}>
+              <span style={{ display: "block", color: "#cbd5e1", fontSize: 11, fontWeight: 800, textTransform: "uppercase" }}>Elindeki sermaye</span>
+              <span style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4, justifyContent: "flex-end", flexWrap: "wrap" }}>
+                <input style={{ width: 140, boxSizing: "border-box", textAlign: "right", border: "1px solid rgba(255,255,255,.14)", background: "rgba(2,6,23,.55)", color: "#f8fafc", borderRadius: 9, padding: "8px 10px", outline: "none", fontSize: 14 }}
+                  inputMode="decimal" value={goal.cash || ""} placeholder="0" onChange={(e) => onChange("cash", e.target.value)} />
+                {likit > 0 ? (
+                  <button type="button" onClick={() => onChange("cash", String(Math.round(likit)))}
+                    style={{ background: "none", border: "none", color: "#6ee7b7", fontSize: 12, fontWeight: 700, cursor: "pointer", padding: 0, whiteSpace: "nowrap" }}>
+                    Portföyümden al
+                  </button>
+                ) : null}
+              </span>
+              <div style={{ color: c.gap <= 0 ? "#86efac" : "#fca5a5", fontSize: 20, fontWeight: 900, marginTop: 5 }}>
+                {c.gap <= 0 ? `+${money(Math.abs(c.gap))} fazla` : `${money(c.gap)} eksik`}
+              </div>
+              {aylikBirikim ? <div style={{ color: "#fbbf24", fontSize: 12 }}>Ayda {money(aylikBirikim)} · {ayKalan} ay kaldı</div> : null}
+            </div>
+          </div>
+
+          {/* YOL HARİTASI */}
+          <div style={{ border: "1px solid rgba(148,163,184,.22)", borderRadius: 17, overflow: "hidden", background: "rgba(2,6,23,.35)" }}>
+            <button type="button" onClick={() => setYolAcik((v) => !v)}
+              style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "12px 15px", background: "rgba(148,163,184,.12)", border: "none", borderBottom: yolAcik ? "1px solid rgba(148,163,184,.2)" : "none", cursor: "pointer", flexWrap: "wrap" }}>
+              <span style={{ color: "#fff", fontWeight: 900, fontSize: 15 }}>🗺️ Yol Haritası</span>
+              <span style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <span style={{ color: "#a7f3d0", fontSize: 13, fontWeight: 800 }}>{c.biten} / {c.tumGorev} adım</span>
+                <span style={{ color: "#94a3b8", fontSize: 15 }}>{yolAcik ? "−" : "+"}</span>
+              </span>
+            </button>
+            {yolAcik ? (
+              <div style={{ padding: 12, display: "grid", gap: 11 }}>
+                {sektor.yol.map((faz, fi) => (
+                  <div key={faz.faz} style={{ border: "1px solid rgba(255,255,255,.1)", borderRadius: 13, overflow: "hidden", background: "rgba(2,6,23,.4)" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 9, padding: "9px 12px", background: `${tema.ana}18`, borderBottom: "1px solid rgba(255,255,255,.08)" }}>
+                      <span style={{ width: 24, height: 24, borderRadius: 999, background: `${tema.ana}33`, color: tema.acik, fontSize: 12, fontWeight: 900, display: "grid", placeItems: "center", flex: "0 0 auto" }}>{fi + 1}</span>
+                      <span style={{ color: "#fff", fontWeight: 800, fontSize: 14 }}>{faz.faz}</span>
+                      <span style={{ color: "#94a3b8", fontSize: 12, marginLeft: "auto" }}>{faz.sure}</span>
+                    </div>
+                    <div style={{ padding: "7px 10px 9px" }}>
+                      {faz.gorevler.map((g, gi) => {
+                        const id = `${sektor.id}-${fi}-${gi}`;
+                        const bitti = !!c.gorevler[id];
+                        return (
+                          <button key={id} type="button" onClick={() => gorevDegis(id)}
+                            style={{ display: "flex", alignItems: "flex-start", gap: 9, width: "100%", textAlign: "left", background: "transparent", border: "none", padding: "7px 4px", cursor: "pointer" }}>
+                            <span style={{
+                              flex: "0 0 auto", width: 19, height: 19, borderRadius: 6, marginTop: 1,
+                              border: `1.5px solid ${bitti ? tema.ana : "rgba(148,163,184,.4)"}`,
+                              background: bitti ? tema.ana : "transparent", color: "#062c22",
+                              fontSize: 12, fontWeight: 900, display: "grid", placeItems: "center",
+                            }}>{bitti ? "✓" : ""}</span>
+                            <span style={{ color: bitti ? "#64748b" : "#e2e8f0", fontSize: 13.5, lineHeight: 1.5, textDecoration: bitti ? "line-through" : "none" }}>{g}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+          </div>
+
+          {uyarilar.length ? (
+            <div style={{ display: "grid", gap: 7 }}>
+              {uyarilar.map((u, i) => (
+                <div key={i} style={{ display: "flex", gap: 8, color: "#fbbf24", fontSize: 12.5, lineHeight: 1.5, background: "rgba(251,191,36,.09)", border: "1px solid rgba(251,191,36,.24)", borderRadius: 11, padding: "10px 12px" }}>
+                  <span>⚠</span><span>{u}</span>
+                </div>
+              ))}
+            </div>
+          ) : null}
+
+          <div style={{ color: "#64748b", fontSize: 11, lineHeight: 1.5 }}>
+            Rakamlar 2026 piyasa aralıklarına göre başlangıç tahminidir; şehir, lokasyon ve ölçeğe göre büyük fark eder.
+            Her kalemi kendi tekliflerinle güncelle.
+          </div>
+        </>
+      )}
+    </article>
+  );
+}
+
 function EvlilikKarti({ goal, c, onChange, onApplyPreset, onDelete, likit, aylikKalanPara }) {
   const ayKalan = aylikKalan(goal.targetDate);
   const aylikBirikim = c.gap > 0 && ayKalan && ayKalan > 0 ? c.gap / ayKalan : null;
@@ -1329,6 +1643,9 @@ export default function FinancialGoals({ data, setData, financeTotals, investmen
       type === "arac"
         ? { ...base, name: "Araç Alma Hedefi", price: "", fuel: "ice", condition: "new", loan: "",
             tradeIn: "", loanMonths: "24", loanRate: "3,25" }
+        : type === "is"
+        ? { ...base, name: "İş Kurma Hedefi", sector: "", scale: "orta", runwayAy: "6",
+            capexGruplar: [], opexGruplar: [], adet: "", birimFiyat: "", marj: "", gorevler: {} }
         : type === "seyahat"
         ? { ...base, name: "Seyahat Hedefi", destination: "", people: "2", nights: "5", currency: "TRY", rate: "", ...seyahatSablonUret(2) }
         : type === "evlilik"
@@ -1426,6 +1743,10 @@ export default function FinancialGoals({ data, setData, financeTotals, investmen
               };
               if (goal.type === "konut") return <KonutKarti key={goal.id} {...ortak} />;
               if (goal.type === "arac") return <AracKarti key={goal.id} {...ortak} />;
+              if (goal.type === "is") return (
+                <IsKarti key={goal.id} {...ortak}
+                  onApplyPreset={(p) => mutateGoals((gs) => gs.map((g) => (g.id === goal.id ? { ...g, ...p } : g)))} />
+              );
               if (goal.type === "seyahat") return (
                 <SeyahatKarti key={goal.id} {...ortak} aylikKalanPara={monthlyBalance}
                   onApplyPreset={(p) => mutateGoals((gs) => gs.map((g) => (g.id === goal.id ? { ...g, ...p } : g)))} />
