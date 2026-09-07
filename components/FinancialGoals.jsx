@@ -180,26 +180,18 @@ function evlilikSablonUret(carpan) {
 //   GÜNLÜK harcamalar (kişi × gece).
 // Bu yüzden kullanıcı küçük birim fiyatları girer, çarpanları ekran yapar.
 // Ayrıca %10 beklenmedik gider payı sektör standardıdır.
-const SEYAHAT_KALEMLER = {
-  sabit: [
-    { k: "flight", ad: "Uçak / ulaşım bileti", birim: "kişi başı", carpan: "kisi", ornek: 12000 },
-    { k: "lodging", ad: "Konaklama", birim: "gecelik", carpan: "gece", ornek: 4500 },
-    { k: "visa", ad: "Vize", birim: "kişi başı", carpan: "kisi", ornek: 3500 },
-    { k: "insurance", ad: "Seyahat sigortası", birim: "kişi başı", carpan: "kisi", ornek: 900 },
-    { k: "transfer", ad: "Havalimanı transferi", birim: "toplam", carpan: "bir", ornek: 2500 },
-  ],
-  gunluk: [
-    { k: "food", ad: "Yeme & içme", birim: "kişi/gün", carpan: "kisiGun", ornek: 1500 },
-    { k: "localTransport", ad: "Şehir içi ulaşım", birim: "kişi/gün", carpan: "kisiGun", ornek: 400 },
-    { k: "activities", ad: "Aktivite & müze", birim: "kişi/gün", carpan: "kisiGun", ornek: 800 },
-  ],
-  diger: [
-    { k: "events", ad: "Etkinlik / maç bileti", birim: "kişi başı", carpan: "kisi", ornek: 300 },
-    { k: "shopping", ad: "Alışveriş & hediye", birim: "toplam", carpan: "bir", ornek: 300 },
-  ],
-};
+// Seyahat, düzenlenebilir grup yapısını kullanır. Fark: tutarlar HER ZAMAN TL
+// girilir; yabancı para seçilirse kur ile o paraya çevrilip yanında gösterilir
+// ("50.000 ₺ ≈ 980 €"). Böylece kullanıcı kendi para birimiyle düşünür.
+const SEYAHAT_SABLON = [
+  { ad: "Ulaşım", kalemler: [["Uçak / otobüs bileti", 24000], ["Havalimanı transferi", 2500], ["Şehir içi ulaşım", 4000]] },
+  { ad: "Konaklama", kalemler: [["Otel / kiralık daire", 22500], ["Şehir vergisi & ekstralar", 2000]] },
+  { ad: "Belgeler", kalemler: [["Vize", 7000], ["Seyahat sigortası", 1800], ["Pasaport harcı", 0]] },
+  { ad: "Yeme & İçme", kalemler: [["Restoran & kafe", 23000], ["Market alışverişi", 3000]] },
+  { ad: "Gezi & Etkinlik", kalemler: [["Müze & tur biletleri", 8000], ["Etkinlik / maç bileti", 15500]] },
+  { ad: "Alışveriş & Diğer", kalemler: [["Alışveriş & hediye", 15500], ["Beklenmedik giderler", 5000]] },
+];
 
-// Yurt dışı seyahatte bütçe dövizle planlanır, cepten TL çıkar.
 const SEYAHAT_PARA = [
   { id: "TRY", simge: "₺", ad: "TL", kur: "1" },
   { id: "EUR", simge: "€", ad: "Euro", kur: "51" },
@@ -208,49 +200,40 @@ const SEYAHAT_PARA = [
 ];
 const paraMeta = (id) => SEYAHAT_PARA.find((p) => p.id === id) || SEYAHAT_PARA[0];
 
+function seyahatSablonUret(kisi = 2) {
+  const k = Math.max(1, kisi);
+  return {
+    gruplar: SEYAHAT_SABLON.map((g) => ({
+      id: yeniId(), ad: g.ad, acik: true,
+      kalemler: g.kalemler.map(([ad, v]) => ({
+        id: yeniId(), ad, tutar: v > 0 ? String(Math.round((v * k) / 2 / 500) * 500) : "",
+      })),
+    })),
+  };
+}
+
 function calcSeyahat(goal) {
-  const items = goal.items && typeof goal.items === "object" ? goal.items : {};
+  const gruplar = Array.isArray(goal.gruplar) ? goal.gruplar : [];
+  const target = grupToplami(gruplar);          // TL cinsinden
+
+  // Yabancı para seçiliyse TL tutarları o paraya çevrilip gösterilir.
+  const para = paraMeta(goal.currency || "TRY");
+  const dovizli = (goal.currency || "TRY") !== "TRY";
+  const kur = dovizli ? (num(goal.rate) || num(para.kur) || 1) : 1;
+  const doviz = (tlTutar) => (kur > 0 ? tlTutar / kur : 0);
+
   const kisi = Math.max(0, num(goal.people));
   const gece = Math.max(0, num(goal.nights));
-  const carpanlar = { kisi: kisi || 0, gece: gece || 0, bir: 1, kisiGun: (kisi || 0) * (gece || 0) };
 
-  const hesapla = (liste) => liste.map((x) => {
-    const birimFiyat = num(items[x.k]);
-    const carpan = carpanlar[x.carpan] || 0;
-    return { ...x, birimFiyat, carpan, toplam: birimFiyat * carpan };
-  });
-
-  const sabit = hesapla(SEYAHAT_KALEMLER.sabit);
-  const gunluk = hesapla(SEYAHAT_KALEMLER.gunluk);
-  const diger = hesapla(SEYAHAT_KALEMLER.diger);
-
-  const sabitToplam = sabit.reduce((s, x) => s + x.toplam, 0);
-  const gunlukToplam = gunluk.reduce((s, x) => s + x.toplam, 0);
-  const digerToplam = diger.reduce((s, x) => s + x.toplam, 0);
-
-  const araToplam = sabitToplam + gunlukToplam + digerToplam;
-  const payYuzde = goal.contingency === "" ? 0 : num(goal.contingency ?? 10);
-  const pay = araToplam * (payYuzde / 100);
-  const target = araToplam + pay;
-
-  // Kalemler seçilen para biriminde girilir; TL karşılığı kurla hesaplanır.
-  const para = paraMeta(goal.currency || "TRY");
-  const kur = goal.currency === "TRY" || !goal.currency ? 1 : (num(goal.rate) || num(para.kur) || 1);
-  const tl = (v) => v * kur;
-
-  // Kaynak (ayrılan bütçe) her zaman TL cinsindendir.
   const cash = num(goal.cash);
-  const targetTL = tl(target);
-  const gap = targetTL - cash;
-  const percent = targetTL > 0 ? Math.min(100, (cash / targetTL) * 100) : 0;
+  const gap = target - cash;
+  const percent = target > 0 ? Math.min(100, (cash / target) * 100) : 0;
 
   return {
-    kisi, gece, sabit, gunluk, diger, sabitToplam, gunlukToplam, digerToplam,
-    araToplam, payYuzde, pay, target, targetTL, para, kur, tl,
+    gruplar, target, para, dovizli, kur, doviz, kisi, gece,
     cash, resources: cash, gap, percent,
-    kisiBasi: kisi > 0 ? targetTL / kisi : 0,
-    gunBasi: gece > 0 ? targetTL / gece : 0,
-    rawItems: items,
+    kisiBasi: kisi > 0 ? target / kisi : 0,
+    gunBasi: gece > 0 ? target / gece : 0,
   };
 }
 
@@ -506,13 +489,15 @@ const yeniId = () => Math.random().toString(36).slice(2, 9);
 const grupToplami = (gruplar) =>
   (gruplar || []).reduce((s, g) => s + (g.kalemler || []).reduce((t, k) => t + num(k.tutar), 0), 0);
 
+// minWidth: 0 — input'ların doğal (intrinsic) genişliği dar ekranda ızgarayı
+// taşırıyordu; bu olmadan telefonda satırlar kayıyor.
 const adInput = {
-  width: "100%", boxSizing: "border-box", border: "1px solid transparent",
+  width: "100%", minWidth: 0, boxSizing: "border-box", border: "1px solid transparent",
   background: "transparent", color: "#f1f5f9", borderRadius: 8,
   padding: "9px 10px", outline: "none", fontSize: 14,
 };
 const tutarInput = {
-  width: "100%", boxSizing: "border-box", textAlign: "right",
+  width: "100%", minWidth: 0, boxSizing: "border-box", textAlign: "right",
   border: "1px solid rgba(255,255,255,.14)", background: "rgba(2,6,23,.55)",
   color: "#f8fafc", borderRadius: 9, padding: "9px 10px", outline: "none",
   fontSize: 14, fontVariantNumeric: "tabular-nums",
@@ -552,7 +537,7 @@ function ButceGrubu({ grup, tema, onDegis, onSil, paraSimge = "₺" }) {
       {acik ? (
         <div style={{ padding: "7px 8px 9px" }}>
           {(grup.kalemler || []).map((k) => (
-            <div key={k.id} style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) 120px 30px", gap: 6, alignItems: "center", marginBottom: 5 }}>
+            <div key={k.id} className="butceKalemSatiri" style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) 120px 30px", gap: 6, alignItems: "center", marginBottom: 5 }}>
               <input value={k.ad || ""} placeholder="Kalem adı"
                 onChange={(e) => kalemDegis(k.id, "ad", e.target.value)} style={adInput}
                 onFocus={(e) => { e.target.style.borderColor = "rgba(255,255,255,.16)"; e.target.style.background = "rgba(2,6,23,.45)"; }}
@@ -1000,84 +985,20 @@ function AracKarti({ goal, c, onChange, onDelete, likit, aylikGelir }) {
   );
 }
 
-function SeyahatSatiri({ kalem, deger, onChange, renk, simge, dovizli, tl }) {
-  return (
-    <tr style={{ borderBottom: "1px solid rgba(255,255,255,.05)" }}>
-      <td style={{ padding: "8px 10px" }}>
-        <span style={{ display: "block", color: "#e2e8f0", fontSize: 12.5 }}>{kalem.ad}</span>
-        <span style={{ display: "block", color: "#64748b", fontSize: 10 }}>{kalem.birim}</span>
-      </td>
-      <td style={{ padding: "8px 10px", textAlign: "right" }}>
-        <input
-          style={{
-            width: 96, boxSizing: "border-box", textAlign: "right",
-            border: "1px solid rgba(255,255,255,.13)", background: "rgba(2,6,23,.55)",
-            color: deger ? "#f8fafc" : "#64748b", borderRadius: 7, padding: "5px 8px",
-            outline: "none", fontSize: 11.5, fontVariantNumeric: "tabular-nums",
-          }}
-          inputMode="decimal" value={deger || ""} placeholder={String(kalem.ornek)}
-          onFocus={(e) => { e.target.style.borderColor = renk; }}
-          onBlur={(e) => { e.target.style.borderColor = "rgba(255,255,255,.13)"; }}
-          onChange={(e) => onChange(e.target.value)}
-        />
-      </td>
-      <td style={{ padding: "8px 6px", textAlign: "center", color: "#64748b", fontSize: 11, whiteSpace: "nowrap" }}>
-        ×{kalem.carpan === "bir" ? 1 : kalem.carpanDeger}
-      </td>
-      <td style={{ padding: "8px 10px", textAlign: "right", color: "#fff", fontSize: 12.5, fontWeight: 700, whiteSpace: "nowrap" }}>
-        {simge}{kalem.toplam.toLocaleString("tr-TR", { maximumFractionDigits: 0 })}
-      </td>
-      {dovizli ? (
-        <td style={{ padding: "8px 10px", textAlign: "right", color: "#a5f3fc", fontSize: 12, whiteSpace: "nowrap" }}>
-          {money(tl(kalem.toplam))}
-        </td>
-      ) : null}
-    </tr>
-  );
-}
-
-function SeyahatKarti({ goal, c, onChange, onDelete, likit, aylikKalanPara }) {
+// Seyahat kartı: turkuaz tema, düzenlenebilir gruplar. Tutarlar TL girilir;
+// yabancı para seçiliyse karşılığı yanında gösterilir.
+function SeyahatKarti({ goal, c, onChange, onApplyPreset, onDelete, likit, aylikKalanPara }) {
   const ayKalan = aylikKalan(goal.targetDate);
   const aylikBirikim = c.gap > 0 && ayKalan && ayKalan > 0 ? c.gap / ayKalan : null;
-  const onItem = (k, v) => onChange("items", { ...c.rawItems, [k]: v });
-  const dovizli = (goal.currency || "TRY") !== "TRY";
-  const eksikCarpan = c.kisi === 0 || c.gece === 0;
+  const bosMu = c.gruplar.length === 0;
+  const tema = { ana: "#22d3ee", acik: "#a5f3fc", zemin: "rgba(34,211,238,.14)", kenar: "rgba(34,211,238,.3)" };
 
   const uyarilar = [];
-  if (eksikCarpan) uyarilar.push("Kişi sayısı ve gece sayısını gir — kalemler bu çarpanlarla hesaplanıyor.");
   if (aylikBirikim && aylikKalanPara > 0 && aylikBirikim > aylikKalanPara)
     uyarilar.push(`Ayda ${money(aylikBirikim)} biriktirmen gerekiyor ama aylık kalanın ${money(aylikKalanPara)}. Tarihi ilerletmen ya da bütçeyi küçültmen gerekebilir.`);
 
   const tamam = c.gap <= 0;
-  const th = (renk) => ({ padding: "7px 10px", color: renk, fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".04em", borderBottom: "1px solid rgba(255,255,255,.1)" });
-
-  const bolum = (baslik, ikon, kalemler, toplam, renk, kenar, zemin, aciklama) => (
-    <section style={{ border: `1px solid ${kenar}`, borderRadius: 16, overflow: "hidden", background: "rgba(2,6,23,.4)" }}>
-      <header style={{ padding: "10px 13px", background: zemin, borderBottom: `1px solid ${kenar}`, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-        <span style={{ color: "#fff", fontWeight: 900, fontSize: 12.5 }}>{ikon} {baslik}</span>
-        <span style={{ color: renk, fontWeight: 900, fontSize: 13.5, whiteSpace: "nowrap" }}>{c.para.simge}{toplam.toLocaleString("tr-TR",{maximumFractionDigits:0})}{dovizli ? <span style={{ color: "#a5f3fc", fontSize: 11, fontWeight: 700, marginLeft: 7 }}>{money(c.tl(toplam))}</span> : null}</span>
-      </header>
-      {aciklama ? <div style={{ padding: "7px 13px 0", color: "#64748b", fontSize: 10.5 }}>{aciklama}</div> : null}
-      <div style={{ overflowX: "auto" }}>
-        <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 340 }}>
-          <thead><tr>
-            <th style={{ ...th(renk), textAlign: "left" }}>Kalem</th>
-            <th style={{ ...th(renk), textAlign: "right" }}>Birim</th>
-            <th style={{ ...th(renk), textAlign: "center" }}>Adet</th>
-            <th style={{ ...th(renk), textAlign: "right" }}>Toplam</th>
-            {dovizli ? <th style={{ ...th(renk), textAlign: "right" }}>₺ Karşılığı</th> : null}
-          </tr></thead>
-          <tbody>
-            {kalemler.map((x) => (
-              <SeyahatSatiri key={x.k} renk={renk} simge={c.para.simge} dovizli={dovizli} tl={c.tl}
-                kalem={{ ...x, carpanDeger: x.carpan }}
-                deger={c.rawItems[x.k]} onChange={(v) => onItem(x.k, v)} />
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </section>
-  );
+  const dovizYaz = (tl) => (c.dovizli ? ` ≈ ${c.para.simge}${c.doviz(tl).toLocaleString("tr-TR", { maximumFractionDigits: 0 })}` : "");
 
   return (
     <article style={{
@@ -1089,66 +1010,54 @@ function SeyahatKarti({ goal, c, onChange, onDelete, likit, aylikKalanPara }) {
       <div style={{
         border: "1px solid rgba(34,211,238,.3)", borderRadius: 16, padding: "13px 15px",
         background: "linear-gradient(120deg, rgba(34,211,238,.14), rgba(2,6,23,.5))",
-        display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(135px, 1fr))", gap: 12, alignItems: "start",
+        display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 12, alignItems: "start",
       }}>
-        <div style={{ gridColumn: "1 / -1", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
-          <span style={{ color: "#67e8f9", fontSize: 11, fontWeight: 900, textTransform: "uppercase", letterSpacing: ".05em" }}>✈️ Sefer Bilgileri</span>
-          <button type="button" className="deleteButton" onClick={onDelete}>Sil</button>
+        <div style={{ gridColumn: "1 / -1", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+          <span style={{ color: "#67e8f9", fontSize: 12, fontWeight: 900, textTransform: "uppercase", letterSpacing: ".05em" }}>✈️ Sefer Bilgileri</span>
+          <span style={{ display: "flex", gap: 7, alignItems: "center", flexWrap: "wrap" }}>
+            <button type="button" onClick={() => onApplyPreset(seyahatSablonUret(num(goal.people) || 2))}
+              title="Örnek seyahat bütçesiyle doldur"
+              style={{ border: "1px solid rgba(34,211,238,.36)", background: "rgba(34,211,238,.12)", color: "#a5f3fc", borderRadius: 9, padding: "8px 13px", fontSize: 12.5, fontWeight: 800, cursor: "pointer" }}>
+              Örnek bütçe
+            </button>
+            <button type="button" className="deleteButton" onClick={onDelete}>Sil</button>
+          </span>
         </div>
         <Alan label="Nereye?" hint="Şehir / ülke">
           <input style={inputStyle} value={goal.destination || ""} placeholder="Örn: Roma" onChange={(e) => onChange("destination", e.target.value)} />
         </Alan>
-        <Alan label="Kaç Kişi?" hint="Bütçe buna göre çarpılır">
+        <Alan label="Kaç Kişi?" hint="Kişi başı maliyet için">
           <input style={inputStyle} inputMode="decimal" value={goal.people || ""} placeholder="2" onChange={(e) => onChange("people", e.target.value)} />
         </Alan>
-        <Alan label="Kaç Gece?" hint="Konaklama ve günlük gider">
+        <Alan label="Kaç Gece?" hint="Gece başı maliyet için">
           <input style={inputStyle} inputMode="decimal" value={goal.nights || ""} placeholder="5" onChange={(e) => onChange("nights", e.target.value)} />
         </Alan>
         <Alan label="Gidiş Tarihi" hint="Birikim planı için">
           <input style={inputStyle} type="date" value={goal.targetDate || ""} onChange={(e) => onChange("targetDate", e.target.value)} />
         </Alan>
-        <Alan label="Bütçe Para Birimi" hint="Kalemleri bu birimde gir">
+        <Alan label="Karşılığını Göster" hint="Tutarlar ₺ girilir">
           <select style={inputStyle} value={goal.currency || "TRY"}
-            onChange={(e) => { const p = paraMeta(e.target.value); onChange("currency", e.target.value); if (e.target.value !== "TRY") onChange("rate", goal.rate || p.kur); }}>
+            onChange={(e) => { onChange("currency", e.target.value); if (e.target.value !== "TRY" && !goal.rate) onChange("rate", paraMeta(e.target.value).kur); }}>
             {SEYAHAT_PARA.map((p) => <option key={p.id} value={p.id}>{p.simge} {p.ad}</option>)}
           </select>
         </Alan>
-        {dovizli ? (
+        {c.dovizli ? (
           <Alan label={`1 ${c.para.ad} = ? ₺`} hint="Güncel kuru yaz">
             <input style={inputStyle} inputMode="decimal" value={goal.rate ?? c.para.kur} onChange={(e) => onChange("rate", e.target.value)} />
           </Alan>
         ) : null}
       </div>
 
-      {/* İki mantık: sabit ve günlük */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: 12 }}>
-        {bolum("SABİT GİDERLER", "🎫", c.sabit, c.sabitToplam, "#67e8f9", "rgba(34,211,238,.3)", "linear-gradient(120deg, rgba(34,211,238,.24), rgba(34,211,238,.08))",
-          "Bir kez ödenir — kişi ya da gece sayısıyla çarpılır.")}
-        <div style={{ display: "grid", gap: 12 }}>
-          {bolum("GÜNLÜK HARCAMALAR", "🍽️", c.gunluk, c.gunlukToplam, "#a5b4fc", "rgba(129,140,248,.3)", "linear-gradient(120deg, rgba(129,140,248,.24), rgba(129,140,248,.08))",
-            `Kişi × gece ile çarpılır (${c.kisi || 0} kişi × ${c.gece || 0} gece = ${(c.kisi || 0) * (c.gece || 0)}).`)}
-          {bolum("DİĞER", "🛍️", c.diger, c.digerToplam, "#cbd5e1", "rgba(148,163,184,.28)", "linear-gradient(120deg, rgba(148,163,184,.2), rgba(148,163,184,.06))")}
+      {bosMu ? (
+        <div style={{ border: "1px dashed rgba(148,163,184,.3)", borderRadius: 14, padding: "18px 16px", textAlign: "center", color: "#94a3b8", fontSize: 13.5, lineHeight: 1.6 }}>
+          Bütçen boş. <strong style={{ color: "#a5f3fc" }}>Örnek bütçe</strong> ile başla ya da aşağıdan kendi gruplarını ve kalemlerini oluştur.
         </div>
-      </div>
+      ) : null}
 
-      {/* Beklenmedik gider payı */}
-      <div style={{
-        display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap",
-        border: "1px solid rgba(251,191,36,.28)", borderRadius: 14, padding: "11px 14px", background: "rgba(251,191,36,.09)",
-      }}>
-        <span style={{ minWidth: 0 }}>
-          <span style={{ display: "block", color: "#fde68a", fontWeight: 800, fontSize: 12.5 }}>🛟 Beklenmedik gider payı</span>
-          <span style={{ display: "block", color: "#94a3b8", fontSize: 10.5, marginTop: 1 }}>
-            Gecikme, hastalık, kur farkı… Sektör önerisi bütçenin %10'u.
-          </span>
-        </span>
-        <span style={{ display: "flex", alignItems: "center", gap: 9 }}>
-          <input style={{ width: 62, boxSizing: "border-box", textAlign: "right", border: "1px solid rgba(255,255,255,.14)", background: "rgba(2,6,23,.55)", color: "#f8fafc", borderRadius: 8, padding: "6px 9px", outline: "none", fontSize: 12.5 }}
-            inputMode="decimal" value={goal.contingency ?? "10"} onChange={(e) => onChange("contingency", e.target.value)} />
-          <span style={{ color: "#94a3b8", fontSize: 12 }}>%</span>
-          <strong style={{ color: "#fbbf24", fontSize: 14, minWidth: 90, textAlign: "right" }}>{c.para.simge}{c.pay.toLocaleString("tr-TR",{maximumFractionDigits:0})}</strong>
-        </span>
-      </div>
+      <ButceBolumu
+        baslik="SEYAHAT BÜTÇESİ" ikon="🧳" tema={tema}
+        gruplar={c.gruplar} onGruplar={(g) => onChange("gruplar", g)}
+        ekBilgi={c.dovizli ? <span style={{ color: "#67e8f9", fontSize: 12.5, fontWeight: 700, marginLeft: 8 }}>{dovizYaz(c.target).replace(" ≈ ", "≈ ")}</span> : null} />
 
       {/* TOPLAM */}
       <div style={{
@@ -1157,18 +1066,18 @@ function SeyahatKarti({ goal, c, onChange, onDelete, likit, aylikKalanPara }) {
         background: "linear-gradient(120deg, rgba(34,211,238,.24), rgba(30,58,138,.22))",
       }}>
         <div>
-          <div style={{ color: "#a5f3fc", fontSize: 10.5, fontWeight: 900, textTransform: "uppercase", letterSpacing: ".06em" }}>Toplam Seyahat Bütçesi</div>
-          <div style={{ color: "#fff", fontSize: "clamp(24px, 4vw, 34px)", fontWeight: 900, lineHeight: 1.15 }}>{money(c.targetTL)}</div>
-          {dovizli ? <div style={{ color: "#a5f3fc", fontSize: 13, fontWeight: 700 }}>{c.para.simge}{c.target.toLocaleString("tr-TR",{maximumFractionDigits:0})} · kur {c.kur}</div> : null}
+          <div style={{ color: "#a5f3fc", fontSize: 11, fontWeight: 900, textTransform: "uppercase", letterSpacing: ".06em" }}>Toplam Seyahat Bütçesi</div>
+          <div style={{ color: "#fff", fontSize: "clamp(25px, 4vw, 34px)", fontWeight: 900, lineHeight: 1.15 }}>{money(c.target)}</div>
+          {c.dovizli ? <div style={{ color: "#67e8f9", fontSize: 14, fontWeight: 700 }}>{dovizYaz(c.target).trim()} · kur {c.kur}</div> : null}
         </div>
         <div style={{ display: "flex", gap: 20, flexWrap: "wrap" }}>
           {c.kisi > 0 ? (
-            <span><span style={{ display: "block", color: "#a5f3fc", fontSize: 10, fontWeight: 800, textTransform: "uppercase" }}>Kişi Başına</span>
-              <strong style={{ color: "#fff", fontSize: 15 }}>{money(c.kisiBasi)}</strong></span>
+            <span><span style={{ display: "block", color: "#a5f3fc", fontSize: 11, fontWeight: 800, textTransform: "uppercase" }}>Kişi Başına</span>
+              <strong style={{ color: "#fff", fontSize: 16 }}>{money(c.kisiBasi)}</strong></span>
           ) : null}
           {c.gece > 0 ? (
-            <span><span style={{ display: "block", color: "#a5f3fc", fontSize: 10, fontWeight: 800, textTransform: "uppercase" }}>Gece Başına</span>
-              <strong style={{ color: "#fff", fontSize: 15 }}>{money(c.gunBasi)}</strong></span>
+            <span><span style={{ display: "block", color: "#a5f3fc", fontSize: 11, fontWeight: 800, textTransform: "uppercase" }}>Gece Başına</span>
+              <strong style={{ color: "#fff", fontSize: 16 }}>{money(c.gunBasi)}</strong></span>
           ) : null}
         </div>
       </div>
@@ -1179,38 +1088,32 @@ function SeyahatKarti({ goal, c, onChange, onDelete, likit, aylikKalanPara }) {
         border: `1px solid ${tamam ? "rgba(34,197,94,.42)" : "rgba(248,113,113,.4)"}`, borderRadius: 16, padding: "13px 16px",
         background: tamam ? "linear-gradient(120deg, rgba(34,197,94,.16), rgba(15,23,42,.5))" : "linear-gradient(120deg, rgba(248,113,113,.14), rgba(15,23,42,.5))",
       }}>
-        <span style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-          <span>
-            <span style={{ display: "block", color: "#cbd5e1", fontSize: 10.5, fontWeight: 800, textTransform: "uppercase" }}>Ayırdığın bütçe</span>
-            <span style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 3 }}>
-              <input style={{ width: 128, boxSizing: "border-box", textAlign: "right", border: "1px solid rgba(255,255,255,.14)", background: "rgba(2,6,23,.55)", color: "#f8fafc", borderRadius: 8, padding: "6px 9px", outline: "none", fontSize: 13 }}
-                inputMode="decimal" value={goal.cash || ""} placeholder="0" onChange={(e) => onChange("cash", e.target.value)} />
-              {likit > 0 ? (
-                <button type="button" onClick={() => onChange("cash", String(Math.round(likit)))}
-                  style={{ background: "none", border: "none", color: "#67e8f9", fontSize: 10.5, fontWeight: 700, cursor: "pointer", padding: 0, whiteSpace: "nowrap" }}>
-                  Portföyümden al
-                </button>
-              ) : null}
-            </span>
+        <span>
+          <span style={{ display: "block", color: "#cbd5e1", fontSize: 11, fontWeight: 800, textTransform: "uppercase" }}>Ayırdığın bütçe</span>
+          <span style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4, flexWrap: "wrap" }}>
+            <input style={{ width: 140, boxSizing: "border-box", textAlign: "right", border: "1px solid rgba(255,255,255,.14)", background: "rgba(2,6,23,.55)", color: "#f8fafc", borderRadius: 9, padding: "8px 10px", outline: "none", fontSize: 14 }}
+              inputMode="decimal" value={goal.cash || ""} placeholder="0" onChange={(e) => onChange("cash", e.target.value)} />
+            {likit > 0 ? (
+              <button type="button" onClick={() => onChange("cash", String(Math.round(likit)))}
+                style={{ background: "none", border: "none", color: "#67e8f9", fontSize: 12, fontWeight: 700, cursor: "pointer", padding: 0, whiteSpace: "nowrap" }}>
+                Portföyümden al
+              </button>
+            ) : null}
           </span>
         </span>
         <div style={{ textAlign: "right" }}>
-          <div style={{ color: "#cbd5e1", fontSize: 10.5, fontWeight: 800, textTransform: "uppercase" }}>
-            {tamam ? "Bütçen yeterli" : "Eksik"}
-          </div>
-          <div style={{ color: tamam ? "#86efac" : "#fca5a5", fontSize: 24, fontWeight: 900, lineHeight: 1.2 }}>
+          <div style={{ color: "#cbd5e1", fontSize: 11, fontWeight: 800, textTransform: "uppercase" }}>{tamam ? "Bütçen yeterli" : "Eksik"}</div>
+          <div style={{ color: tamam ? "#86efac" : "#fca5a5", fontSize: 25, fontWeight: 900, lineHeight: 1.2 }}>
             {tamam ? `+${money(Math.abs(c.gap))}` : money(c.gap)}
           </div>
-          {aylikBirikim ? (
-            <div style={{ color: "#fbbf24", fontSize: 11 }}>Ayda {money(aylikBirikim)} · {ayKalan} ay kaldı</div>
-          ) : null}
+          {aylikBirikim ? <div style={{ color: "#fbbf24", fontSize: 12 }}>Ayda {money(aylikBirikim)} · {ayKalan} ay kaldı</div> : null}
         </div>
       </div>
 
       {uyarilar.length ? (
         <div style={{ display: "grid", gap: 7 }}>
           {uyarilar.map((u, i) => (
-            <div key={i} style={{ display: "flex", gap: 8, color: "#fbbf24", fontSize: 11.5, lineHeight: 1.5, background: "rgba(251,191,36,.09)", border: "1px solid rgba(251,191,36,.24)", borderRadius: 11, padding: "9px 11px" }}>
+            <div key={i} style={{ display: "flex", gap: 8, color: "#fbbf24", fontSize: 12.5, lineHeight: 1.5, background: "rgba(251,191,36,.09)", border: "1px solid rgba(251,191,36,.24)", borderRadius: 11, padding: "10px 12px" }}>
               <span>⚠</span><span>{u}</span>
             </div>
           ))}
@@ -1427,7 +1330,7 @@ export default function FinancialGoals({ data, setData, financeTotals, investmen
         ? { ...base, name: "Araç Alma Hedefi", price: "", fuel: "ice", condition: "new", loan: "",
             tradeIn: "", loanMonths: "24", loanRate: "3,25" }
         : type === "seyahat"
-        ? { ...base, name: "Seyahat Hedefi", destination: "", people: "2", nights: "5", currency: "TRY", rate: "", contingency: "10", items: {} }
+        ? { ...base, name: "Seyahat Hedefi", destination: "", people: "2", nights: "5", currency: "TRY", rate: "", ...seyahatSablonUret(2) }
         : type === "evlilik"
         ? { ...base, name: "Evlilik Hedefi", guests: "", expectedGifts: "", familyHelp: "", ...evlilikSablonUret(1) }
         : { ...base, name: "Ev Alma Hedefi", housePrice: "", extraCost: "", loan: "",
@@ -1524,7 +1427,8 @@ export default function FinancialGoals({ data, setData, financeTotals, investmen
               if (goal.type === "konut") return <KonutKarti key={goal.id} {...ortak} />;
               if (goal.type === "arac") return <AracKarti key={goal.id} {...ortak} />;
               if (goal.type === "seyahat") return (
-                <SeyahatKarti key={goal.id} {...ortak} aylikKalanPara={monthlyBalance} />
+                <SeyahatKarti key={goal.id} {...ortak} aylikKalanPara={monthlyBalance}
+                  onApplyPreset={(p) => mutateGoals((gs) => gs.map((g) => (g.id === goal.id ? { ...g, ...p } : g)))} />
               );
               if (goal.type === "evlilik") return (
                 <EvlilikKarti key={goal.id} {...ortak} aylikKalanPara={monthlyBalance}

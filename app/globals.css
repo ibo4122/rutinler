@@ -1729,3 +1729,54 @@ button {
 .aiModalFoot { padding: 12px 18px; border-top: 1px solid rgba(255,255,255,.10); display: flex; justify-content: flex-end; gap: 10px; }
 .aiAskInput { width: 100%; box-sizing: border-box; min-height: 90px; resize: vertical; border: 1px solid rgba(255,255,255,.22); background: rgba(2,6,23,.6); color: #f8fafc; border-radius: 12px; padding: 12px; outline: none; font-family: inherit; font-size: 14px; line-height: 1.6; }
 .aiAskInput:focus { border-color: rgba(139,92,246,.6); }
+
+/* ---------------------------------------------------------------------------
+   Mobil uyum — Finansal Hedefler
+   Telefonda (Safari/Chrome) satırların kayması ve yatay taşma sorunlarını
+   çözer. Kartlar satır içi stille yazıldığı için burada güvenli global
+   kurallarla düzeltiliyor.
+--------------------------------------------------------------------------- */
+
+/* Hiçbir şey sayfayı yatay kaydırmasın */
+html, body { max-width: 100%; overflow-x: hidden; }
+
+/* Geniş içerik (tablolar) kendi kutusunda kaysın, sayfayı taşırmasın */
+.financePage table { max-width: 100%; }
+
+@media (max-width: 720px) {
+  .financePage { padding: 12px; }
+
+  /* Hedef kartları: dar ekranda iç boşluğu azalt, taşmayı engelle */
+  .financePage article { padding: 13px !important; }
+  .financePage article,
+  .financePage section { min-width: 0; max-width: 100%; }
+
+  /* Tüm ızgaralar tek sütuna insin (yan yana sıkışıp kaymasın) */
+  .financePage article > div[style*="grid-template-columns"],
+  .financePage article div[style*="minmax(320px"],
+  .financePage article div[style*="minmax(330px"],
+  .financePage article div[style*="minmax(300px"],
+  .financePage article div[style*="minmax(290px"] {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Bütçe kalem satırı: ad üstte, tutar + sil altta — sıkışıp kırılmasın */
+  .butceKalemSatiri {
+    grid-template-columns: minmax(0, 1fr) 104px 32px !important;
+    gap: 5px !important;
+  }
+
+  /* Girdi kutuları taşmasın */
+  .financePage input,
+  .financePage select { max-width: 100%; }
+
+  /* Sonuç şeritleri: yan yana duran bloklar alt alta insin */
+  .financePage article > div[style*="justify-content: space-between"] { row-gap: 10px; }
+}
+
+@media (max-width: 420px) {
+  .butceKalemSatiri {
+    grid-template-columns: minmax(0, 1fr) 92px 32px !important;
+  }
+  .financePage article { padding: 11px !important; }
+}
