@@ -7,6 +7,8 @@ import RoutinePlanner from "../components/RoutinePlanner";
 import OverviewDashboard from "../components/OverviewDashboard";
 import NotesModule from "../components/notes/NotesModule";
 import FinancialGoals from "../components/FinancialGoals";
+import DebtPlanner from "../components/DebtPlanner";
+import TatilPlanlayici from "../components/TatilPlanlayici";
 import AdminPanel from "../components/AdminPanel";
 import Onboarding from "../components/Onboarding";
 import PreferencesModal from "../components/PreferencesModal";
@@ -46,14 +48,20 @@ const emptyCredit = { title: "", monthlyPayment: "", installmentText: "", remain
 const emptyAssetForm = { title: "", quantity: "", buyPrice: "", currentPrice: "", currency: "TRY", goldType: "GRAM", note: "" };
 const emptyInvestments = { bes: [], locked: [], gold: [], crypto: [], stocks: [], forex: [], funds: [] };
 const emptyFinancialGoals = { categories: [], goals: [], assets: [], debts: [] };
+// Borç Planı: ayrı bir borç listesi TUTMAZ. Krediler ve kart giderleri
+// Gelir/Gider ile ortaktır; burada yalnızca plan ayarları saklanır.
+const emptyDebtPlan = { ekKapasite: "", strateji: "cig", kartlar: [] };
+const emptyTatil = { kurlar: {}, ayarlar: {} };
 
 // Sekmeler veri-tabanlı: kullanıcı sürükleyerek sırasını değiştirebilir (localStorage'da saklanır).
 const DEFAULT_TABS = [
   { id: "overview", label: "Genel Bakış" },
   { id: "finance", label: "Gelir / Gider" },
+  { id: "debt", label: "Borç Planı" },
   { id: "investments", label: "Yatırımlar" },
   { id: "trading", label: "Trading" },
   { id: "fingoals", label: "Finansal Hedefler" },
+  { id: "tatil", label: "Tatil Planı" },
   { id: "goals", label: "Hedeflerim" },
   { id: "routines", label: "Haftalık Rutin" },
   { id: "notes", label: "Notlar" },
@@ -112,6 +120,8 @@ function normalizeFinanceData(data) {
       investments: emptyInvestments,
       routines: [],
       financialGoals: emptyFinancialGoals,
+      debtPlan: emptyDebtPlan,
+      tatil: emptyTatil,
       besSettings: null,
       onboardingDone: false,
       preferences: DEFAULT_PREFERENCES,
@@ -142,6 +152,15 @@ function normalizeFinanceData(data) {
       goals: Array.isArray(data.financialGoals?.goals) ? data.financialGoals.goals : [],
       assets: Array.isArray(data.financialGoals?.assets) ? data.financialGoals.assets : [],
       debts: Array.isArray(data.financialGoals?.debts) ? data.financialGoals.debts : [],
+    },
+    debtPlan: {
+      ...emptyDebtPlan,
+      ...(data.debtPlan && typeof data.debtPlan === "object" ? data.debtPlan : {}),
+      kartlar: Array.isArray(data.debtPlan?.kartlar) ? data.debtPlan.kartlar : [],
+    },
+    tatil: {
+      kurlar: data.tatil?.kurlar && typeof data.tatil.kurlar === "object" ? data.tatil.kurlar : {},
+      ayarlar: data.tatil?.ayarlar && typeof data.tatil.ayarlar === "object" ? data.tatil.ayarlar : {},
     },
     besSettings: data.besSettings && typeof data.besSettings === "object" ? data.besSettings : null,
     onboardingDone: data.onboardingDone === true,
@@ -239,6 +258,8 @@ export default function HomePage() {
   const [otherExpenses, setOtherExpenses] = useState([]);
   const [investments, setInvestments] = useState(emptyInvestments);
   const [financialGoals, setFinancialGoals] = useState(emptyFinancialGoals);
+  const [debtPlan, setDebtPlan] = useState(emptyDebtPlan);
+  const [tatil, setTatil] = useState(emptyTatil);
   const [besSettings, setBesSettings] = useState(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [onboardingDone, setOnboardingDone] = useState(true); // yuklenene kadar gosterme
@@ -410,9 +431,9 @@ export default function HomePage() {
     if (!session?.user || !financeLoaded) return;
     const timer = setTimeout(saveFinanceData, 650);
     return () => clearTimeout(timer);
-  }, [income, extraIncomes, credits, cardExpenses, otherExpenses, investments, routines, financialGoals, besSettings, onboardingDone, preferences, session, financeLoaded]);
+  }, [income, extraIncomes, credits, cardExpenses, otherExpenses, investments, routines, financialGoals, debtPlan, tatil, besSettings, onboardingDone, preferences, session, financeLoaded]);
 
-  const currentPayload = () => ({ income, extraIncomes, credits, cardExpenses, otherExpenses, investments, routines, financialGoals, besSettings, onboardingDone, preferences });
+  const currentPayload = () => ({ income, extraIncomes, credits, cardExpenses, otherExpenses, investments, routines, financialGoals, debtPlan, tatil, besSettings, onboardingDone, preferences });
 
   const loadFinanceData = async (userId) => {
     setDataLoading(true);
@@ -454,6 +475,8 @@ export default function HomePage() {
     setInvestments(normalized.investments);
     setRoutines(normalized.routines || []);
     setFinancialGoals(normalized.financialGoals || emptyFinancialGoals);
+    setDebtPlan(normalized.debtPlan || emptyDebtPlan);
+    setTatil(normalized.tatil || emptyTatil);
     setBesSettings(normalized.besSettings || {});
     // Karsilama akisi: yalnizca hic tamamlanmamis VE verisi bos olan hesaplarda gosterilir.
     // hasCloudData bir || zinciri oldugundan ilk dolu degeri (orn. maas metnini)
@@ -855,7 +878,11 @@ export default function HomePage() {
 
         {activeTab === "investments" ? <InvestmentsTab investmentTotals={investmentTotals} investmentOpen={investmentOpen} setInvestmentOpen={setInvestmentOpen} goldOpen={goldOpen} setGoldOpen={setGoldOpen} goldForm={goldForm} updateGoldForm={updateGoldForm} addOrUpdateGold={addOrUpdateGold} editingGoldId={editingGoldId} resetGoldForm={resetGoldForm} startEditGold={startEditGold} cryptoOpen={cryptoOpen} setCryptoOpen={setCryptoOpen} cryptoForm={cryptoForm} updateCryptoForm={updateCryptoForm} addOrUpdateCrypto={addOrUpdateCrypto} editingCryptoId={editingCryptoId} resetCryptoForm={resetCryptoForm} startEditCrypto={startEditCrypto} stockOpen={stockOpen} setStockOpen={setStockOpen} stockForm={stockForm} updateStockForm={updateStockForm} addOrUpdateStock={addOrUpdateStock} editingStockId={editingStockId} resetStockForm={resetStockForm} startEditStock={startEditStock} fundOpen={fundOpen} setFundOpen={setFundOpen} fundForm={fundForm} updateFundForm={updateFundForm} addOrUpdateFund={addOrUpdateFund} editingFundId={editingFundId} resetFundForm={resetFundForm} startEditFund={startEditFund} forexOpen={forexOpen} setForexOpen={setForexOpen} forexForm={forexForm} updateForexForm={updateForexForm} addOrUpdateForex={addOrUpdateForex} editingForexId={editingForexId} resetForexForm={resetForexForm} startEditForex={startEditForex} investments={investments} setInvestments={setInvestments} setBesProjectionTotal={setBesProjectionTotal} besSettings={besSettings} setBesSettings={setBesSettings} marketData={marketData} setMarketData={setMarketData} showPnl={showPnl} toggleShowPnl={toggleShowPnl} prefs={preferences} /> : null}
 
+        {activeTab === "debt" ? <DebtPlanner credits={credits} setCredits={setCredits} financeTotals={financeTotals} plan={debtPlan} setPlan={setDebtPlan} /> : null}
+
         {activeTab === "fingoals" ? <FinancialGoals data={financialGoals} setData={setFinancialGoals} financeTotals={financeTotals} investmentTotals={investmentTotals} monthlyBalance={financeTotals.balance} /> : null}
+
+        {activeTab === "tatil" ? <TatilPlanlayici data={tatil} setData={setTatil} /> : null}
 
         {activeTab === "goals" ? <RoutinePlanner routines={routines} setRoutines={setRoutines} mode="goals" /> : null}
 
