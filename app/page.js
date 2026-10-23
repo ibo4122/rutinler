@@ -9,6 +9,7 @@ import NotesModule from "../components/notes/NotesModule";
 import FinancialGoals from "../components/FinancialGoals";
 import DebtPlanner from "../components/DebtPlanner";
 import TatilPlanlayici from "../components/TatilPlanlayici";
+import SaglikYonetimi from "../components/SaglikYonetimi";
 import AdminPanel from "../components/AdminPanel";
 import Onboarding from "../components/Onboarding";
 import PreferencesModal from "../components/PreferencesModal";
@@ -52,6 +53,16 @@ const emptyFinancialGoals = { categories: [], goals: [], assets: [], debts: [] }
 // Gelir/Gider ile ortaktır; burada yalnızca plan ayarları saklanır.
 const emptyDebtPlan = { ekKapasite: "", strateji: "cig", kartlar: [] };
 const emptyTatil = { kurlar: {}, ayarlar: {} };
+const emptySaglik = { profil: null, gunler: {}, favoriler: [] };
+
+// ANA ALANLAR — sekmelerin bir üstündeki katman. Her alan kendi dünyası:
+// finans alanının sekmeleri var, tatil ve sağlık tek ekran. Tatil bir süre
+// finans sekmelerinin arasındaydı ama oraya ait değil; konusu da verisi de ayrı.
+const ALANLAR = [
+  { id: "finans", label: "Kişisel Finans Yönetimi", kisa: "Finans", ikon: "₺", renk: "#60a5fa" },
+  { id: "tatil", label: "Tatil Planlama", kisa: "Tatil", ikon: "🧳", renk: "#2dd4bf" },
+  { id: "saglik", label: "Sağlık Yönetimi", kisa: "Sağlık", ikon: "🥗", renk: "#34d399" },
+];
 
 // Sekmeler veri-tabanlı: kullanıcı sürükleyerek sırasını değiştirebilir (localStorage'da saklanır).
 const DEFAULT_TABS = [
@@ -61,7 +72,6 @@ const DEFAULT_TABS = [
   { id: "investments", label: "Yatırımlar" },
   { id: "trading", label: "Trading" },
   { id: "fingoals", label: "Finansal Hedefler" },
-  { id: "tatil", label: "Tatil Planı" },
   { id: "goals", label: "Hedeflerim" },
   { id: "routines", label: "Haftalık Rutin" },
   { id: "notes", label: "Notlar" },
@@ -122,6 +132,7 @@ function normalizeFinanceData(data) {
       financialGoals: emptyFinancialGoals,
       debtPlan: emptyDebtPlan,
       tatil: emptyTatil,
+      saglik: emptySaglik,
       besSettings: null,
       onboardingDone: false,
       preferences: DEFAULT_PREFERENCES,
@@ -161,6 +172,11 @@ function normalizeFinanceData(data) {
     tatil: {
       kurlar: data.tatil?.kurlar && typeof data.tatil.kurlar === "object" ? data.tatil.kurlar : {},
       ayarlar: data.tatil?.ayarlar && typeof data.tatil.ayarlar === "object" ? data.tatil.ayarlar : {},
+    },
+    saglik: {
+      profil: data.saglik?.profil && typeof data.saglik.profil === "object" ? data.saglik.profil : null,
+      gunler: data.saglik?.gunler && typeof data.saglik.gunler === "object" ? data.saglik.gunler : {},
+      favoriler: Array.isArray(data.saglik?.favoriler) ? data.saglik.favoriler : [],
     },
     besSettings: data.besSettings && typeof data.besSettings === "object" ? data.besSettings : null,
     onboardingDone: data.onboardingDone === true,
@@ -260,6 +276,8 @@ export default function HomePage() {
   const [financialGoals, setFinancialGoals] = useState(emptyFinancialGoals);
   const [debtPlan, setDebtPlan] = useState(emptyDebtPlan);
   const [tatil, setTatil] = useState(emptyTatil);
+  const [saglik, setSaglik] = useState(emptySaglik);
+  const [activeArea, setActiveArea] = useState("finans");
   const [besSettings, setBesSettings] = useState(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [onboardingDone, setOnboardingDone] = useState(true); // yuklenene kadar gosterme
@@ -305,6 +323,8 @@ export default function HomePage() {
       if (window.localStorage.getItem("finance-hide-money") === "1") setHideMoney(true);
       const savedOrder = window.localStorage.getItem("finance-tab-order");
       if (savedOrder) setTabOrder(mergeTabOrder(JSON.parse(savedOrder)));
+      const savedArea = window.localStorage.getItem("aktif-alan");
+      if (savedArea && ALANLAR.some((a) => a.id === savedArea)) setActiveArea(savedArea);
     } catch {}
   }, []);
 
@@ -431,9 +451,9 @@ export default function HomePage() {
     if (!session?.user || !financeLoaded) return;
     const timer = setTimeout(saveFinanceData, 650);
     return () => clearTimeout(timer);
-  }, [income, extraIncomes, credits, cardExpenses, otherExpenses, investments, routines, financialGoals, debtPlan, tatil, besSettings, onboardingDone, preferences, session, financeLoaded]);
+  }, [income, extraIncomes, credits, cardExpenses, otherExpenses, investments, routines, financialGoals, debtPlan, tatil, saglik, besSettings, onboardingDone, preferences, session, financeLoaded]);
 
-  const currentPayload = () => ({ income, extraIncomes, credits, cardExpenses, otherExpenses, investments, routines, financialGoals, debtPlan, tatil, besSettings, onboardingDone, preferences });
+  const currentPayload = () => ({ income, extraIncomes, credits, cardExpenses, otherExpenses, investments, routines, financialGoals, debtPlan, tatil, saglik, besSettings, onboardingDone, preferences });
 
   const loadFinanceData = async (userId) => {
     setDataLoading(true);
@@ -477,6 +497,7 @@ export default function HomePage() {
     setFinancialGoals(normalized.financialGoals || emptyFinancialGoals);
     setDebtPlan(normalized.debtPlan || emptyDebtPlan);
     setTatil(normalized.tatil || emptyTatil);
+    setSaglik(normalized.saglik || emptySaglik);
     setBesSettings(normalized.besSettings || {});
     // Karsilama akisi: yalnizca hic tamamlanmamis VE verisi bos olan hesaplarda gosterilir.
     // hasCloudData bir || zinciri oldugundan ilk dolu degeri (orn. maas metnini)
@@ -822,12 +843,35 @@ export default function HomePage() {
   if (authLoading || processingVerify) return <main className="financePage authPage"><section className="authCard premiumAuthCard"><h1 className="authTitle premiumAuthTitle">{processingVerify ? "E-postan doğrulanıyor..." : "Yükleniyor..."}</h1></section></main>;
   if (!session) return <AuthView authMode={authMode} setAuthMode={setAuthMode} fullName={fullName} setFullName={setFullName} email={email} setEmail={setEmail} password={password} setPassword={setPassword} passwordAgain={passwordAgain} setPasswordAgain={setPasswordAgain} pendingEmail={pendingEmail} verificationCode={verificationCode} setVerificationCode={setVerificationCode} rememberMe={rememberMe} setRememberMe={setRememberMe} authMessage={authMessage} handleLogin={handleLogin} handleRegister={handleRegister} handleVerifyCode={handleVerifyCode} handleResendCode={handleResendCode} handleForgotPassword={handleForgotPassword} handleGoogleLogin={handleGoogleLogin} verifiedNotice={verifiedNotice} />;
 
+  // Sekmeler yalnızca finans alanında anlamlı. Diğer alanlardayken sekme
+  // içerikleri render edilmesin diye boş bir değer kullanılıyor.
+  const finansAktif = activeArea === "finans";
+  const sekme = finansAktif ? activeTab : "";
+
   return (
-    <main className={activeTab === "notes" ? "financePage notesFull" : "financePage"}>
-      <div className={activeTab === "notes" ? "financeShell notesFull" : "financeShell"}>
+    <main className={sekme === "notes" ? "financePage notesFull" : "financePage"}>
+      <div className={sekme === "notes" ? "financeShell notesFull" : "financeShell"}>
         <header className="topHeader appHeader">
-          <div>
-            <div className="topBadge">Kişisel Finans Yönetimi</div>
+          <div style={{ minWidth: 0 }}>
+            <div className="alanSeritli">
+              {ALANLAR.map((alan) => {
+                const aktif = alan.id === activeArea;
+                return (
+                  <button
+                    key={alan.id}
+                    type="button"
+                    className={aktif ? "topBadge alanBadge aktif" : "topBadge alanBadge"}
+                    style={aktif ? { borderColor: `${alan.renk}77`, background: `linear-gradient(120deg, ${alan.renk}33, ${alan.renk}12)` } : undefined}
+                    onClick={() => { setActiveArea(alan.id); try { window.localStorage.setItem("aktif-alan", alan.id); } catch {} }}
+                    title={alan.label}
+                  >
+                    <span className="alanIkon" aria-hidden="true">{alan.ikon}</span>
+                    <span className="alanAd">{alan.label}</span>
+                    <span className="alanAdKisa">{alan.kisa}</span>
+                  </button>
+                );
+              })}
+            </div>
             <p className="saveStatus" style={saveError ? { color: "#fca5a5" } : undefined}>{saving ? "Kaydediliyor..." : saveError ? `⚠️ ${saveError}` : "Tüm değişiklikler kaydedildi"}</p>
           </div>
           <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
@@ -844,7 +888,7 @@ export default function HomePage() {
           </div>
         </header>
 
-        <div className="tabBar">
+        <div className="tabBar" style={finansAktif ? undefined : { display: "none" }}>
           {tabOrder.map((id) => {
             const tab = DEFAULT_TABS.find((t) => t.id === id);
             if (!tab) return null;
@@ -872,25 +916,28 @@ export default function HomePage() {
 
         {dataLoading ? <section className="panelCard"><div className="emptyState"><strong>Veriler yükleniyor...</strong></div></section> : null}
 
-        {activeTab === "overview" ? <OverviewDashboard userId={session.user.id} financeTotals={financeTotals} investmentTotals={investmentTotals} routines={routines} showPnl={showPnl} onNavigate={setActiveTab} /> : null}
+        {sekme === "overview" ? <OverviewDashboard userId={session.user.id} financeTotals={financeTotals} investmentTotals={investmentTotals} routines={routines} showPnl={showPnl} onNavigate={setActiveTab} /> : null}
 
-        {activeTab === "finance" ? <FinanceTab financeTotals={financeTotals} income={income} updateIncome={updateIncome} incomeOpen={incomeOpen} setIncomeOpen={setIncomeOpen} extraIncomeOpen={extraIncomeOpen} setExtraIncomeOpen={setExtraIncomeOpen} extraIncomeForm={extraIncomeForm} updateExtraIncomeForm={updateExtraIncomeForm} addOrUpdateExtraIncome={addOrUpdateExtraIncome} editingExtraIncomeId={editingExtraIncomeId} resetExtraIncomeForm={resetExtraIncomeForm} extraIncomes={extraIncomes} startEditExtraIncome={startEditExtraIncome} setExtraIncomes={setExtraIncomes} expensesOpen={expensesOpen} setExpensesOpen={setExpensesOpen} creditsOpen={creditsOpen} setCreditsOpen={setCreditsOpen} creditForm={creditForm} updateCreditForm={updateCreditForm} addOrUpdateCredit={addOrUpdateCredit} editingCreditId={editingCreditId} resetCreditForm={resetCreditForm} credits={credits} parseInstallment={parseInstallment} isCreditActive={isCreditActive} startEditCredit={startEditCredit} setCredits={setCredits} cardsOpen={cardsOpen} setCardsOpen={setCardsOpen} cardForm={cardForm} updateCardForm={updateCardForm} addOrUpdateSimpleExpense={addOrUpdateSimpleExpense} editingCardId={editingCardId} resetCardForm={resetCardForm} cardExpenses={cardExpenses} startEditCard={startEditCard} setCardExpenses={setCardExpenses} othersOpen={othersOpen} setOthersOpen={setOthersOpen} otherForm={otherForm} updateOtherForm={updateOtherForm} editingOtherId={editingOtherId} resetOtherForm={resetOtherForm} otherExpenses={otherExpenses} startEditOther={startEditOther} setOtherExpenses={setOtherExpenses} /> : null}
+        {sekme === "finance" ? <FinanceTab financeTotals={financeTotals} income={income} updateIncome={updateIncome} incomeOpen={incomeOpen} setIncomeOpen={setIncomeOpen} extraIncomeOpen={extraIncomeOpen} setExtraIncomeOpen={setExtraIncomeOpen} extraIncomeForm={extraIncomeForm} updateExtraIncomeForm={updateExtraIncomeForm} addOrUpdateExtraIncome={addOrUpdateExtraIncome} editingExtraIncomeId={editingExtraIncomeId} resetExtraIncomeForm={resetExtraIncomeForm} extraIncomes={extraIncomes} startEditExtraIncome={startEditExtraIncome} setExtraIncomes={setExtraIncomes} expensesOpen={expensesOpen} setExpensesOpen={setExpensesOpen} creditsOpen={creditsOpen} setCreditsOpen={setCreditsOpen} creditForm={creditForm} updateCreditForm={updateCreditForm} addOrUpdateCredit={addOrUpdateCredit} editingCreditId={editingCreditId} resetCreditForm={resetCreditForm} credits={credits} parseInstallment={parseInstallment} isCreditActive={isCreditActive} startEditCredit={startEditCredit} setCredits={setCredits} cardsOpen={cardsOpen} setCardsOpen={setCardsOpen} cardForm={cardForm} updateCardForm={updateCardForm} addOrUpdateSimpleExpense={addOrUpdateSimpleExpense} editingCardId={editingCardId} resetCardForm={resetCardForm} cardExpenses={cardExpenses} startEditCard={startEditCard} setCardExpenses={setCardExpenses} othersOpen={othersOpen} setOthersOpen={setOthersOpen} otherForm={otherForm} updateOtherForm={updateOtherForm} editingOtherId={editingOtherId} resetOtherForm={resetOtherForm} otherExpenses={otherExpenses} startEditOther={startEditOther} setOtherExpenses={setOtherExpenses} /> : null}
 
-        {activeTab === "investments" ? <InvestmentsTab investmentTotals={investmentTotals} investmentOpen={investmentOpen} setInvestmentOpen={setInvestmentOpen} goldOpen={goldOpen} setGoldOpen={setGoldOpen} goldForm={goldForm} updateGoldForm={updateGoldForm} addOrUpdateGold={addOrUpdateGold} editingGoldId={editingGoldId} resetGoldForm={resetGoldForm} startEditGold={startEditGold} cryptoOpen={cryptoOpen} setCryptoOpen={setCryptoOpen} cryptoForm={cryptoForm} updateCryptoForm={updateCryptoForm} addOrUpdateCrypto={addOrUpdateCrypto} editingCryptoId={editingCryptoId} resetCryptoForm={resetCryptoForm} startEditCrypto={startEditCrypto} stockOpen={stockOpen} setStockOpen={setStockOpen} stockForm={stockForm} updateStockForm={updateStockForm} addOrUpdateStock={addOrUpdateStock} editingStockId={editingStockId} resetStockForm={resetStockForm} startEditStock={startEditStock} fundOpen={fundOpen} setFundOpen={setFundOpen} fundForm={fundForm} updateFundForm={updateFundForm} addOrUpdateFund={addOrUpdateFund} editingFundId={editingFundId} resetFundForm={resetFundForm} startEditFund={startEditFund} forexOpen={forexOpen} setForexOpen={setForexOpen} forexForm={forexForm} updateForexForm={updateForexForm} addOrUpdateForex={addOrUpdateForex} editingForexId={editingForexId} resetForexForm={resetForexForm} startEditForex={startEditForex} investments={investments} setInvestments={setInvestments} setBesProjectionTotal={setBesProjectionTotal} besSettings={besSettings} setBesSettings={setBesSettings} marketData={marketData} setMarketData={setMarketData} showPnl={showPnl} toggleShowPnl={toggleShowPnl} prefs={preferences} /> : null}
+        {sekme === "investments" ? <InvestmentsTab investmentTotals={investmentTotals} investmentOpen={investmentOpen} setInvestmentOpen={setInvestmentOpen} goldOpen={goldOpen} setGoldOpen={setGoldOpen} goldForm={goldForm} updateGoldForm={updateGoldForm} addOrUpdateGold={addOrUpdateGold} editingGoldId={editingGoldId} resetGoldForm={resetGoldForm} startEditGold={startEditGold} cryptoOpen={cryptoOpen} setCryptoOpen={setCryptoOpen} cryptoForm={cryptoForm} updateCryptoForm={updateCryptoForm} addOrUpdateCrypto={addOrUpdateCrypto} editingCryptoId={editingCryptoId} resetCryptoForm={resetCryptoForm} startEditCrypto={startEditCrypto} stockOpen={stockOpen} setStockOpen={setStockOpen} stockForm={stockForm} updateStockForm={updateStockForm} addOrUpdateStock={addOrUpdateStock} editingStockId={editingStockId} resetStockForm={resetStockForm} startEditStock={startEditStock} fundOpen={fundOpen} setFundOpen={setFundOpen} fundForm={fundForm} updateFundForm={updateFundForm} addOrUpdateFund={addOrUpdateFund} editingFundId={editingFundId} resetFundForm={resetFundForm} startEditFund={startEditFund} forexOpen={forexOpen} setForexOpen={setForexOpen} forexForm={forexForm} updateForexForm={updateForexForm} addOrUpdateForex={addOrUpdateForex} editingForexId={editingForexId} resetForexForm={resetForexForm} startEditForex={startEditForex} investments={investments} setInvestments={setInvestments} setBesProjectionTotal={setBesProjectionTotal} besSettings={besSettings} setBesSettings={setBesSettings} marketData={marketData} setMarketData={setMarketData} showPnl={showPnl} toggleShowPnl={toggleShowPnl} prefs={preferences} /> : null}
 
-        {activeTab === "debt" ? <DebtPlanner credits={credits} setCredits={setCredits} financeTotals={financeTotals} plan={debtPlan} setPlan={setDebtPlan} /> : null}
+        {sekme === "debt" ? <DebtPlanner credits={credits} setCredits={setCredits} financeTotals={financeTotals} plan={debtPlan} setPlan={setDebtPlan} /> : null}
 
-        {activeTab === "fingoals" ? <FinancialGoals data={financialGoals} setData={setFinancialGoals} financeTotals={financeTotals} investmentTotals={investmentTotals} monthlyBalance={financeTotals.balance} /> : null}
+        {sekme === "fingoals" ? <FinancialGoals data={financialGoals} setData={setFinancialGoals} financeTotals={financeTotals} investmentTotals={investmentTotals} monthlyBalance={financeTotals.balance} /> : null}
 
-        {activeTab === "tatil" ? <TatilPlanlayici data={tatil} setData={setTatil} /> : null}
+        {/* Ana alanlar — sekme değil, üst katman */}
+        {activeArea === "tatil" ? <TatilPlanlayici data={tatil} setData={setTatil} /> : null}
 
-        {activeTab === "goals" ? <RoutinePlanner routines={routines} setRoutines={setRoutines} mode="goals" /> : null}
+        {activeArea === "saglik" ? <SaglikYonetimi data={saglik} setData={setSaglik} /> : null}
 
-        {activeTab === "routines" ? <RoutinePlanner routines={routines} setRoutines={setRoutines} mode="routines" /> : null}
+        {sekme === "goals" ? <RoutinePlanner routines={routines} setRoutines={setRoutines} mode="goals" /> : null}
 
-        {activeTab === "notes" ? <NotesModule userId={session.user.id} /> : null}
+        {sekme === "routines" ? <RoutinePlanner routines={routines} setRoutines={setRoutines} mode="routines" /> : null}
 
-        {activeTab === "admin" && isAdmin ? <AdminPanel currentUserId={session.user.id} /> : null}
+        {sekme === "notes" ? <NotesModule userId={session.user.id} /> : null}
+
+        {sekme === "admin" && isAdmin ? <AdminPanel currentUserId={session.user.id} /> : null}
 
         {prefsOpen ? (
           <PreferencesModal
@@ -918,7 +965,7 @@ export default function HomePage() {
           />
         ) : null}
 
-        {activeTab === "trading" ? <ForwardTestPanel /> : null}
+        {sekme === "trading" ? <ForwardTestPanel /> : null}
       </div>
     </main>
   );

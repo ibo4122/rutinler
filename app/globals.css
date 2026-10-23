@@ -1780,3 +1780,33 @@ html, body { max-width: 100%; overflow-x: hidden; }
   }
   .financePage article { padding: 11px !important; }
 }
+
+/* --- Ana alan seçici -------------------------------------------------------
+   Sekmelerin bir üstündeki katman. "Kişisel Finans Yönetimi" rozeti artık tek
+   başına bir etiket değil, üç alan arasında geçiş yapılan bir şerit. */
+.alanSeritli {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.alanBadge {
+  cursor: pointer;
+  gap: 10px;
+  transition: border-color .15s ease, background .15s ease, opacity .15s ease;
+  opacity: .62;
+}
+
+.alanBadge:hover { opacity: .85; }
+.alanBadge.aktif { opacity: 1; }
+
+.alanIkon { font-size: 17px; line-height: 1; }
+.alanAdKisa { display: none; }
+
+@media (max-width: 760px) {
+  .alanSeritli { gap: 7px; }
+  .alanBadge { padding: 11px 15px; font-size: 12.5px; letter-spacing: .05em; }
+  .alanAd { display: none; }
+  .alanAdKisa { display: inline; }
+}
