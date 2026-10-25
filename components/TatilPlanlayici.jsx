@@ -6,15 +6,18 @@ import {
   PUAN_BASLIKLARI, genelPuan, YURTDISI_HARC, SIGORTA_GUNLUK, seviyeNormalle,
 } from "../lib/destinasyonlar";
 import { ROTALAR } from "../lib/rotalar";
-import { supabase } from "../lib/supabaseClient";
+import { ILLER } from "../lib/turkiye";
 import { num, tl, yeniId, satirInput, Kutu, KutuIzgara, Tablo, Alan, Izgara, Not } from "./panelUI";
+import TurkiyeRehberi from "./TurkiyeRehberi";
+import SeyahatDefteri from "./SeyahatDefteri";
 
-// Seyahat Planlayıcı.
+// Seyahat Planlayıcı — üç bölüm, üç ayrı kimlik:
+//   KEŞFET (turkuaz)        — dünya şehirleri; şehir sayfasında saat saat rota ve canlı bütçe
+//   TÜRKİYE REHBERİ (kırmızı) — 81 il ve 7 bölgeyi kapsayan 10 tur rotası
+//   SEYAHAT DEFTERİM (amber)  — kişisel alan: takvim, pasaport, Türkiye haritası, hayal panosu
 //
-// Üç ekran:
-//   KEŞFET  — şehirleri karşılaştır, filtrele, sırala
-//   ŞEHİR   — o şehrin dosyası: puan, görseller, saat saat rota, canlı bütçe
-//   DEFTER  — yıllık plan, hayal listesi, gidilen yerler ve fotoğraflar
+// Defter, diğer iki bölümden beslenir ama onlara muhtaç değildir: kayıtlar
+// doğrudan defterden de eklenebilir.
 //
 // Vize ücreti bütçeye DAHİL DEĞİL: harç ve hizmet bedeli konsolosluğa, aracı
 // kuruma ve kura göre değişiyor; sabit yazmak yanıltıyordu. Vize bilgisi
@@ -27,7 +30,6 @@ const kisaTarih = (iso) => {
   const d = new Date(iso + "T12:00:00");
   return Number.isNaN(d.getTime()) ? iso : `${d.getDate()} ${AYLAR[d.getMonth()]} ${d.getFullYear()}`;
 };
-const gunFark = (iso) => Math.round((new Date(iso + "T12:00:00") - new Date(BUGUN() + "T12:00:00")) / 86400000);
 
 export default function TatilPlanlayici({ data, setData, userId }) {
   const kayit = data || {};
@@ -47,19 +49,43 @@ export default function TatilPlanlayici({ data, setData, userId }) {
   const kurDegis = (kod, deger) =>
     setData((s) => ({ ...(s || {}), kurlar: { ...((s || {}).kurlar || {}), [kod]: num(deger) } }));
 
-  const sehirAc = (id) => { setSeciliId(id); setGorunum("sehir"); if (typeof window !== "undefined") window.scrollTo(0, 0); };
-  const defterAc = () => { setGorunum("defter"); if (typeof window !== "undefined") window.scrollTo(0, 0); };
+  const yukari = () => { if (typeof window !== "undefined") window.scrollTo(0, 0); };
+  const sehirAc = (id) => { setSeciliId(id); setGorunum("sehir"); yukari(); };
+  const defterAc = () => { setGorunum("defter"); yukari(); };
+  // Türkiye Rehberi kendi iç gezinmesini tutar; dışarıdan (defterden) belirli
+  // bir il ya da tura açılması gerekince "acilis" ile başlatılır, anahtar
+  // değiştiği için bileşen o sayfadan yeniden kurulur.
+  const [rehberAcilis, setRehberAcilis] = useState({ ekran: "liste", id: null, anahtar: 0 });
+  const rehberAc = (ekran, id) => { setRehberAcilis((r) => ({ ekran, id, anahtar: r.anahtar + 1 })); setGorunum("turkiye"); yukari(); };
 
   const planlar = Array.isArray(kayit.planlar) ? kayit.planlar : [];
   const hayaller = Array.isArray(kayit.hayaller) ? kayit.hayaller : [];
 
+  // Rehber sayfalarındaki "Planla / Gittim / Hayal" düğmelerinin tek kapısı.
+  const defteraEkle = (ref, tur, ekstra = {}) => {
+    if (tur === "hayal") {
+      setData((s) => ({ ...(s || {}), hayaller: [...((s || {}).hayaller || []), { ...ref, id: yeniId(), hedefYil: new Date().getFullYear() + 1, not: "" }] }));
+      return;
+    }
+    setData((s) => ({
+      ...(s || {}),
+      planlar: [...((s || {}).planlar || []), {
+        ...ref, id: yeniId(), durum: tur, baslangic: ekstra.baslangic || "", bitis: ekstra.bitis || "",
+        gun: ekstra.gun || 0, kisi: 0, butce: 0, notlar: "", puan: 0, fotograflar: [],
+      }],
+    }));
+  };
+
   return (
     <section>
-      <UstGezinme gorunum={gorunum} onGorunum={(g) => { setGorunum(g); window.scrollTo(0, 0); }}
+      <UstGezinme gorunum={gorunum} onGorunum={(g) => { if (g === "turkiye") setRehberAcilis((r) => ({ ekran: "liste", id: null, anahtar: r.anahtar + 1 })); setGorunum(g); yukari(); }}
         planSayisi={planlar.filter((p) => p.durum !== "gidildi").length}
         gidilenSayisi={planlar.filter((p) => p.durum === "gidildi").length} />
 
-      {gorunum === "kesfet" ? (
+      {gorunum === "turkiye" ? (
+        <TurkiyeRehberi key={rehberAcilis.anahtar} acilis={rehberAcilis}
+          planlar={planlar} hayaller={hayaller} onDefter={defteraEkle} />
+      ) : gorunum === "kesfet" ? (
         <KesfetEkrani kurlar={kurlar} planlar={planlar} onSehir={sehirAc} />
       ) : gorunum === "sehir" && seciliId ? (
         <SehirSayfasi
@@ -76,35 +102,39 @@ export default function TatilPlanlayici({ data, setData, userId }) {
         <SeyahatDefteri
           planlar={planlar} hayaller={hayaller} setData={setData} userId={userId}
           onSehir={sehirAc}
+          onIl={(id) => rehberAc("il", id)}
+          onTur={(id) => rehberAc("tur", id)}
         />
       )}
     </section>
   );
 }
 
+// Üç bölüm, üç renk: ayrım ilk bakışta okunsun.
 function UstGezinme({ gorunum, onGorunum, planSayisi, gidilenSayisi }) {
   const sekmeler = [
-    { id: "kesfet", ad: "Keşfet", ikon: "🧭", rozet: `${SEHIRLER.length} şehir` },
-    { id: "defter", ad: "Seyahat Defterim", ikon: "📔", rozet: `${planSayisi} plan · ${gidilenSayisi} gidildi` },
+    { id: "kesfet", ad: "Keşfet", ikon: "🧭", rozet: `${SEHIRLER.length} şehir`, renk: "#2dd4bf" },
+    { id: "turkiye", ad: "Türkiye Rehberi", ikon: "🇹🇷", rozet: `${ILLER.length} il · 10 rota`, renk: "#e11d48" },
+    { id: "defter", ad: "Seyahat Defterim", ikon: "📔", rozet: `${planSayisi} plan · ${gidilenSayisi} gidildi`, renk: "#e7b85c" },
   ];
   return (
-    <div style={{ display: "flex", gap: 9, marginBottom: 16, flexWrap: "wrap" }}>
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: 9, marginBottom: 16 }}>
       {sekmeler.map((s) => {
         const aktif = gorunum === s.id || (s.id === "kesfet" && gorunum === "sehir");
         return (
           <button key={s.id} type="button" onClick={() => onGorunum(s.id)}
             style={{
-              display: "flex", alignItems: "center", gap: 9, padding: "11px 17px", borderRadius: 14, cursor: "pointer",
-              border: `1px solid ${aktif ? "rgba(45,212,191,.6)" : "rgba(148,163,184,.2)"}`,
-              background: aktif ? "linear-gradient(120deg, rgba(45,212,191,.26), rgba(45,212,191,.08))" : "rgba(2,6,23,.45)",
-              color: aktif ? "#fff" : "#94a3b8", fontSize: 14, fontWeight: 900,
+              position: "relative", overflow: "hidden", display: "flex", alignItems: "center", gap: 10, padding: "12px 16px",
+              borderRadius: 15, cursor: "pointer", textAlign: "left",
+              border: `1.5px solid ${aktif ? s.renk : "rgba(148,163,184,.2)"}`,
+              background: aktif ? `linear-gradient(120deg, ${s.renk}38, ${s.renk}0c)` : "rgba(2,6,23,.45)",
             }}>
-            <span style={{ fontSize: 16 }}>{s.ikon}</span>{s.ad}
-            <span style={{
-              color: aktif ? "#2dd4bf" : "#64748b", fontSize: 10.5, fontWeight: 700,
-              border: `1px solid ${aktif ? "rgba(45,212,191,.4)" : "rgba(148,163,184,.2)"}`,
-              borderRadius: 999, padding: "2px 8px", whiteSpace: "nowrap",
-            }}>{s.rozet}</span>
+            {aktif ? <span style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 4, background: s.renk }} /> : null}
+            <span style={{ fontSize: 21 }}>{s.ikon}</span>
+            <span style={{ minWidth: 0 }}>
+              <span style={{ display: "block", color: aktif ? "#fff" : "#cbd5e1", fontSize: 14.5, fontWeight: 900 }}>{s.ad}</span>
+              <span style={{ display: "block", color: aktif ? s.renk : "#64748b", fontSize: 11, fontWeight: 800, marginTop: 2 }}>{s.rozet}</span>
+            </span>
           </button>
         );
       })}
@@ -927,335 +957,5 @@ function Kart({ baslik, ikon, aciklama, renk, sag, children }) {
       </header>
       <div style={{ padding: "14px 15px", display: "grid", gap: 13 }}>{children}</div>
     </section>
-  );
-}
-
-// ======================= SEYAHAT DEFTERİ ===================================
-
-function SeyahatDefteri({ planlar, hayaller, setData, userId, onSehir }) {
-  const guncellePlan = (id, alan, deger) =>
-    setData((s) => ({
-      ...(s || {}),
-      planlar: (Array.isArray((s || {}).planlar) ? s.planlar : []).map((p) => (p.id === id ? { ...p, [alan]: deger } : p)),
-    }));
-  const silPlan = (id) =>
-    setData((s) => ({ ...(s || {}), planlar: (Array.isArray((s || {}).planlar) ? s.planlar : []).filter((p) => p.id !== id) }));
-  const ekleHayal = (h) =>
-    setData((s) => ({ ...(s || {}), hayaller: [...(Array.isArray((s || {}).hayaller) ? s.hayaller : []), h] }));
-  const guncelleHayal = (id, alan, deger) =>
-    setData((s) => ({
-      ...(s || {}),
-      hayaller: (Array.isArray((s || {}).hayaller) ? s.hayaller : []).map((h) => (h.id === id ? { ...h, [alan]: deger } : h)),
-    }));
-  const silHayal = (id) =>
-    setData((s) => ({ ...(s || {}), hayaller: (Array.isArray((s || {}).hayaller) ? s.hayaller : []).filter((h) => h.id !== id) }));
-
-  const buYil = new Date().getFullYear();
-  const planlanan = planlar.filter((p) => p.durum !== "gidildi").sort((a, b) => (a.baslangic || "9999").localeCompare(b.baslangic || "9999"));
-  const gidilen = planlar.filter((p) => p.durum === "gidildi").sort((a, b) => (b.baslangic || "").localeCompare(a.baslangic || ""));
-  const ulkeler = new Set(gidilen.map((p) => SEHIRLER.find((s) => s.id === p.sehirId)?.ulke).filter(Boolean));
-  const toplamGun = gidilen.reduce((s, p) => s + num(p.gun), 0);
-  const buYilPlan = planlanan.filter((p) => p.baslangic && p.baslangic.startsWith(String(buYil))).length;
-
-  return (
-    <>
-      <header style={{
-        position: "relative", overflow: "hidden", borderRadius: 22, marginBottom: 16,
-        border: "1px solid rgba(251,191,36,.28)",
-        background: "linear-gradient(130deg, rgba(251,191,36,.18), rgba(45,212,191,.1) 55%, rgba(2,6,23,.5))",
-        padding: "22px 24px",
-      }}>
-        <div style={{ color: "#fbbf24", fontSize: 11.5, fontWeight: 900, letterSpacing: ".1em", textTransform: "uppercase" }}>
-          Seyahat Defterim
-        </div>
-        <h2 style={{ color: "#fff", fontSize: 27, fontWeight: 900, margin: "8px 0 0", lineHeight: 1.2 }}>
-          Nereye gittim, nereye gideceğim
-        </h2>
-        <p style={{ color: "#cbd5e1", fontSize: 13.5, margin: "9px 0 0", lineHeight: 1.65, maxWidth: 600 }}>
-          Planladığın seyahatler tarihleriyle burada bekler, dönünce <strong style={{ color: "#fff" }}>✓ gidildi</strong> işaretlenir
-          ve fotoğraflarınla birlikte deftere geçer. Hayal listesi ise ileri yıllar için.
-        </p>
-      </header>
-
-      <KutuIzgara min={158}>
-        <Kutu etiket="Gezilen Ülke" deger={String(ulkeler.size)} renk="#34d399" alt={[...ulkeler].slice(0, 3).join(", ") || "Henüz yok"} />
-        <Kutu etiket="Gezilen Şehir" deger={String(gidilen.length)} renk="#2dd4bf" alt="Deftere işlenen seyahat" />
-        <Kutu etiket="Toplam Gün" deger={String(toplamGun)} renk="#60a5fa" alt="Yolda geçen gün" />
-        <Kutu etiket="Planlı Seyahat" deger={String(planlanan.length)} renk="#fbbf24" alt={`${buYilPlan} tanesi ${buYil} içinde`} />
-        <Kutu etiket="Hayal Listesi" deger={String(hayaller.length)} renk="#c084fc" alt="Mutlaka gidilecek" />
-      </KutuIzgara>
-
-      <Kart baslik="Planlanan Seyahatler" ikon="📍" renk="#fbbf24"
-        aciklama="Keşfet ekranından bir şehir seçip 'Seyahat Defterime ekle' dediğinde buraya düşer.">
-        {planlanan.length ? (
-          <div style={{ display: "grid", gap: 11 }}>
-            {planlanan.map((p) => (
-              <PlanKarti key={p.id} plan={p} onGuncelle={guncellePlan} onSil={silPlan} onSehir={onSehir} userId={userId} />
-            ))}
-          </div>
-        ) : (
-          <Not tur="bilgi">Henüz planlanmış seyahat yok. <strong>Keşfet</strong> sekmesinden bir şehir seç, gidiş tarihini gir ve deftere ekle.</Not>
-        )}
-      </Kart>
-
-      <Kart baslik="Gittiğim Yerler" ikon="✅" renk="#34d399"
-        aciklama="Puan ver, not düş, fotoğraflarını yükle. Fotoğraflar hesabına özel bir klasörde saklanır.">
-        {gidilen.length ? (
-          <div style={{ display: "grid", gap: 11 }}>
-            {gidilen.map((p) => (
-              <PlanKarti key={p.id} plan={p} onGuncelle={guncellePlan} onSil={silPlan} onSehir={onSehir} userId={userId} gidildi />
-            ))}
-          </div>
-        ) : (
-          <Not tur="bilgi">Henüz deftere işlenmiş seyahat yok. Planladığın bir seyahatten dönünce <strong>✓ Gidildi</strong> işaretle.</Not>
-        )}
-      </Kart>
-
-      <HayalListesi hayaller={hayaller} onEkle={ekleHayal} onGuncelle={guncelleHayal} onSil={silHayal} onSehir={onSehir} />
-    </>
-  );
-}
-
-function PlanKarti({ plan, onGuncelle, onSil, onSehir, userId, gidildi }) {
-  const sehir = SEHIRLER.find((s) => s.id === plan.sehirId);
-  const [acik, setAcik] = useState(false);
-  const kalan = plan.baslangic ? gunFark(plan.baslangic) : null;
-  const renk = gidildi ? "#34d399" : "#fbbf24";
-
-  return (
-    <div style={{ border: `1px solid ${renk}33`, borderRadius: 16, overflow: "hidden", background: `${renk}08` }}>
-      <div style={{ display: "flex", alignItems: "stretch", gap: 0 }}>
-        {sehir?.gorseller?.[0] ? (
-          <img src={sehir.gorseller[0]} alt="" loading="lazy"
-            style={{ width: 96, flex: "0 0 auto", objectFit: "cover", display: "block" }} />
-        ) : null}
-        <div style={{ flex: 1, minWidth: 0, padding: "12px 13px" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 9, flexWrap: "wrap", marginBottom: 5 }}>
-            <strong style={{ color: "#fff", fontSize: 16 }}>{sehir?.ad || "Şehir"}</strong>
-            <span style={{ color: "#94a3b8", fontSize: 12 }}>{sehir?.bayrak} {sehir?.ulke}</span>
-            {gidildi ? (
-              <span style={{ background: "rgba(52,211,153,.9)", color: "#04121f", borderRadius: 999, padding: "2px 9px", fontSize: 10.5, fontWeight: 900 }}>✓ Gidildi</span>
-            ) : kalan != null && kalan >= 0 ? (
-              <span style={{ background: "rgba(251,191,36,.9)", color: "#04121f", borderRadius: 999, padding: "2px 9px", fontSize: 10.5, fontWeight: 900 }}>
-                {kalan === 0 ? "Bugün!" : `${kalan} gün kaldı`}
-              </span>
-            ) : null}
-          </div>
-          <div style={{ color: "#94a3b8", fontSize: 11.5, lineHeight: 1.6 }}>
-            {plan.baslangic ? kisaTarih(plan.baslangic) : "Tarih girilmedi"}
-            {plan.bitis ? ` – ${kisaTarih(plan.bitis)}` : ""}
-            {plan.gun ? ` · ${plan.gun} gün` : ""}{plan.kisi ? ` · ${plan.kisi} kişi` : ""}
-            {plan.butce ? ` · ${tl(plan.butce)}` : ""}
-          </div>
-          {gidildi && plan.puan ? (
-            <div style={{ color: "#fbbf24", fontSize: 13, marginTop: 5 }}>
-              {"★".repeat(plan.puan)}<span style={{ color: "#334155" }}>{"★".repeat(5 - plan.puan)}</span>
-            </div>
-          ) : null}
-          {gidildi && plan.fotograflar?.length ? (
-            <div style={{ color: "#64748b", fontSize: 10.5, marginTop: 4 }}>📷 {plan.fotograflar.length} fotoğraf</div>
-          ) : null}
-        </div>
-        <div style={{ display: "flex", flexDirection: "column", gap: 6, padding: "12px 12px 12px 0", flex: "0 0 auto" }}>
-          <button type="button" onClick={() => setAcik((v) => !v)}
-            style={{ border: `1px solid ${renk}55`, background: `${renk}18`, color: renk, borderRadius: 10, padding: "6px 11px", cursor: "pointer", fontSize: 11.5, fontWeight: 800, whiteSpace: "nowrap" }}>
-            {acik ? "Kapat" : "Düzenle"}
-          </button>
-          <button type="button" onClick={() => onSehir(plan.sehirId)}
-            style={{ border: "1px solid rgba(148,163,184,.3)", background: "rgba(2,6,23,.5)", color: "#94a3b8", borderRadius: 10, padding: "6px 11px", cursor: "pointer", fontSize: 11.5, fontWeight: 800, whiteSpace: "nowrap" }}>
-            Rotayı aç
-          </button>
-        </div>
-      </div>
-
-      {acik ? (
-        <div style={{ padding: "13px", borderTop: `1px solid ${renk}22`, display: "grid", gap: 12 }}>
-          <Izgara min={135}>
-            <Alan label="Gidiş">
-              <input type="date" value={plan.baslangic || ""} onChange={(e) => onGuncelle(plan.id, "baslangic", e.target.value)} style={satirInput} />
-            </Alan>
-            <Alan label="Dönüş">
-              <input type="date" value={plan.bitis || ""} onChange={(e) => onGuncelle(plan.id, "bitis", e.target.value)} style={satirInput} />
-            </Alan>
-            <Alan label="Bütçe (₺)">
-              <input value={plan.butce || ""} inputMode="numeric"
-                onChange={(e) => onGuncelle(plan.id, "butce", num(e.target.value.replace(/[^\d]/g, "")))} style={satirInput} />
-            </Alan>
-            {gidildi ? (
-              <Alan label="Puanın" hint="1–5 yıldız">
-                <div style={{ display: "flex", gap: 4, alignItems: "center", height: 38 }}>
-                  {[1, 2, 3, 4, 5].map((n) => (
-                    <button key={n} type="button" onClick={() => onGuncelle(plan.id, "puan", n)}
-                      style={{ border: "none", background: "transparent", cursor: "pointer", fontSize: 21, padding: 0, color: n <= (plan.puan || 0) ? "#fbbf24" : "#334155" }}>★</button>
-                  ))}
-                </div>
-              </Alan>
-            ) : null}
-          </Izgara>
-
-          <Alan label="Notların" hint="Nerede kaldın, ne yedin, bir dahakine ne yaparsın?">
-            <textarea value={plan.notlar || ""} rows={3}
-              onChange={(e) => onGuncelle(plan.id, "notlar", e.target.value)}
-              style={{ ...satirInput, resize: "vertical", fontFamily: "inherit", lineHeight: 1.6 }} />
-          </Alan>
-
-          {gidildi ? <Fotograflar plan={plan} userId={userId} onGuncelle={onGuncelle} /> : null}
-
-          <div style={{ display: "flex", gap: 9, flexWrap: "wrap" }}>
-            <button type="button" onClick={() => onGuncelle(plan.id, "durum", gidildi ? "plan" : "gidildi")}
-              style={{
-                flex: 1, minWidth: 180, height: 44, borderRadius: 12, cursor: "pointer", border: "none",
-                background: gidildi ? "rgba(148,163,184,.18)" : "linear-gradient(120deg, #34d399, #10b981)",
-                color: gidildi ? "#cbd5e1" : "#04121f", fontSize: 13.5, fontWeight: 900,
-              }}>
-              {gidildi ? "↩ Plana geri al" : "✓ Gidildi olarak işaretle"}
-            </button>
-            <button type="button" onClick={() => onSil(plan.id)}
-              style={{ height: 44, borderRadius: 12, cursor: "pointer", border: "1px solid rgba(248,113,113,.35)", background: "rgba(248,113,113,.1)", color: "#fb7185", padding: "0 16px", fontSize: 13, fontWeight: 800 }}>
-              Sil
-            </button>
-          </div>
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
-// Fotoğraflar Supabase Storage'da: seyahat-fotograf/{kullaniciId}/{planId}/...
-// Kova herkese açık okunur ama yazma yalnızca kendi klasörüne (RLS).
-function Fotograflar({ plan, userId, onGuncelle }) {
-  const [yukleniyor, setYukleniyor] = useState(false);
-  const [hata, setHata] = useState("");
-  const girdiRef = useRef(null);
-  const liste = Array.isArray(plan.fotograflar) ? plan.fotograflar : [];
-
-  const yukle = async (dosyalar) => {
-    if (!supabase || !userId) { setHata("Fotoğraf yüklemek için oturum gerekiyor."); return; }
-    setHata(""); setYukleniyor(true);
-    const yeni = [];
-    for (const dosya of Array.from(dosyalar).slice(0, 10)) {
-      if (dosya.size > 5 * 1024 * 1024) { setHata(`${dosya.name} 5 MB'tan büyük, atlandı.`); continue; }
-      const uzanti = (dosya.name.split(".").pop() || "jpg").toLowerCase();
-      const yol = `${userId}/${plan.id}/${yeniId()}.${uzanti}`;
-      const { error } = await supabase.storage.from("seyahat-fotograf").upload(yol, dosya, { cacheControl: "3600", upsert: false });
-      if (error) { setHata("Yükleme hatası: " + error.message); continue; }
-      const { data } = supabase.storage.from("seyahat-fotograf").getPublicUrl(yol);
-      yeni.push({ yol, url: data.publicUrl });
-    }
-    if (yeni.length) onGuncelle(plan.id, "fotograflar", [...liste, ...yeni]);
-    setYukleniyor(false);
-    if (girdiRef.current) girdiRef.current.value = "";
-  };
-
-  const sil = async (foto) => {
-    if (supabase && foto.yol) await supabase.storage.from("seyahat-fotograf").remove([foto.yol]).catch(() => {});
-    onGuncelle(plan.id, "fotograflar", liste.filter((f) => f.yol !== foto.yol));
-  };
-
-  return (
-    <div>
-      <span style={{ display: "block", color: "#cbd5e1", fontSize: 11.5, fontWeight: 700, marginBottom: 8 }}>
-        Fotoğraflarım {liste.length ? `(${liste.length})` : ""}
-      </span>
-      {liste.length ? (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(104px, 1fr))", gap: 8, marginBottom: 10 }}>
-          {liste.map((f) => (
-            <div key={f.yol} style={{ position: "relative", borderRadius: 11, overflow: "hidden", aspectRatio: "4/3", background: "rgba(2,6,23,.6)" }}>
-              <a href={f.url} target="_blank" rel="noopener noreferrer">
-                <img src={f.url} alt="" loading="lazy" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
-              </a>
-              <button type="button" onClick={() => sil(f)} title="Fotoğrafı sil"
-                style={{
-                  position: "absolute", top: 5, right: 5, width: 24, height: 24, borderRadius: 8, cursor: "pointer",
-                  border: "none", background: "rgba(2,6,23,.75)", color: "#fb7185", fontSize: 14, fontWeight: 900,
-                }}>×</button>
-            </div>
-          ))}
-        </div>
-      ) : null}
-
-      <input ref={girdiRef} type="file" accept="image/*" multiple style={{ display: "none" }}
-        onChange={(e) => e.target.files?.length && yukle(e.target.files)} />
-      <button type="button" onClick={() => girdiRef.current?.click()} disabled={yukleniyor}
-        style={{
-          width: "100%", height: 44, borderRadius: 12, cursor: yukleniyor ? "default" : "pointer",
-          border: "1px dashed rgba(45,212,191,.45)", background: "rgba(45,212,191,.08)", color: "#2dd4bf",
-          fontSize: 13, fontWeight: 800, opacity: yukleniyor ? 0.6 : 1,
-        }}>
-        {yukleniyor ? "⏳ Yükleniyor…" : "📷 Fotoğraf ekle (en fazla 5 MB)"}
-      </button>
-      {hata ? <div style={{ color: "#fb7185", fontSize: 11.5, marginTop: 7 }}>{hata}</div> : null}
-    </div>
-  );
-}
-
-function HayalListesi({ hayaller, onEkle, onGuncelle, onSil, onSehir }) {
-  const [sehirId, setSehirId] = useState("");
-  const [yil, setYil] = useState(String(new Date().getFullYear() + 1));
-  const buYil = new Date().getFullYear();
-  const sirali = [...hayaller].sort((a, b) => num(a.hedefYil) - num(b.hedefYil));
-
-  return (
-    <Kart baslik="Hayal Listesi" ikon="🌟" renk="#c084fc"
-      aciklama="Bu yıl değil ama mutlaka gidilecek yerler. Hedef yıl ver, zamanı gelince plana çevir.">
-      <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr auto", gap: 9, alignItems: "end" }}>
-        <Alan label="Şehir">
-          <select value={sehirId} onChange={(e) => setSehirId(e.target.value)} style={satirInput}>
-            <option value="">Seç…</option>
-            {SEHIRLER.filter((s) => !hayaller.some((h) => h.sehirId === s.id))
-              .sort((a, b) => a.ad.localeCompare(b.ad, "tr"))
-              .map((s) => <option key={s.id} value={s.id}>{s.bayrak} {s.ad} — {s.ulke}</option>)}
-          </select>
-        </Alan>
-        <Alan label="Hedef yıl">
-          <input value={yil} inputMode="numeric" onChange={(e) => setYil(e.target.value.replace(/[^\d]/g, "").slice(0, 4))} style={satirInput} />
-        </Alan>
-        <button type="button"
-          onClick={() => { if (!sehirId) return; onEkle({ id: yeniId(), sehirId, hedefYil: num(yil) || buYil + 1, not: "" }); setSehirId(""); }}
-          style={{ height: 38, borderRadius: 11, cursor: "pointer", border: "none", background: "linear-gradient(120deg, #c084fc, #a855f7)", color: "#1a0b2e", padding: "0 18px", fontSize: 13, fontWeight: 900, whiteSpace: "nowrap" }}>
-          Ekle
-        </button>
-      </div>
-
-      {sirali.length ? (
-        <div style={{ display: "grid", gap: 8 }}>
-          {sirali.map((h) => {
-            const s = SEHIRLER.find((x) => x.id === h.sehirId);
-            const yakin = num(h.hedefYil) <= buYil;
-            return (
-              <div key={h.id} style={{
-                display: "flex", alignItems: "center", gap: 11, padding: "10px 12px", borderRadius: 13,
-                border: `1px solid ${yakin ? "rgba(192,132,252,.5)" : "rgba(148,163,184,.18)"}`,
-                background: yakin ? "rgba(192,132,252,.1)" : "rgba(2,6,23,.4)",
-              }}>
-                {s?.gorseller?.[0] ? (
-                  <img src={s.gorseller[0]} alt="" loading="lazy"
-                    style={{ width: 52, height: 40, borderRadius: 9, objectFit: "cover", flex: "0 0 auto" }} />
-                ) : null}
-                <span style={{ flex: 1, minWidth: 0 }}>
-                  <span style={{ display: "block", color: "#fff", fontSize: 13.5, fontWeight: 800 }}>
-                    {s?.ad || "Şehir"} <span style={{ color: "#94a3b8", fontWeight: 500, fontSize: 11.5 }}>{s?.bayrak} {s?.ulke}</span>
-                  </span>
-                  <span style={{ display: "block", color: "#94a3b8", fontSize: 11, marginTop: 2 }}>
-                    Hedef: {h.hedefYil}{yakin ? " · zamanı geldi" : ""}
-                  </span>
-                </span>
-                <input value={h.hedefYil} inputMode="numeric"
-                  onChange={(e) => onGuncelle(h.id, "hedefYil", num(e.target.value.replace(/[^\d]/g, "").slice(0, 4)))}
-                  style={{ ...satirInput, width: 68, flex: "0 0 auto", textAlign: "center", padding: "6px 4px" }} />
-                <button type="button" onClick={() => onSehir(h.sehirId)}
-                  style={{ border: "1px solid rgba(148,163,184,.3)", background: "rgba(2,6,23,.5)", color: "#94a3b8", borderRadius: 9, padding: "6px 10px", cursor: "pointer", fontSize: 11, fontWeight: 800, whiteSpace: "nowrap", flex: "0 0 auto" }}>
-                  Planla
-                </button>
-                <button type="button" onClick={() => onSil(h.id)}
-                  style={{ width: 30, height: 30, borderRadius: 9, cursor: "pointer", border: "1px solid rgba(248,113,113,.3)", background: "rgba(248,113,113,.1)", color: "#fb7185", fontSize: 15, fontWeight: 900, flex: "0 0 auto" }}>×</button>
-              </div>
-            );
-          })}
-        </div>
-      ) : (
-        <Not tur="bilgi">Liste boş. Yukarıdan bir şehir seçip hedef yıl ver — ileride buradan plana çevirirsin.</Not>
-      )}
-    </Kart>
   );
 }
