@@ -45,6 +45,20 @@ hemen bulan, baktığında heyecanlanan** bir ekran.
 
 ## 3. Listeleme / editörlük
 
+- **Eksenleri karıştırma.** Katalogda her soru ayrı bir eksendir: *ne* (yemek/ürün:
+  burger, pizza…), *nasıl bir yer* (tür: meyhane, bar…), *atmosfer* (rooftop, bahçe…),
+  *nerede*, *kiminle*, *bütçe*. Tek bir "kategori" listesine karıştırılınca "en iyi
+  burgerciler" gibi en doğal soru cevapsız kalır (kullanıcı "mantığında sorun var" dedi).
+  Her öğe her eksende çoklu etiket taşıyabilir; arayüzde her eksen ayrı bir soru.
+- Varsayılan liste, kullanıcının en sık sorduğu eksende bölümlenir ("En iyi
+  burgerciler, en iyi pizzacılar…"); konum/durum seçilince tür eksenine geçer.
+- Kural tabanlı etiketlemede **Türkçe kelime içi eşleşme** tuzakları: "kalabalık"→balık,
+  "kokoreç"→kore, "ekşi mayalı"→yalı, "Anadolu yakası"→Anadolu mutfağı,
+  "1977'den beri"→tarihi. Kelime başına bağla, sonra her etiketin listesini
+  isim isim oku ve elle düzelt.
+- İçki etiketleri (kokteyl/şarap/bira) yalnızca o türde bar olan yerlere: yoksa
+  "en iyi kokteyl barları" listesinin başına restoranlar çıkar.
+
 - **Sıralama bir görüştür.** Puan, ödül, fiyat; durum seçilince o duruma
   "asıl amacı bu olan" yerler öne çıkar.
 - Her öğe: ad · tür · semt · fiyat · **"ne yenir/içilir" tek satır** · 1–2 cümle not.

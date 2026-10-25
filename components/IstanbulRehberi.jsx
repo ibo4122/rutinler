@@ -2,20 +2,23 @@
 
 import { useEffect, useMemo, useState } from "react";
 import {
-  ALANLAR, ORTAMLAR, DURUMLAR, FIYATLAR, ODULLER, BOLGELER, MEKANLAR, ONERILER, GECELER,
-  mekanBul, ortamBul, haritaGomulu, haritaLink, yolTarifi, rotaLink, durumPuani,
+  ALANLAR, TURLER, YEMEKLER, YEMEK_GRUPLARI, OZELLIKLER, GUZEL_NEDEN, DURUMLAR, FIYATLAR, ODULLER, BOLGELER,
+  MEKANLAR, ONERILER, GECELER,
+  mekanBul, turBul, yemekBul, ozellikBul, haritaGomulu, haritaLink, yolTarifi, rotaLink, durumPuani,
 } from "../lib/istanbul";
 
 // İstanbul Rehberi — "gece listesi" kimliği: siyah zemin, sıcak beyaz yazı,
-// her ortamın kendi neon rengi, büyük sıra numaraları ve gerçek mekân
+// her kategorinin kendi neon rengi, büyük sıra numaraları ve gerçek mekân
 // fotoğrafları. Seyahat alanının turkuaz broşür havasından bilinçli olarak ayrışır.
 //
-// Gezinme dört soruyla kurulur: NEREDE · KİMİNLE · NE · BÜTÇE. Hepsinin
-// varsayılanı "fark etmez"; hiçbir şey seçmek zorunlu değil. Sorulardan birine
-// dokununca altında fotoğraflı seçenekler açılır (bölge kartları, ortam
-// karoları…). Hiç filtre yokken sayfa bir keşif ekranıdır: ortam karoları,
-// semt kartları, numaralı öneri listeleri ve her ortamın en iyileri.
-// Bir semt seçilince o semtin restoranları, barları, kafeleri bölüm bölüm gelir.
+// MANTIK — üç bağımsız eksen (bkz. lib/istanbul.js):
+//   CANIN NE ÇEKİYOR?  yemek: burger, pizza, suşi, döner, kebap… (+ tatlı/kahve/içki)
+//   NASIL BİR YER?     mekân türü: meyhane, kokteyl barı, esnaf lokantası… + özellikler
+//   ✨ GÜZEL MEKÂN      manzara/Boğaz/bahçe/tarihi/romantik ya da fine dining
+// Bunlara NEREDE (semt), KİMİNLE (durum) ve BÜTÇE eklenir; hepsinin varsayılanı
+// "fark etmez". Hiç seçim yokken liste "en iyi burgerciler, en iyi pizzacılar…"
+// diye yemek bölümlerine ayrılır; semt ya da durum seçilince bölümler mekân
+// türüne geçer (Kadıköy'ün meyhaneleri, barları, kafeleri…).
 //
 // Puan editoryal "rehber puanı"; GOOGLE_PLACES_API_KEY varsa canlı Google
 // puanı, yorum sayısı ve mekân fotoğrafı da gelir (bkz. /api/mekan-google).
@@ -33,7 +36,8 @@ const MONO = "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace";
 const BOLUM_ILK = 5;
 const fiyatSimge = (f) => FIYATLAR.find((x) => x.id === f)?.simge || "";
 const kucuk = (s) => String(s || "").toLocaleLowerCase("tr");
-const ana = (m) => ortamBul(m.ortamlar[0]) || ORTAMLAR[0];
+const ilkHarfBuyuk = (s) => s.charAt(0).toLocaleUpperCase("tr") + s.slice(1);
+const ana = (m) => turBul(m.turler[0]) || TURLER[0];
 const sayiTR = (n) => new Intl.NumberFormat("tr-TR").format(n);
 const puanSirala = (a, b) => b.puan - a.puan;
 // Karolarda aynı fotoğraf iki kez görünmesin: "kullanilan" kümesi verilirse onları atlar.
@@ -42,7 +46,13 @@ const enIyiGorsel = (l, kullanilan) => {
   if (g && kullanilan) kullanilan.add(g);
   return g;
 };
+const kapakGorsel = (kapakId, l, kullanilan) => {
+  const k = kapakId ? mekanBul(kapakId)?.gorsel : null;
+  if (k && !kullanilan.has(k)) { kullanilan.add(k); return k; }
+  return enIyiGorsel(l, kullanilan);
+};
 const bolgeBul = (id) => BOLGELER.find((b) => b.id === id) || null;
+const yemekSay = (id) => MEKANLAR.filter((m) => m.yemekler.includes(id)).length;
 
 // ---------- canlı Google verisi (anahtar varsa) ----------
 function useGoogle() {
@@ -85,7 +95,7 @@ function useDar() {
   return dar;
 }
 
-const BOS_FILTRE = { alan: "hepsi", ortam: "hepsi", bolge: "hepsi", durum: "hepsi", fiyat: "hepsi", liste: "hepsi", arama: "" };
+const BOS_FILTRE = { yemek: "hepsi", alan: "hepsi", tur: "hepsi", ozellik: "hepsi", guzel: false, bolge: "hepsi", durum: "hepsi", fiyat: "hepsi", liste: "hepsi", arama: "" };
 
 export default function IstanbulRehberi({ data, setData }) {
   const kayit = data || {};
@@ -98,7 +108,7 @@ export default function IstanbulRehberi({ data, setData }) {
 
   const [f, setF] = useState(BOS_FILTRE);
   const [oneri, setOneri] = useState(null);
-  const [secici, setSecici] = useState(null); // nerede | kiminle | ne | butce
+  const [secici, setSecici] = useState(null); // nerede | kiminle | yemek | yer | butce
   const [sirala, setSirala] = useState("puan");
   const [acikBolumler, setAcikBolumler] = useState({});
   const [seciliId, setSeciliId] = useState(null);
@@ -115,6 +125,7 @@ export default function IstanbulRehberi({ data, setData }) {
   };
   const sifirla = () => { setF(BOS_FILTRE); setSeciliId(null); setOneri(null); setAcikBolumler({}); setSecici(null); };
   const oneriAc = (id) => { setF(BOS_FILTRE); setOneri(id); setSeciliId(null); setSecici(null); sonuclaraIn(); };
+  const ac = (s) => setSecici(secici === s ? null : s);
 
   const listeDegis = (alan, id) =>
     setData((s) => {
@@ -129,15 +140,21 @@ export default function IstanbulRehberi({ data, setData }) {
   };
   const notYaz = (id, metin) => setData((s) => ({ ...(s || {}), notlar: { ...((s || {}).notlar || {}), [id]: metin } }));
 
-  // Ortam dışındaki tüm filtreler
   const uyar = useMemo(() => {
     const t = kucuk(f.arama.trim());
+    const alanTurleri = f.alan === "hepsi" ? null : TURLER.filter((x) => x.alanlar.includes(f.alan)).map((x) => x.id);
     return (m) =>
+      (f.yemek === "hepsi" || m.yemekler.includes(f.yemek)) &&
+      (f.tur === "hepsi" || m.turler.includes(f.tur)) &&
+      (!alanTurleri || m.turler.some((x) => alanTurleri.includes(x))) &&
+      (f.ozellik === "hepsi" || m.ozellikler.includes(f.ozellik)) &&
+      (!f.guzel || !!m.guzel) &&
       (f.bolge === "hepsi" || (f.bolge === "avrupa" || f.bolge === "anadolu" ? m.yaka === f.bolge : m.bolge === f.bolge)) &&
       (f.durum === "hepsi" || m.durumlar.includes(f.durum)) &&
       (f.fiyat === "hepsi" || m.fiyat === f.fiyat) &&
       (f.liste === "hepsi" || (f.liste === "fav" ? favoriler.includes(m.id) : gittim.includes(m.id))) &&
-      (!t || [m.ad, m.semt, bolgeBul(m.bolge)?.ad, m.imza, m.not, ...m.etiketler, ...m.ortamlar.map((o) => ortamBul(o)?.ad)].some((x) => kucuk(x).includes(t)));
+      (!t || [m.ad, m.semt, bolgeBul(m.bolge)?.ad, m.imza, m.not, ...m.etiketler,
+        ...m.turler.map((x) => turBul(x)?.ad), ...m.yemekler.map((x) => yemekBul(x)?.ad)].some((x) => kucuk(x).includes(t)));
   }, [f, favoriler, gittim]);
 
   const durumObj = DURUMLAR.find((d) => d.id === f.durum) || null;
@@ -145,34 +162,37 @@ export default function IstanbulRehberi({ data, setData }) {
     const g = google.veri;
     const temel = durumObj ? (a, b) => durumPuani(b, durumObj.id) - durumPuani(a, durumObj.id) : puanSirala;
     if (sirala === "google") return [...l].sort((a, b) => (g[b.id]?.puan || 0) - (g[a.id]?.puan || 0) || temel(a, b));
+    if (sirala === "guzel") return [...l].sort((a, b) => (b.guzel ? 1 : 0) - (a.guzel ? 1 : 0) || temel(a, b));
     if (sirala === "ucuz") return [...l].sort((a, b) => a.fiyat - b.fiyat || temel(a, b));
     if (sirala === "pahali") return [...l].sort((a, b) => b.fiyat - a.fiyat || temel(a, b));
     return [...l].sort(temel);
   };
 
-  // Durum seçiliyse bölümler o durumun öncelik sırasına dizilir.
-  const oncelik = (id) => { const i = durumObj ? durumObj.oncelik.indexOf(id) : -1; return i < 0 ? 99 : i; };
-  const gorunurOrtamlar = ORTAMLAR.filter((o) => f.alan === "hepsi" || o.alanlar.includes(f.alan))
-    .map((o, i) => ({ o, i })).sort((a, b) => oncelik(a.o.id) - oncelik(b.o.id) || a.i - b.i).map((x) => x.o);
   const oneriObj = ONERILER.find((o) => o.id === oneri) || null;
   const filtreVar = Object.keys(BOS_FILTRE).some((k) => f[k] !== BOS_FILTRE[k]);
   const kesif = !oneriObj && !filtreVar;
-  const bolumlu = !oneriObj && f.ortam === "hepsi" && !f.arama.trim() && f.liste === "hepsi";
+  // Belirli bir yemek, tür, özellik, arama ya da liste seçiliyse düz liste; değilse bölümler.
+  const bolumlu = !oneriObj && f.yemek === "hepsi" && f.tur === "hepsi" && f.ozellik === "hepsi" && !f.arama.trim() && f.liste === "hepsi";
+  // Bölüm ekseni: semt ya da durum seçiliyse mekân türü (meyhaneler, barlar…), değilse yemek (burgerciler, pizzacılar…).
+  const eksen = f.bolge !== "hepsi" || durumObj || f.alan !== "hepsi" ? "tur" : "yemek";
+  const oncelik = (id) => { const i = durumObj ? durumObj.oncelik.indexOf(id) : -1; return i < 0 ? 99 : i; };
 
   const gorunum = useMemo(() => {
     if (oneriObj) {
       return { tur: "oneri", satirlar: oneriObj.liste.map(([id, neden]) => ({ m: mekanBul(id), neden })).filter((x) => x.m) };
     }
     if (bolumlu) {
-      const bolumler = gorunurOrtamlar
-        .map((o) => ({ o, l: sirali(MEKANLAR.filter((m) => m.ortamlar.includes(o.id) && uyar(m))) }))
+      const kategoriler = eksen === "tur"
+        ? TURLER.filter((t) => f.alan === "hepsi" || t.alanlar.includes(f.alan)).map((o, i) => ({ o, i }))
+          .sort((a, b) => oncelik(a.o.id) - oncelik(b.o.id) || a.i - b.i).map((x) => x.o)
+        : YEMEKLER;
+      const bolumler = kategoriler
+        .map((o) => ({ o, l: sirali(MEKANLAR.filter((m) => (eksen === "tur" ? m.turler : m.yemekler).includes(o.id) && uyar(m))) }))
         .filter((b) => b.l.length);
       return { tur: "bolum", bolumler };
     }
-    const l = MEKANLAR.filter((m) =>
-      (f.ortam === "hepsi" ? m.ortamlar.some((o) => gorunurOrtamlar.some((g) => g.id === o)) : m.ortamlar.includes(f.ortam)) && uyar(m));
-    return { tur: "duz", satirlar: sirali(l).map((m) => ({ m })) };
-  }, [oneriObj, bolumlu, f, uyar, sirala, google.veri]);
+    return { tur: "duz", satirlar: sirali(MEKANLAR.filter(uyar)).map((m) => ({ m })) };
+  }, [oneriObj, bolumlu, eksen, f, uyar, sirala, google.veri]);
 
   const gorunenler = gorunum.tur === "bolum"
     ? gorunum.bolumler.flatMap((b) => (acikBolumler[b.o.id] ? b.l : b.l.slice(0, BOLUM_ILK)))
@@ -182,16 +202,23 @@ export default function IstanbulRehberi({ data, setData }) {
   const sec = (m) => { setSeciliId(m.id); if (dar) setSayfaAcik(true); };
 
   // Soru kutularındaki değer metinleri
+  const yemekObj = yemekBul(f.yemek);
+  const turObj = turBul(f.tur);
+  const ozObj = ozellikBul(f.ozellik);
   const neredeMetin = f.bolge === "hepsi" ? "Tüm İstanbul" : f.bolge === "avrupa" ? "Avrupa yakası" : f.bolge === "anadolu" ? "Anadolu yakası" : bolgeBul(f.bolge).ad;
-  const neMetin = f.ortam !== "hepsi" ? ortamBul(f.ortam).ad : f.alan !== "hepsi" ? `${ALANLAR.find((a) => a.id === f.alan).ad} — hepsi` : "Her şey";
+  const yemekMetin = yemekObj ? `${yemekObj.ikon} ${yemekObj.ad}` : "Fark etmez";
+  const yerMetin = [turObj?.ad || (f.alan !== "hepsi" ? ALANLAR.find((a) => a.id === f.alan).ad : null), ozObj?.kisa, f.guzel ? "✨ Güzel" : null].filter(Boolean).join(" · ") || "Fark etmez";
   const kiminleMetin = durumObj ? durumObj.ad : "Fark etmez";
   const butceMetin = f.fiyat === "hepsi" ? "Fark etmez" : `${fiyatSimge(f.fiyat)} ${FIYATLAR.find((x) => x.id === f.fiyat).ad}`;
-  const neRenk = f.ortam !== "hepsi" ? ortamBul(f.ortam).renk : null;
 
+  const yerEki = f.bolge !== "hepsi" ? ` · ${neredeMetin}` : "";
   const sonucBaslik = oneriObj ? oneriObj.ad
-    : f.bolge !== "hepsi" && f.ortam === "hepsi" ? `${neredeMetin}: en iyileri`
+    : yemekObj ? `${ilkHarfBuyuk(yemekObj.baslik)}${yerEki}`
+    : turObj ? `${turObj.ad}${yerEki}`
+    : ozObj ? `${ozObj.ad}${yerEki}`
+    : f.bolge !== "hepsi" ? `${neredeMetin}: en iyileri`
     : durumObj ? durumObj.baslik
-    : f.ortam !== "hepsi" ? ortamBul(f.ortam).ad
+    : kesif ? "Her yemeğin en iyileri"
     : "Sonuçlar";
 
   return (
@@ -200,27 +227,30 @@ export default function IstanbulRehberi({ data, setData }) {
 
       <Masthead arama={f.arama} setArama={(a) => filtre({ arama: a })} google={google.aktif} />
 
-      {/* ---------- dört soru ---------- */}
+      {/* ---------- beş soru ---------- */}
       <div className="ist-sorular-sar">
         <div className="ist-sorular">
           <span className="ist-sorular-giris">Bu gece</span>
-          <Soru ikon="📍" etiket="Nerede?" deger={neredeMetin} aktif={secici === "nerede"} dolu={f.bolge !== "hepsi"} onClick={() => setSecici(secici === "nerede" ? null : "nerede")} />
-          <Soru ikon="👥" etiket="Kiminle?" deger={kiminleMetin} aktif={secici === "kiminle"} dolu={f.durum !== "hepsi"} onClick={() => setSecici(secici === "kiminle" ? null : "kiminle")} />
-          <Soru ikon="🍸" etiket="Ne yiyip içelim?" deger={neMetin} renk={neRenk} aktif={secici === "ne"} dolu={f.ortam !== "hepsi" || f.alan !== "hepsi"} onClick={() => setSecici(secici === "ne" ? null : "ne")} />
-          <Soru ikon="₺" etiket="Bütçe?" deger={butceMetin} aktif={secici === "butce"} dolu={f.fiyat !== "hepsi"} onClick={() => setSecici(secici === "butce" ? null : "butce")} />
+          <Soru ikon="📍" etiket="Nerede?" deger={neredeMetin} aktif={secici === "nerede"} dolu={f.bolge !== "hepsi"} onClick={() => ac("nerede")} />
+          <Soru ikon="👥" etiket="Kiminle?" deger={kiminleMetin} aktif={secici === "kiminle"} dolu={f.durum !== "hepsi"} onClick={() => ac("kiminle")} />
+          <Soru ikon="😋" etiket="Ne yiyelim?" deger={yemekMetin} renk={yemekObj?.renk} aktif={secici === "yemek"} dolu={!!yemekObj} onClick={() => ac("yemek")} />
+          <Soru ikon="🏛" etiket="Nasıl bir yer?" deger={yerMetin} renk={turObj?.renk || ozObj?.renk} aktif={secici === "yer"} dolu={!!turObj || !!ozObj || f.guzel || f.alan !== "hepsi"} onClick={() => ac("yer")} />
+          <Soru ikon="₺" etiket="Bütçe?" deger={butceMetin} aktif={secici === "butce"} dolu={f.fiyat !== "hepsi"} onClick={() => ac("butce")} />
           {filtreVar || oneriObj ? <button type="button" className="ist-sifirla" onClick={sifirla} title="Tüm seçimleri temizle">✕ Temizle</button> : null}
         </div>
 
         {secici === "nerede" ? <NeredeSecici f={f} onSec={(b) => filtre({ bolge: b }, true)} /> : null}
         {secici === "kiminle" ? <KiminleSecici deger={f.durum} onSec={(d) => filtre({ durum: d }, true)} /> : null}
-        {secici === "ne" ? <NeSecici f={f} onSec={(degisen) => filtre(degisen, true)} /> : null}
+        {secici === "yemek" ? <YemekSecici deger={f.yemek} onSec={(y) => filtre({ yemek: y }, true)} /> : null}
+        {secici === "yer" ? <YerSecici f={f} onSec={(degisen, kaydir) => filtre(degisen, kaydir)} /> : null}
         {secici === "butce" ? <ButceSecici deger={f.fiyat} onSec={(x) => filtre({ fiyat: x }, true)} /> : null}
       </div>
 
-      {/* ---------- keşif ekranı (hiç filtre yokken) ---------- */}
+      {/* ---------- keşif ekranı (hiç seçim yokken) ---------- */}
       {kesif ? (
         <>
-          <OrtamKarolari onSec={(id) => filtre({ ortam: id }, true)} />
+          <YemekRafi onSec={(id) => filtre({ yemek: id }, true)} />
+          <TurKarolari onTur={(id) => filtre({ tur: id }, true)} onOzellik={(id) => filtre({ ozellik: id }, true)} onGuzel={() => filtre({ guzel: true }, true)} />
           <SemtKartlari onSec={(id) => filtre({ bolge: id }, true)} />
           <OneriListesi onAc={oneriAc} />
         </>
@@ -229,20 +259,23 @@ export default function IstanbulRehberi({ data, setData }) {
       {/* ---------- sonuç çubuğu ---------- */}
       <div id="ist-sonuclar" className="ist-bar">
         <div style={{ display: "grid", gap: 2, minWidth: 0 }}>
-          <h3 className="ist-sonuc-baslik">{kesif ? "Her ortamın en iyileri" : sonucBaslik}</h3>
+          <h3 className="ist-sonuc-baslik">{sonucBaslik}</h3>
           <span className="ist-sayac">
             {String(toplam).padStart(2, "0")} MEKÂN
-            {!kesif && !oneriObj ? ` · ${[neredeMetin, durumObj?.ad, f.ortam !== "hepsi" ? ortamBul(f.ortam).kisa : null, f.fiyat !== "hepsi" ? fiyatSimge(f.fiyat) : null, f.arama.trim() ? `"${f.arama.trim()}"` : null].filter(Boolean).join(" · ")}` : ""}
+            {!kesif && !oneriObj ? ` · ${[neredeMetin, durumObj?.ad, yemekObj?.ad, turObj?.kisa, ozObj?.kisa, f.guzel ? "güzel mekân" : null, f.fiyat !== "hepsi" ? fiyatSimge(f.fiyat) : null, f.arama.trim() ? `"${f.arama.trim()}"` : null].filter(Boolean).join(" · ")}` : ""}
           </span>
         </div>
-        <span style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-          <span className="ist-liste-dugmeler">
-            <button type="button" className={f.liste === "fav" ? "ist-cip aktif" : "ist-cip"} onClick={() => filtre({ liste: f.liste === "fav" ? "hepsi" : "fav" })}>♥ Favorilerim · {favoriler.length}</button>
-            <button type="button" className={f.liste === "gittim" ? "ist-cip aktif" : "ist-cip"} onClick={() => filtre({ liste: f.liste === "gittim" ? "hepsi" : "gittim" })}>✓ Gittiklerim · {gittim.length}</button>
-          </span>
+        <span style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
+          {!oneriObj ? (
+            <button type="button" className={f.guzel ? "ist-cip ist-guzel aktif" : "ist-cip ist-guzel"} onClick={() => filtre({ guzel: !f.guzel })}
+              title="Manzaralı, Boğaz kıyısında, bahçeli, tarihi ya da romantik mekânlar">✨ Güzel mekân</button>
+          ) : null}
+          <button type="button" className={f.liste === "fav" ? "ist-cip aktif" : "ist-cip"} onClick={() => filtre({ liste: f.liste === "fav" ? "hepsi" : "fav" })}>♥ {favoriler.length}</button>
+          <button type="button" className={f.liste === "gittim" ? "ist-cip aktif" : "ist-cip"} onClick={() => filtre({ liste: f.liste === "gittim" ? "hepsi" : "gittim" })}>✓ {gittim.length}</button>
           {!oneriObj ? (
             <select value={sirala} onChange={(e) => setSirala(e.target.value)} className="ist-select" aria-label="Sıralama">
               <option value="puan">Sırala: Rehber puanı</option>
+              <option value="guzel">Sırala: Önce güzel mekânlar</option>
               {google.aktif ? <option value="google">Sırala: Google puanı</option> : null}
               <option value="ucuz">Sırala: Uygundan pahalıya</option>
               <option value="pahali">Sırala: Pahalıdan uyguna</option>
@@ -271,18 +304,17 @@ export default function IstanbulRehberi({ data, setData }) {
             </>
           ) : gorunum.tur === "bolum" ? (
             <>
-              {durumObj ? (
-                <p className="ist-aciklama">{durumObj.ikon} Bölümler bu duruma en uygun olandan başlar; her bölümde asıl amacı bu olan yerler öne çıkar.</p>
-              ) : null}
+              {durumObj ? <p className="ist-aciklama">{durumObj.ikon} Bölümler bu duruma en uygun olandan başlar; her bölümde asıl amacı bu olan yerler öne çıkar.</p> : null}
               {gorunum.bolumler.length ? gorunum.bolumler.map(({ o, l }) => {
                 const acik = !!acikBolumler[o.id];
+                const baslik = eksen === "yemek" ? ilkHarfBuyuk(o.baslik) : o.ad;
                 return (
                   <section key={o.id} className="ist-bolum" style={{ "--r": o.renk }}>
                     <header className="ist-bolum-baslik">
-                      <button type="button" onClick={() => filtre({ ortam: o.id })} className="ist-bolum-ad">
-                        <span style={{ color: o.renk }}>{o.ikon}</span> {o.ad} <span className="ist-bolum-sayi">{l.length}</span>
+                      <button type="button" onClick={() => filtre(eksen === "yemek" ? { yemek: o.id } : { tur: o.id })} className="ist-bolum-ad">
+                        <span style={{ color: o.renk }}>{o.ikon}</span> {baslik} <span className="ist-bolum-sayi">{l.length}</span>
                       </button>
-                      <span className="ist-bolum-aciklama">{o.aciklama}</span>
+                      {o.aciklama ? <span className="ist-bolum-aciklama">{o.aciklama}</span> : null}
                     </header>
                     <ol className="ist-liste">
                       {(acik ? l : l.slice(0, BOLUM_ILK)).map((m, i) => (
@@ -291,7 +323,7 @@ export default function IstanbulRehberi({ data, setData }) {
                     </ol>
                     {l.length > BOLUM_ILK ? (
                       <button type="button" className="ist-daha" onClick={() => setAcikBolumler((x) => ({ ...x, [o.id]: !acik }))}>
-                        {acik ? "Daha az göster ↑" : `${o.kisa}: kalan ${l.length - BOLUM_ILK} mekânı göster ↓`}
+                        {acik ? "Daha az göster ↑" : `${eksen === "yemek" ? o.ad : o.kisa}: kalan ${l.length - BOLUM_ILK} mekânı göster ↓`}
                       </button>
                     ) : null}
                   </section>
@@ -301,7 +333,7 @@ export default function IstanbulRehberi({ data, setData }) {
           ) : gorunum.satirlar.length ? (
             <ol className="ist-liste">
               {gorunum.satirlar.map(({ m }, i) => (
-                <Satir key={m.id} m={m} sira={i + 1} vurgu={f.ortam !== "hepsi" ? ortamBul(f.ortam) : null} aktif={!dar && secili?.id === m.id} onSec={() => sec(m)} isaret={isaret} g={google.veri[m.id]} />
+                <Satir key={m.id} m={m} sira={i + 1} vurgu={yemekObj || turObj || ozObj} aktif={!dar && secili?.id === m.id} onSec={() => sec(m)} isaret={isaret} g={google.veri[m.id]} />
               ))}
             </ol>
           ) : <Bos onSifirla={sifirla} />}
@@ -309,7 +341,8 @@ export default function IstanbulRehberi({ data, setData }) {
 
         {!dar && secili ? (
           <aside className="ist-panel">
-            <Detay m={secili} isaret={isaret} not={notlar[secili.id] || ""} onNot={(t) => notYaz(secili.id, t)} g={google.veri[secili.id]} />
+            <Detay m={secili} isaret={isaret} not={notlar[secili.id] || ""} onNot={(t) => notYaz(secili.id, t)} g={google.veri[secili.id]}
+              onYemek={(y) => filtre({ yemek: y }, true)} />
           </aside>
         ) : null}
       </div>
@@ -320,6 +353,7 @@ export default function IstanbulRehberi({ data, setData }) {
         <b style={{ color: R.soluk }}>Rehber puanı</b> 10 üzerinden editoryal bir değerlendirmedir: ödüller (Michelin 2026, Bib Gourmand),
         Google ve internet yorumlarının genel seviyesi ve tutarlılığı, mekânın kendi türündeki yeri birlikte tartılır.
         {google.aktif ? " Yıldızlı Google puanları ve yorum sayıları canlı olarak Google'dan gelir." : " Canlı Google puanı ve yorum sayısı için her mekânda \"Google yorumları\" bağlantısı var."}
+        {" "}<b style={{ color: R.soluk }}>✨ Güzel mekân</b>: manzaralı, Boğaz kıyısında, bahçeli, tarihi ya da romantik bir yer veya fine dining.
         {" "}Michelin ödülleri ve adresleri 2026 rehberindeki mekân sayfalarından doğrulandı. Görseller Michelin Rehberi, Time Out İstanbul,
         OGGUSTO ve mekânların kendi sitelerinden. Saat ve fiyatlar değişebilir; gitmeden önce kontrol et.
       </p>
@@ -327,7 +361,8 @@ export default function IstanbulRehberi({ data, setData }) {
       {dar && sayfaAcik && secili ? (
         <div className="ist-sayfa" role="dialog" aria-modal="true" aria-label={secili.ad}>
           <button type="button" className="ist-kapat" onClick={() => setSayfaAcik(false)} aria-label="Kapat">✕</button>
-          <Detay m={secili} isaret={isaret} not={notlar[secili.id] || ""} onNot={(t) => notYaz(secili.id, t)} g={google.veri[secili.id]} />
+          <Detay m={secili} isaret={isaret} not={notlar[secili.id] || ""} onNot={(t) => notYaz(secili.id, t)} g={google.veri[secili.id]}
+            onYemek={(y) => { setSayfaAcik(false); filtre({ yemek: y }, true); }} />
         </div>
       ) : null}
     </section>
@@ -338,7 +373,6 @@ export default function IstanbulRehberi({ data, setData }) {
 
 function Masthead({ arama, setArama, google }) {
   const yildiz = MEKANLAR.filter((m) => m.odul === "1y" || m.odul === "2y").length;
-  const bib = MEKANLAR.filter((m) => m.odul === "bib").length;
   return (
     <header className="ist-mast">
       <div style={{ minWidth: 0 }}>
@@ -346,17 +380,17 @@ function Masthead({ arama, setArama, google }) {
         <h2 className="ist-baslik">Bu gece<br /><span>nereye?</span></h2>
         <div className="ist-istatistik">
           <span><b>{MEKANLAR.length}</b> mekân</span>
+          <span><b>{YEMEKLER.length}</b> lezzet</span>
           <span><b>{BOLGELER.length}</b> semt</span>
-          <span><b>{ORTAMLAR.length}</b> ortam</span>
           <span><b>{yildiz}</b> yıldızlı</span>
-          <span><b>{bib}</b> Bib Gourmand</span>
+          <span><b>{MEKANLAR.filter((m) => m.guzel).length}</b> güzel mekân</span>
         </div>
       </div>
       <div className="ist-arama">
         <label htmlFor="ist-ara" style={{ fontFamily: MONO, fontSize: 11, letterSpacing: ".2em", color: R.silik }}>ADIYLA YA DA LEZZETLE ARA</label>
-        <input id="ist-ara" value={arama} onChange={(e) => setArama(e.target.value)} placeholder="Kaburgacı Cabbar, negroni, Suadiye, omakase…" />
+        <input id="ist-ara" value={arama} onChange={(e) => setArama(e.target.value)} placeholder="Kaburgacı Cabbar, smash burger, Suadiye, omakase…" />
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-          {["kaburga", "istiridye", "canlı müzik", "Bib Gourmand", "teras", "fasıl", "matcha"].map((k) => (
+          {["smash", "Napoli", "omakase", "lahmacun", "kaburga", "istiridye", "gelato"].map((k) => (
             <button key={k} type="button" className="ist-oneri-kelime" onClick={() => setArama(k)}>{k}</button>
           ))}
         </div>
@@ -368,7 +402,7 @@ function Masthead({ arama, setArama, google }) {
   );
 }
 
-// ======================= DÖRT SORU ==========================================
+// ======================= SORULAR ============================================
 
 function Soru({ ikon, etiket, deger, aktif, dolu, onClick, renk }) {
   return (
@@ -392,14 +426,11 @@ function SeciciKutu({ baslik, children }) {
 function NeredeSecici({ f, onSec }) {
   const say = (bolge) => MEKANLAR.filter((m) =>
     bolge === "hepsi" || (bolge === "avrupa" || bolge === "anadolu" ? m.yaka === bolge : m.bolge === bolge)).length;
-  const kart = (b) => {
-    const l = MEKANLAR.filter((m) => m.bolge === b.id);
-    return (
-      <button key={b.id} type="button" onClick={() => onSec(b.id)} className={f.bolge === b.id ? "ist-semt-mini aktif" : "ist-semt-mini"}>
-        <b>{b.ad}</b><span>{b.semtler}</span><em>{l.length}</em>
-      </button>
-    );
-  };
+  const kart = (b) => (
+    <button key={b.id} type="button" onClick={() => onSec(b.id)} className={f.bolge === b.id ? "ist-semt-mini aktif" : "ist-semt-mini"}>
+      <b>{b.ad}</b><span>{b.semtler}</span><em>{say(b.id)}</em>
+    </button>
+  );
   return (
     <SeciciKutu baslik="Hangi semtte?">
       <div className="ist-cipler" style={{ marginBottom: 10 }}>
@@ -432,18 +463,47 @@ function KiminleSecici({ deger, onSec }) {
   );
 }
 
-function NeSecici({ f, onSec }) {
+function YemekSecici({ deger, onSec }) {
   return (
-    <SeciciKutu baslik="Ne yiyip içelim?">
+    <SeciciKutu baslik="Canın ne çekiyor?">
       <div className="ist-cipler" style={{ marginBottom: 12 }}>
-        <button type="button" className={f.alan === "hepsi" && f.ortam === "hepsi" ? "ist-cip aktif" : "ist-cip"} onClick={() => onSec({ alan: "hepsi", ortam: "hepsi" })}>Her şey</button>
+        <button type="button" className={deger === "hepsi" ? "ist-cip aktif" : "ist-cip"} onClick={() => onSec("hepsi")}>Fark etmez</button>
+      </div>
+      <YemekIzgara secili={deger} onSec={onSec} kompakt />
+    </SeciciKutu>
+  );
+}
+
+function YerSecici({ f, onSec }) {
+  return (
+    <SeciciKutu baslik="Nasıl bir yer?">
+      <div className="ist-cipler" style={{ marginBottom: 12 }}>
+        <button type="button" className={f.alan === "hepsi" && f.tur === "hepsi" ? "ist-cip aktif" : "ist-cip"} onClick={() => onSec({ alan: "hepsi", tur: "hepsi" }, true)}>Fark etmez</button>
         {ALANLAR.map((a) => (
-          <button key={a.id} type="button" className={f.alan === a.id && f.ortam === "hepsi" ? "ist-cip aktif" : "ist-cip"} onClick={() => onSec({ alan: a.id, ortam: "hepsi" })}>
+          <button key={a.id} type="button" className={f.alan === a.id && f.tur === "hepsi" ? "ist-cip aktif" : "ist-cip"} onClick={() => onSec({ alan: a.id, tur: "hepsi" }, true)}>
             {a.ikon} {a.ad} — hepsi
           </button>
         ))}
       </div>
-      <OrtamIzgara secili={f.ortam} onSec={(id) => onSec({ ortam: id })} kompakt />
+      <div className="ist-tur-izgara">
+        {TURLER.map((t) => (
+          <button key={t.id} type="button" onClick={() => onSec({ tur: t.id, alan: "hepsi" }, true)} className={f.tur === t.id ? "ist-tur-k aktif" : "ist-tur-k"} style={{ "--r": t.renk }}>
+            <span style={{ color: t.renk, fontSize: 18 }}>{t.ikon}</span><b>{t.ad}</b>
+            <span>{MEKANLAR.filter((m) => m.turler.includes(t.id)).length} mekân</span>
+          </button>
+        ))}
+      </div>
+      <div className="ist-secici-alt">Atmosfer</div>
+      <div className="ist-cipler">
+        <button type="button" className={f.guzel ? "ist-cip ist-guzel aktif" : "ist-cip ist-guzel"} onClick={() => onSec({ guzel: !f.guzel })}>
+          ✨ Güzel mekân · {MEKANLAR.filter((m) => m.guzel).length}
+        </button>
+        {OZELLIKLER.map((o) => (
+          <button key={o.id} type="button" className={f.ozellik === o.id ? "ist-cip aktif" : "ist-cip"} onClick={() => onSec({ ozellik: f.ozellik === o.id ? "hepsi" : o.id }, true)}>
+            {o.ikon} {o.ad} · {MEKANLAR.filter((m) => m.ozellikler.includes(o.id)).length}
+          </button>
+        ))}
+      </div>
     </SeciciKutu>
   );
 }
@@ -466,37 +526,79 @@ function ButceSecici({ deger, onSec }) {
 
 // ======================= KEŞİF EKRANI =======================================
 
-function OrtamIzgara({ secili, onSec, kompakt }) {
+// Yemek rafı: yuvarlak fotoğraflı lezzet karoları, gruplar halinde.
+function YemekIzgara({ secili, onSec, kompakt }) {
   const kullanilan = new Set();
   return (
-    <div className={kompakt ? "ist-ortam-izgara kompakt" : "ist-ortam-izgara"}>
-      {ORTAMLAR.map((o) => {
-        const l = MEKANLAR.filter((m) => m.ortamlar.includes(o.id));
-        const lider = [...l].sort(puanSirala)[0];
-        const kapak = o.kapak ? mekanBul(o.kapak)?.gorsel : null;
-        if (kapak) kullanilan.add(kapak);
-        const g = kapak || enIyiGorsel(l, kullanilan);
-        return (
-          <button key={o.id} type="button" onClick={() => onSec(o.id)} className={secili === o.id ? "ist-ortam-karo aktif" : "ist-ortam-karo"} style={{ "--r": o.renk }}>
-            {g ? <img src={g} alt="" loading="lazy" referrerPolicy="no-referrer" /> : null}
-            <span className="ist-ortam-karo-ic">
-              <span className="ist-ortam-karo-ikon">{o.ikon}</span>
-              <b>{o.ad}</b>
-              {!kompakt && lider ? <span className="ist-ortam-karo-alt">#1 {lider.ad}</span> : null}
-              <em>{l.length} mekân</em>
-            </span>
-          </button>
-        );
-      })}
+    <div className="ist-yemek-gruplar">
+      {YEMEK_GRUPLARI.map((g) => (
+        <div key={g.id}>
+          <div className="ist-yaka-ad">{g.ad}</div>
+          <div className={kompakt ? "ist-yemek-raf kompakt" : "ist-yemek-raf"}>
+            {YEMEKLER.filter((y) => y.grup === g.id).map((y) => {
+              const l = MEKANLAR.filter((m) => m.yemekler.includes(y.id));
+              const foto = kapakGorsel(y.kapak, l, kullanilan);
+              return (
+                <button key={y.id} type="button" onClick={() => onSec(y.id)} className={secili === y.id ? "ist-yemek aktif" : "ist-yemek"} style={{ "--r": y.renk }}>
+                  <span className="ist-yemek-foto">
+                    {foto ? <img src={foto} alt="" loading="lazy" referrerPolicy="no-referrer" /> : null}
+                    <span className="ist-yemek-ikon">{y.ikon}</span>
+                  </span>
+                  <b>{y.ad}</b>
+                  <em>{l.length} mekân</em>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
 
-function OrtamKarolari({ onSec }) {
+function YemekRafi({ onSec }) {
   return (
     <section className="ist-kesif">
-      <BolumBasligi no="01" baslik="Ne arıyorsun?" alt="Karoya dokun, o ortamın puana göre sıralı listesi açılsın." />
-      <OrtamIzgara onSec={onSec} />
+      <BolumBasligi no="01" baslik="Canın ne çekiyor?" alt="Bir lezzet seç: İstanbul'un en iyi burgercileri, pizzacıları, suşicileri… puana göre sıralı gelsin." />
+      <YemekIzgara onSec={onSec} />
+    </section>
+  );
+}
+
+function TurKarolari({ onTur, onOzellik, onGuzel }) {
+  const kullanilan = new Set();
+  const karo = (o, l, onClick, alt) => {
+    const g = kapakGorsel(o.kapak, l, kullanilan);
+    return (
+      <button key={o.id} type="button" onClick={onClick} className="ist-ortam-karo" style={{ "--r": o.renk }}>
+        {g ? <img src={g} alt="" loading="lazy" referrerPolicy="no-referrer" /> : null}
+        <span className="ist-ortam-karo-ic">
+          <span className="ist-ortam-karo-ikon">{o.ikon}</span>
+          <b>{o.ad}</b>
+          {alt ? <span className="ist-ortam-karo-alt">{alt}</span> : null}
+          <em>{l.length} mekân</em>
+        </span>
+      </button>
+    );
+  };
+  const guzeller = MEKANLAR.filter((m) => m.guzel);
+  return (
+    <section className="ist-kesif">
+      <BolumBasligi no="02" baslik="Nasıl bir yer?" alt="Mekân türüne ya da atmosfere göre: meyhane, kokteyl barı, rooftop, Boğaz kıyısı…" />
+      <div className="ist-ortam-izgara">
+        {TURLER.map((t) => {
+          const l = MEKANLAR.filter((m) => m.turler.includes(t.id));
+          return karo(t, l, () => onTur(t.id), `#1 ${[...l].sort(puanSirala)[0]?.ad || ""}`);
+        })}
+      </div>
+      <div className="ist-yaka-ad" style={{ margin: "16px 0 8px" }}>Atmosfere göre</div>
+      <div className="ist-ortam-izgara kompakt">
+        {karo({ id: "guzel", ad: "✨ Güzel mekânlar", ikon: "✨", renk: "#fde68a" }, guzeller, onGuzel, "Manzara, bahçe, tarih, romantizm")}
+        {OZELLIKLER.filter((o) => o.id !== "michelin").map((o) => {
+          const l = MEKANLAR.filter((m) => m.ozellikler.includes(o.id));
+          return karo(o, l, () => onOzellik(o.id));
+        })}
+      </div>
     </section>
   );
 }
@@ -506,7 +608,7 @@ function SemtKartlari({ onSec }) {
   const kart = (b) => {
     const l = MEKANLAR.filter((m) => m.bolge === b.id);
     const g = enIyiGorsel(l, kullanilan);
-    const say = (ids) => l.filter((m) => m.ortamlar.some((o) => ids.includes(o))).length;
+    const say = (ids) => l.filter((m) => m.turler.some((o) => ids.includes(o))).length;
     return (
       <button key={b.id} type="button" onClick={() => onSec(b.id)} className="ist-semt-kart">
         {g ? <img src={g} alt="" loading="lazy" referrerPolicy="no-referrer" /> : null}
@@ -514,9 +616,9 @@ function SemtKartlari({ onSec }) {
           <b>{b.ad}</b>
           <span className="ist-semt-kart-alt">{b.aciklama}</span>
           <span className="ist-semt-kart-sayilar">
-            <span>🍽 {say(["michelin", "luks", "meyhane", "balik", "kebap", "lokanta", "dunya", "sokak"])}</span>
+            <span>🍽 {say(["fine", "restoran", "meyhane", "lokanta", "sokak"])}</span>
             <span>🍸 {say(["kokteyl", "sarap", "bira", "kulup", "eglence"])}</span>
-            <span>☕ {say(["kahvalti", "kahve", "tatli"])}</span>
+            <span>☕ {say(["kafe"])}</span>
           </span>
         </span>
       </button>
@@ -524,7 +626,7 @@ function SemtKartlari({ onSec }) {
   };
   return (
     <section className="ist-kesif">
-      <BolumBasligi no="02" baslik="Semt semt İstanbul" alt="Bir semt seç: restoranları, barları, pub'ları ve kafeleri bölüm bölüm gelsin." />
+      <BolumBasligi no="03" baslik="Semt semt İstanbul" alt="Bir semt seç: restoranları, meyhaneleri, barları, pub'ları ve kafeleri bölüm bölüm gelsin." />
       <div className="ist-yakalar">
         <div><div className="ist-yaka-ad">Avrupa yakası</div><div className="ist-semt-kartlar">{BOLGELER.filter((b) => b.yaka === "avrupa").map(kart)}</div></div>
         <div><div className="ist-yaka-ad">Anadolu yakası</div><div className="ist-semt-kartlar">{BOLGELER.filter((b) => b.yaka === "anadolu").map(kart)}</div></div>
@@ -536,7 +638,7 @@ function SemtKartlari({ onSec }) {
 function OneriListesi({ onAc }) {
   return (
     <section className="ist-kesif">
-      <BolumBasligi no="03" baslik="Önerilerim" alt="Ne arayacağını bilmiyorsan buradan başla — her listeyi elle seçtim, her mekânın neden orada olduğu yazıyor." />
+      <BolumBasligi no="04" baslik="Önerilerim" alt="Ne arayacağını bilmiyorsan buradan başla — her listeyi elle seçtim, her mekânın neden orada olduğu yazıyor." />
       <ol className="ist-oneri-liste">
         {ONERILER.map((o, i) => {
           const ilkler = o.liste.slice(0, 4).map(([id]) => mekanBul(id)).filter(Boolean);
@@ -595,6 +697,7 @@ function Satir({ m, sira, aktif, onSec, isaret, g, neden, vurgu }) {
   const fav = isaret.fav(m.id);
   const git = isaret.git(m.id);
   const odul = m.odul ? ODULLER[m.odul] : null;
+  const t = ana(m);
   return (
     <li className={aktif ? "ist-satir aktif" : "ist-satir"} style={{ "--r": o.renk }} onClick={onSec}>
       <span className="ist-sira" style={{ color: sira <= 3 ? o.renk : R.silik }}>{String(sira).padStart(2, "0")}</span>
@@ -605,12 +708,14 @@ function Satir({ m, sira, aktif, onSec, isaret, g, neden, vurgu }) {
             className="ist-ad" title="Google Haritalar'da aç">{m.ad}</a>
           {odul ? <span className="ist-odul" style={{ color: odul.renk, borderColor: `${odul.renk}66` }}>{odul.kisa}</span> : null}
           {m.yesil ? <span className="ist-odul" style={{ color: "#86efac", borderColor: "#86efac66" }}>Yeşil Yıldız</span> : null}
+          {m.guzel ? <span className="ist-odul ist-guzel-rozet" title="Güzel mekân">✨ {GUZEL_NEDEN[m.guzel]}</span> : null}
           {git ? <span className="ist-odul" style={{ color: "#4ade80", borderColor: "#4ade8066" }}>✓ Gittim</span> : null}
         </div>
         <div className="ist-meta">
-          {m.ortamlar.filter((id) => id !== "michelin" || !m.odul).slice(0, 3).map((id) => {
-            const x = ortamBul(id);
-            return <span key={id} style={{ color: x.renk, fontWeight: 800 }}>{x.ikon} {x.kisa}</span>;
+          <span style={{ color: t.renk, fontWeight: 800 }}>{t.ikon} {t.kisa}</span>
+          {m.yemekler.filter((y) => y !== vurgu?.id).slice(0, 2).map((y) => {
+            const x = yemekBul(y);
+            return <span key={y} className="ist-yemek-cip">{x.ikon} {x.ad}</span>;
           })}
           <span style={{ color: R.silik }}>/</span>
           <span>{m.semt}</span>
@@ -668,7 +773,7 @@ function Kapak({ m, g, boy }) {
       {src && !hata ? (
         <img src={src} alt={m.ad} loading="lazy" referrerPolicy="no-referrer" onError={() => setHata(true)} />
       ) : (
-        <div className="ist-poster"><span className="ist-poster-ikon">{o.ikon}</span></div>
+        <div className="ist-poster"><span className="ist-poster-ikon">{yemekBul(m.yemekler[0])?.ikon || o.ikon}</span></div>
       )}
       <div className="ist-kapak-ad" style={kucukMu ? { fontSize: 10.5, padding: "0 6px 5px" } : undefined}>
         {kucukMu ? m.ad : (
@@ -684,7 +789,7 @@ function Kapak({ m, g, boy }) {
 
 // ======================= DETAY (panel / tam ekran) ==========================
 
-function Detay({ m, isaret, not, onNot, g }) {
+function Detay({ m, isaret, not, onNot, g, onYemek }) {
   const o = ana(m);
   const fav = isaret.fav(m.id);
   const git = isaret.git(m.id);
@@ -718,7 +823,24 @@ function Detay({ m, isaret, not, onNot, g }) {
         <div style={{ marginTop: 3 }}>{m.imza}</div>
       </div>
 
+      {m.yemekler.length ? (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+          {m.yemekler.map((y) => {
+            const x = yemekBul(y);
+            return (
+              <button key={y} type="button" className="ist-yemek-cip buyuk" onClick={() => onYemek?.(y)} title={`İstanbul'un ${x.baslik}`}>
+                {x.ikon} {x.ad} →
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
+
       <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+        {m.ozellikler.filter((x) => x !== "michelin").map((x) => {
+          const oz = ozellikBul(x);
+          return <span key={x} className="ist-etiket" style={{ color: oz.renk, borderColor: `${oz.renk}55` }}>{oz.ikon} {oz.kisa}</span>;
+        })}
         {m.etiketler.map((e) => <span key={e} className="ist-etiket">{e}</span>)}
         {m.durumlar.map((id) => {
           const d = DURUMLAR.find((x) => x.id === id);
@@ -769,7 +891,7 @@ function Geceler({ onSec }) {
       </div>
       <div className="ist-geceler">
         {GECELER.map((gc) => {
-          const o = ortamBul(gc.ortam);
+          const o = turBul(gc.tur) || TURLER[0];
           const duraklar = gc.adimlar.map((a) => mekanBul(a[1]));
           return (
             <article key={gc.id} className="ist-gece" style={{ "--r": o.renk }}>
@@ -823,22 +945,23 @@ const CSS = `
 .ist-oneri-kelime { padding:5px 10px; border-radius:999px; border:1px dashed ${R.cizgi}; background:transparent; color:${R.soluk}; font-size:12px; cursor:pointer; }
 .ist-oneri-kelime:hover { color:${R.metin}; border-color:${R.soluk}; }
 
-/* --- dört soru --- */
+/* --- sorular --- */
 .ist-sorular-sar { position:sticky; top:8px; z-index:6; margin-bottom:22px; }
-.ist-sorular { display:grid; grid-template-columns:auto repeat(4,minmax(0,1fr)) auto; gap:8px; align-items:stretch; padding:8px; border-radius:22px; background:rgba(20,20,23,.92); border:1px solid ${R.cizgi}; backdrop-filter:blur(10px); box-shadow:0 18px 50px -24px rgba(0,0,0,.9); }
+.ist-sorular { display:grid; grid-template-columns:auto repeat(5,minmax(0,1fr)) auto; gap:8px; align-items:stretch; padding:8px; border-radius:22px; background:rgba(20,20,23,.92); border:1px solid ${R.cizgi}; backdrop-filter:blur(10px); box-shadow:0 18px 50px -24px rgba(0,0,0,.9); }
 .ist-sorular-giris { align-self:center; padding:0 10px 0 8px; font-size:20px; font-weight:900; letter-spacing:-.02em; white-space:nowrap; }
 .ist-soru { --r:${R.metin}; display:grid; gap:3px; text-align:left; padding:10px 14px; border-radius:15px; border:1px solid transparent; background:${R.panel2}; color:${R.metin}; cursor:pointer; min-width:0; transition:background .15s, border-color .15s, transform .15s; }
 .ist-soru:hover { border-color:${R.soluk}; transform:translateY(-1px); }
 .ist-soru.dolu { background:color-mix(in srgb, var(--r) 16%, ${R.panel2}); border-color:color-mix(in srgb, var(--r) 55%, transparent); }
 .ist-soru.acik { border-color:${R.metin}; background:${R.metin}; color:${R.zemin}; }
-.ist-soru-etiket { font-family:${MONO}; font-size:10.5px; letter-spacing:.12em; text-transform:uppercase; opacity:.7; white-space:nowrap; }
+.ist-soru-etiket { font-family:${MONO}; font-size:10.5px; letter-spacing:.1em; text-transform:uppercase; opacity:.7; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .ist-soru-deger { font-size:15px; font-weight:900; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .ist-soru-ok { opacity:.5; font-size:11px; }
 .ist-sifirla { align-self:center; padding:10px 12px; border-radius:12px; border:1px solid ${R.cizgi}; background:transparent; color:${R.soluk}; font-size:12.5px; font-weight:800; cursor:pointer; white-space:nowrap; }
 .ist-sifirla:hover { color:${R.metin}; border-color:${R.soluk}; }
-.ist-secici { margin-top:8px; padding:16px; border-radius:20px; background:${R.panel}; border:1px solid ${R.cizgi}; box-shadow:0 30px 60px -30px rgba(0,0,0,.95); max-height:min(70vh,640px); overflow-y:auto; animation:ist-ac .18s ease-out; }
+.ist-secici { margin-top:8px; padding:16px; border-radius:20px; background:${R.panel}; border:1px solid ${R.cizgi}; box-shadow:0 30px 60px -30px rgba(0,0,0,.95); max-height:min(70vh,660px); overflow-y:auto; animation:ist-ac .18s ease-out; }
 @keyframes ist-ac { from { opacity:0; transform:translateY(-6px); } to { opacity:1; transform:none; } }
 .ist-secici-baslik { font-size:20px; font-weight:900; letter-spacing:-.02em; margin-bottom:12px; }
+.ist-secici-alt { font-family:${MONO}; font-size:11px; letter-spacing:.2em; color:${R.silik}; text-transform:uppercase; margin:14px 0 8px; }
 .ist-yakalar { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
 .ist-yaka-ad { font-family:${MONO}; font-size:11px; letter-spacing:.2em; color:${R.silik}; text-transform:uppercase; margin-bottom:8px; }
 .ist-semt-izgara { display:grid; grid-template-columns:repeat(auto-fill,minmax(min(200px,100%),1fr)); gap:6px; }
@@ -849,13 +972,36 @@ const CSS = `
 .ist-semt-mini span { font-size:11.5px; opacity:.65; }
 .ist-semt-mini em { position:absolute; right:12px; top:50%; transform:translateY(-50%); font-style:normal; font-family:${MONO}; font-size:13px; opacity:.7; }
 .ist-kiminle { display:grid; grid-template-columns:repeat(auto-fill,minmax(min(150px,100%),1fr)); gap:8px; }
-.ist-kiminle-k, .ist-butce-k { display:grid; gap:4px; justify-items:start; text-align:left; padding:14px; border-radius:16px; border:1px solid ${R.cizgi}; background:${R.zemin}; color:${R.metin}; cursor:pointer; transition:transform .15s, border-color .15s; }
-.ist-kiminle-k:hover, .ist-butce-k:hover { transform:translateY(-2px); border-color:${R.soluk}; }
-.ist-kiminle-k.aktif, .ist-butce-k.aktif { background:${R.metin}; color:${R.zemin}; border-color:${R.metin}; }
-.ist-kiminle-k b, .ist-butce-k b { font-size:15px; }
-.ist-kiminle-k span:last-child, .ist-butce-k span { font-size:12px; opacity:.65; }
+.ist-kiminle-k, .ist-butce-k, .ist-tur-k { display:grid; gap:4px; justify-items:start; text-align:left; padding:14px; border-radius:16px; border:1px solid ${R.cizgi}; background:${R.zemin}; color:${R.metin}; cursor:pointer; transition:transform .15s, border-color .15s; }
+.ist-kiminle-k:hover, .ist-butce-k:hover, .ist-tur-k:hover { transform:translateY(-2px); border-color:${R.soluk}; }
+.ist-kiminle-k.aktif, .ist-butce-k.aktif, .ist-tur-k.aktif { background:${R.metin}; color:${R.zemin}; border-color:${R.metin}; }
+.ist-kiminle-k b, .ist-butce-k b, .ist-tur-k b { font-size:15px; }
+.ist-kiminle-k span:last-child, .ist-butce-k span, .ist-tur-k span:last-child { font-size:12px; opacity:.65; }
+.ist-tur-izgara { display:grid; grid-template-columns:repeat(auto-fill,minmax(min(170px,100%),1fr)); gap:8px; }
 .ist-butce { display:grid; grid-template-columns:repeat(auto-fill,minmax(min(180px,100%),1fr)); gap:8px; }
 .ist-butce-k b { font-size:22px; }
+
+/* --- yemek rafı --- */
+.ist-yemek-gruplar { display:grid; gap:14px; }
+.ist-yemek-raf { display:grid; grid-template-columns:repeat(auto-fill,minmax(112px,1fr)); gap:10px 8px; }
+.ist-yemek-raf.kompakt { grid-template-columns:repeat(auto-fill,minmax(96px,1fr)); }
+.ist-yemek { --r:${R.metin}; display:grid; justify-items:center; gap:3px; padding:6px 4px 8px; border-radius:18px; border:1px solid transparent; background:transparent; color:${R.metin}; cursor:pointer; text-align:center; transition:transform .15s, background .15s, border-color .15s; }
+.ist-yemek:hover { transform:translateY(-3px); background:${R.panel}; border-color:${R.cizgi}; }
+.ist-yemek.aktif { background:color-mix(in srgb, var(--r) 18%, ${R.panel}); border-color:var(--r); }
+.ist-yemek-foto { position:relative; width:84px; height:84px; border-radius:999px; overflow:hidden; background:radial-gradient(circle at 30% 30%, color-mix(in srgb, var(--r) 60%, #000), ${R.panel2}); box-shadow:0 0 0 2px color-mix(in srgb, var(--r) 70%, transparent), 0 10px 26px -12px var(--r); }
+.ist-yemek-raf.kompakt .ist-yemek-foto { width:68px; height:68px; }
+.ist-yemek-foto img { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; opacity:.75; transition:opacity .2s, transform .4s; }
+.ist-yemek:hover .ist-yemek-foto img { opacity:.95; transform:scale(1.08); }
+.ist-yemek-ikon { position:absolute; right:-2px; bottom:-2px; width:34px; height:34px; display:grid; place-items:center; border-radius:999px; background:${R.zemin}; border:2px solid var(--r); font-size:18px; }
+.ist-yemek-raf.kompakt .ist-yemek-ikon { width:28px; height:28px; font-size:15px; }
+.ist-yemek b { font-size:13px; line-height:1.15; margin-top:4px; }
+.ist-yemek em { font-style:normal; font-family:${MONO}; font-size:10.5px; color:${R.silik}; }
+.ist-yemek-cip { display:inline-flex; align-items:center; gap:4px; padding:1px 8px; border-radius:999px; background:${R.panel2}; color:${R.soluk}; font-size:11.5px; font-weight:700; border:1px solid ${R.cizgi}; }
+.ist-yemek-cip.buyuk { padding:6px 12px; font-size:12.5px; color:${R.metin}; cursor:pointer; }
+.ist-yemek-cip.buyuk:hover { border-color:${R.soluk}; }
+.ist-guzel { border-color:#fde68a55; color:#fde68a; }
+.ist-guzel.aktif { background:#fde68a; color:#1a1405; border-color:#fde68a; }
+.ist-guzel-rozet { color:#fde68a; border-color:#fde68a66; }
 
 /* --- keşif --- */
 .ist-kesif { margin-bottom:34px; }
@@ -863,14 +1009,13 @@ const CSS = `
 .ist-bolum-no { font-family:${MONO}; font-size:44px; line-height:.8; font-weight:800; color:transparent; -webkit-text-stroke:1px ${R.soluk}; }
 .ist-h3 { margin:0; font-size:26px; font-weight:900; letter-spacing:-.03em; }
 .ist-ortam-izgara { display:grid; grid-template-columns:repeat(auto-fill,minmax(min(170px,100%),1fr)); gap:10px; }
-.ist-ortam-izgara.kompakt { grid-template-columns:repeat(auto-fill,minmax(min(140px,100%),1fr)); }
+.ist-ortam-izgara.kompakt { grid-template-columns:repeat(auto-fill,minmax(min(150px,100%),1fr)); }
 .ist-ortam-karo { position:relative; aspect-ratio:4 / 5; border-radius:18px; overflow:hidden; border:1px solid ${R.cizgi}; background:${R.panel2}; cursor:pointer; padding:0; color:#fff; text-align:left; transition:transform .18s, box-shadow .2s, border-color .2s; }
 .ist-ortam-izgara.kompakt .ist-ortam-karo { aspect-ratio:1 / 1; }
 .ist-ortam-karo img { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; transition:transform .5s; }
 .ist-ortam-karo::after { content:""; position:absolute; inset:0; background:linear-gradient(180deg, rgba(0,0,0,.05) 25%, rgba(0,0,0,.88)); }
 .ist-ortam-karo:hover { transform:translateY(-3px); border-color:var(--r); box-shadow:0 16px 36px -16px var(--r); }
 .ist-ortam-karo:hover img { transform:scale(1.06); }
-.ist-ortam-karo.aktif { border-color:var(--r); box-shadow:0 0 0 2px var(--r); }
 .ist-ortam-karo-ic { position:absolute; left:12px; right:12px; bottom:12px; z-index:1; display:grid; gap:2px; }
 .ist-ortam-karo-ikon { color:var(--r); font-size:20px; text-shadow:0 0 18px var(--r); }
 .ist-ortam-karo-ic b { font-size:16px; line-height:1.15; letter-spacing:-.01em; }
@@ -901,7 +1046,6 @@ const CSS = `
 .ist-bar { display:flex; justify-content:space-between; align-items:flex-end; gap:10px; flex-wrap:wrap; padding:6px 0 14px; border-bottom:1px solid ${R.cizgi}; margin-bottom:12px; scroll-margin-top:110px; }
 .ist-sonuc-baslik { margin:0; font-size:24px; font-weight:900; letter-spacing:-.03em; }
 .ist-sayac { font-family:${MONO}; font-size:12px; color:${R.soluk}; letter-spacing:.04em; }
-.ist-liste-dugmeler { display:flex; gap:6px; }
 .ist-cipler { display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
 .ist-cip { display:inline-flex; align-items:center; gap:5px; padding:7px 11px; border-radius:999px; border:1px solid ${R.cizgi}; background:transparent; color:${R.soluk}; font-size:12.5px; font-weight:700; cursor:pointer; white-space:nowrap; }
 .ist-cip:hover { color:${R.metin}; border-color:${R.soluk}; }
@@ -915,7 +1059,7 @@ const CSS = `
 .ist-govde { display:grid; grid-template-columns:minmax(0,1fr) minmax(340px,420px); gap:18px; align-items:start; }
 .ist-bolum { margin-bottom:18px; }
 .ist-bolum-baslik { display:flex; align-items:baseline; gap:12px; flex-wrap:wrap; padding:10px 4px 8px; border-bottom:1px solid ${R.cizgi}; margin-bottom:6px; }
-.ist-bolum-ad { background:none; border:none; padding:0; color:${R.metin}; font-size:21px; font-weight:900; letter-spacing:-.02em; cursor:pointer; }
+.ist-bolum-ad { background:none; border:none; padding:0; color:${R.metin}; font-size:21px; font-weight:900; letter-spacing:-.02em; cursor:pointer; text-align:left; }
 .ist-bolum-ad:hover { text-decoration:underline; text-decoration-color:var(--r); text-underline-offset:5px; }
 .ist-bolum-sayi { font-family:${MONO}; font-size:12px; color:var(--r); vertical-align:middle; }
 .ist-bolum-aciklama { font-size:12.5px; color:${R.silik}; }
@@ -963,10 +1107,10 @@ const CSS = `
 .ist-dipnot { color:${R.silik}; font-size:11.5px; line-height:1.65; margin:26px 2px 0; max-width:860px; }
 .ist-sayfa { position:fixed; inset:0; z-index:90; overflow-y:auto; background:${R.zemin}; padding:14px 14px 30px; }
 .ist-kapat { position:sticky; top:0; z-index:3; float:right; width:42px; height:42px; margin:0 0 -42px; border-radius:999px; border:1px solid ${R.cizgi}; background:rgba(11,11,13,.85); color:#fff; font-size:18px; cursor:pointer; }
-@media (max-width: 1100px) {
-  .ist-sorular { grid-template-columns:repeat(2,minmax(0,1fr)); }
+@media (max-width: 1240px) {
+  .ist-sorular { grid-template-columns:repeat(3,minmax(0,1fr)); }
   .ist-sorular-giris { grid-column:1 / -1; padding:2px 6px; font-size:16px; }
-  .ist-sifirla { grid-column:1 / -1; }
+  .ist-sifirla { grid-column:auto; }
 }
 @media (max-width: 980px) {
   .ist-govde { grid-template-columns:1fr; }
@@ -976,16 +1120,20 @@ const CSS = `
 @media (max-width: 640px) {
   .ist { border-radius:20px; }
   .ist-sorular-sar { position:static; }
-  .ist-secici { max-height:none; padding:12px; }
-  .ist-kiminle, .ist-butce { grid-template-columns:repeat(2,minmax(0,1fr)); }
-  .ist-kiminle-k, .ist-butce-k { padding:11px; }
-  .ist-panel { top:14px; }
-  .ist-sorular { border-radius:18px; padding:6px; gap:6px; }
+  .ist-sorular { grid-template-columns:repeat(2,minmax(0,1fr)); border-radius:18px; padding:6px; gap:6px; }
   .ist-soru { padding:8px 10px; }
   .ist-soru-deger { font-size:13.5px; }
+  .ist-secici { max-height:none; padding:12px; }
+  .ist-kiminle, .ist-butce, .ist-tur-izgara { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .ist-kiminle-k, .ist-butce-k, .ist-tur-k { padding:11px; }
+  .ist-yemek-raf { grid-template-columns:repeat(4,minmax(0,1fr)); gap:8px 4px; }
+  .ist-yemek-raf.kompakt { grid-template-columns:repeat(4,minmax(0,1fr)); }
+  .ist-yemek-foto { width:62px; height:62px; }
+  .ist-yemek-raf.kompakt .ist-yemek-foto { width:56px; height:56px; }
+  .ist-yemek-ikon { width:26px; height:26px; font-size:14px; }
+  .ist-yemek b { font-size:11.5px; }
   .ist-ortam-izgara { grid-template-columns:repeat(2,minmax(0,1fr)); }
-  .ist-ortam-izgara.kompakt { grid-template-columns:repeat(3,minmax(0,1fr)); }
-  .ist-ortam-izgara.kompakt .ist-ortam-karo-ic b { font-size:12.5px; }
+  .ist-ortam-izgara.kompakt { grid-template-columns:repeat(2,minmax(0,1fr)); }
   .ist-oneri-satir { grid-template-columns:34px minmax(0,1fr) auto; }
   .ist-oneri-ikon { display:none; }
   .ist-satir { grid-template-columns:62px minmax(0,1fr) auto; gap:10px; padding:9px 6px; }
@@ -996,5 +1144,6 @@ const CSS = `
   .ist-ad { font-size:15.5px; }
   .ist-eylemler { grid-template-columns:1fr; }
   .ist-bolum-no { font-size:32px; }
+  .ist-panel { top:14px; }
 }
 `;
