@@ -1810,3 +1810,42 @@ html, body { max-width: 100%; overflow-x: hidden; }
   .alanAd { display: none; }
   .alanAdKisa { display: inline; }
 }
+
+/* --- Tarih seçici ikonu ----------------------------------------------------
+   Tarayıcının yerleşik takvim ikonu siyah çiziliyor; koyu zeminde neredeyse
+   görünmüyordu. color-scheme açık renkli yerleşik bileşenleri koyu temaya
+   uyarlar; ikon ise amber renkli, çerçeveli bir düğmeyle değiştirilir.
+   Uygulamadaki tüm tarih alanlarına (finans, seyahat, defter) uygulanır. */
+input[type="date"],
+input[type="month"],
+input[type="datetime-local"] {
+  color-scheme: dark;
+  cursor: pointer;
+}
+
+input[type="date"]::-webkit-calendar-picker-indicator,
+input[type="month"]::-webkit-calendar-picker-indicator,
+input[type="datetime-local"]::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  opacity: 1;
+  width: 18px;
+  height: 18px;
+  padding: 5px;
+  margin-left: 6px;
+  border-radius: 8px;
+  border: 1px solid rgba(251, 191, 36, 0.55);
+  background-color: rgba(251, 191, 36, 0.16);
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23fbbf24' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'><rect x='3' y='4.5' width='18' height='17' rx='2.5'/><path d='M16 2.5v4M8 2.5v4M3 10h18'/><path d='M8 14h.01M12 14h.01M16 14h.01M8 17.5h.01M12 17.5h.01'/></svg>");
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 16px 16px;
+  transition: background-color 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+}
+
+input[type="date"]::-webkit-calendar-picker-indicator:hover,
+input[type="month"]::-webkit-calendar-picker-indicator:hover,
+input[type="datetime-local"]::-webkit-calendar-picker-indicator:hover {
+  background-color: rgba(251, 191, 36, 0.32);
+  border-color: #fbbf24;
+  transform: scale(1.08);
+}

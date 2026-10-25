@@ -278,7 +278,7 @@ function KesfetBasligi({ toplam, gidilen }) {
           Nereye gidiyoruz?
         </h2>
         <p style={{ color: "#cbd5e1", fontSize: 13.5, margin: "10px 0 0", lineHeight: 1.65, maxWidth: 560 }}>
-          {toplam} şehir, 27 ülke. Her biri altı başlıkta puanlandı; hepsinde saat saat günlük rota,
+          {toplam} şehir, {new Set(SEHIRLER.map((s) => s.ulke)).size} ülke. Her biri altı başlıkta puanlandı; hepsinde saat saat günlük rota,
           gezilecek yerler ve canlı tazelenen bütçe var.
           <strong style={{ color: "#fff" }}> Bir şehir seç — program ve bütçe anında oluşsun.</strong>
         </p>

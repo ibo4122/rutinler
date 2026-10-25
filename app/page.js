@@ -10,6 +10,7 @@ import FinancialGoals from "../components/FinancialGoals";
 import DebtPlanner from "../components/DebtPlanner";
 import TatilPlanlayici from "../components/TatilPlanlayici";
 import SaglikYonetimi from "../components/SaglikYonetimi";
+import IstanbulRehberi from "../components/IstanbulRehberi";
 import AdminPanel from "../components/AdminPanel";
 import Onboarding from "../components/Onboarding";
 import PreferencesModal from "../components/PreferencesModal";
@@ -54,6 +55,8 @@ const emptyFinancialGoals = { categories: [], goals: [], assets: [], debts: [] }
 const emptyDebtPlan = { ekKapasite: "", strateji: "cig", kartlar: [] };
 const emptyTatil = { kurlar: {}, ayarlar: {}, planlar: [], hayaller: [] };
 const emptySaglik = { profil: null, gunler: {}, favoriler: [] };
+// İstanbul Rehberi: mekân listesi koddan gelir; burada yalnızca kişisel işaretler.
+const emptyIstanbul = { favoriler: [], gittim: [], notlar: {} };
 
 // ANA ALANLAR — sekmelerin bir üstündeki katman. Her alan kendi dünyası:
 // finans alanının sekmeleri var, tatil ve sağlık tek ekran. Tatil bir süre
@@ -62,6 +65,7 @@ const ALANLAR = [
   { id: "finans", label: "Kişisel Finans Yönetimi", kisa: "Finans", ikon: "₺", renk: "#60a5fa" },
   { id: "tatil", label: "Tatil Planlama", kisa: "Tatil", ikon: "🧳", renk: "#2dd4bf" },
   { id: "saglik", label: "Sağlık Yönetimi", kisa: "Sağlık", ikon: "🥗", renk: "#34d399" },
+  { id: "istanbul", label: "İstanbul Rehberi", kisa: "İstanbul", ikon: "🌉", renk: "#f472b6" },
 ];
 
 // Sekmeler veri-tabanlı: kullanıcı sürükleyerek sırasını değiştirebilir (localStorage'da saklanır).
@@ -133,6 +137,7 @@ function normalizeFinanceData(data) {
       debtPlan: emptyDebtPlan,
       tatil: emptyTatil,
       saglik: emptySaglik,
+      istanbul: emptyIstanbul,
       besSettings: null,
       onboardingDone: false,
       preferences: DEFAULT_PREFERENCES,
@@ -179,6 +184,11 @@ function normalizeFinanceData(data) {
       profil: data.saglik?.profil && typeof data.saglik.profil === "object" ? data.saglik.profil : null,
       gunler: data.saglik?.gunler && typeof data.saglik.gunler === "object" ? data.saglik.gunler : {},
       favoriler: Array.isArray(data.saglik?.favoriler) ? data.saglik.favoriler : [],
+    },
+    istanbul: {
+      favoriler: Array.isArray(data.istanbul?.favoriler) ? data.istanbul.favoriler : [],
+      gittim: Array.isArray(data.istanbul?.gittim) ? data.istanbul.gittim : [],
+      notlar: data.istanbul?.notlar && typeof data.istanbul.notlar === "object" ? data.istanbul.notlar : {},
     },
     besSettings: data.besSettings && typeof data.besSettings === "object" ? data.besSettings : null,
     onboardingDone: data.onboardingDone === true,
@@ -279,6 +289,7 @@ export default function HomePage() {
   const [debtPlan, setDebtPlan] = useState(emptyDebtPlan);
   const [tatil, setTatil] = useState(emptyTatil);
   const [saglik, setSaglik] = useState(emptySaglik);
+  const [istanbul, setIstanbul] = useState(emptyIstanbul);
   const [activeArea, setActiveArea] = useState("finans");
   const [besSettings, setBesSettings] = useState(null);
   const [isAdmin, setIsAdmin] = useState(false);
@@ -328,6 +339,19 @@ export default function HomePage() {
       const savedArea = window.localStorage.getItem("aktif-alan");
       if (savedArea && ALANLAR.some((a) => a.id === savedArea)) setActiveArea(savedArea);
     } catch {}
+  }, []);
+
+  // Tarih alanının yalnızca ikonu değil, tamamı takvimi açsın. Tek bir dinleyici
+  // uygulamadaki tüm tarih alanlarını kapsar (finans, seyahat, defter).
+  useEffect(() => {
+    const ac = (e) => {
+      const el = e.target;
+      if (el instanceof HTMLInputElement && el.type === "date" && typeof el.showPicker === "function") {
+        try { el.showPicker(); } catch {}
+      }
+    };
+    document.addEventListener("click", ac);
+    return () => document.removeEventListener("click", ac);
   }, []);
 
   const reorderTabs = (fromId, toId) => {
@@ -453,9 +477,9 @@ export default function HomePage() {
     if (!session?.user || !financeLoaded) return;
     const timer = setTimeout(saveFinanceData, 650);
     return () => clearTimeout(timer);
-  }, [income, extraIncomes, credits, cardExpenses, otherExpenses, investments, routines, financialGoals, debtPlan, tatil, saglik, besSettings, onboardingDone, preferences, session, financeLoaded]);
+  }, [income, extraIncomes, credits, cardExpenses, otherExpenses, investments, routines, financialGoals, debtPlan, tatil, saglik, istanbul, besSettings, onboardingDone, preferences, session, financeLoaded]);
 
-  const currentPayload = () => ({ income, extraIncomes, credits, cardExpenses, otherExpenses, investments, routines, financialGoals, debtPlan, tatil, saglik, besSettings, onboardingDone, preferences });
+  const currentPayload = () => ({ income, extraIncomes, credits, cardExpenses, otherExpenses, investments, routines, financialGoals, debtPlan, tatil, saglik, istanbul, besSettings, onboardingDone, preferences });
 
   const loadFinanceData = async (userId) => {
     setDataLoading(true);
@@ -500,6 +524,7 @@ export default function HomePage() {
     setDebtPlan(normalized.debtPlan || emptyDebtPlan);
     setTatil(normalized.tatil || emptyTatil);
     setSaglik(normalized.saglik || emptySaglik);
+    setIstanbul(normalized.istanbul || emptyIstanbul);
     setBesSettings(normalized.besSettings || {});
     // Karsilama akisi: yalnizca hic tamamlanmamis VE verisi bos olan hesaplarda gosterilir.
     // hasCloudData bir || zinciri oldugundan ilk dolu degeri (orn. maas metnini)
@@ -932,6 +957,8 @@ export default function HomePage() {
         {activeArea === "tatil" ? <TatilPlanlayici data={tatil} setData={setTatil} userId={session.user.id} /> : null}
 
         {activeArea === "saglik" ? <SaglikYonetimi data={saglik} setData={setSaglik} /> : null}
+
+        {activeArea === "istanbul" ? <IstanbulRehberi data={istanbul} setData={setIstanbul} /> : null}
 
         {sekme === "goals" ? <RoutinePlanner routines={routines} setRoutines={setRoutines} mode="goals" /> : null}
 

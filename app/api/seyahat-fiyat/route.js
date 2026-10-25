@@ -29,6 +29,8 @@ const IATA = {
   tiflis: "TBS", baku: "GYD", semerkant: "SKD", dubai: "DXB", tokyo: "HND",
   kyoto: "KIX", seul: "ICN", singapur: "SIN", bangkok: "BKK", bali: "DPS",
   kahire: "CAI", marakes: "RAK", newyork: "JFK",
+  // Hallstatt'ın havalimanı yok → Salzburg; Heidelberg'in yok → Frankfurt.
+  salzburg: "SZG", hallstatt: "SZG", heidelberg: "FRA", stuttgart: "STR",
 };
 
 const KALKIS = "IST";
