@@ -52,7 +52,7 @@ const emptyFinancialGoals = { categories: [], goals: [], assets: [], debts: [] }
 // Borç Planı: ayrı bir borç listesi TUTMAZ. Krediler ve kart giderleri
 // Gelir/Gider ile ortaktır; burada yalnızca plan ayarları saklanır.
 const emptyDebtPlan = { ekKapasite: "", strateji: "cig", kartlar: [] };
-const emptyTatil = { kurlar: {}, ayarlar: {} };
+const emptyTatil = { kurlar: {}, ayarlar: {}, planlar: [], hayaller: [] };
 const emptySaglik = { profil: null, gunler: {}, favoriler: [] };
 
 // ANA ALANLAR — sekmelerin bir üstündeki katman. Her alan kendi dünyası:
@@ -172,6 +172,8 @@ function normalizeFinanceData(data) {
     tatil: {
       kurlar: data.tatil?.kurlar && typeof data.tatil.kurlar === "object" ? data.tatil.kurlar : {},
       ayarlar: data.tatil?.ayarlar && typeof data.tatil.ayarlar === "object" ? data.tatil.ayarlar : {},
+      planlar: Array.isArray(data.tatil?.planlar) ? data.tatil.planlar : [],
+      hayaller: Array.isArray(data.tatil?.hayaller) ? data.tatil.hayaller : [],
     },
     saglik: {
       profil: data.saglik?.profil && typeof data.saglik.profil === "object" ? data.saglik.profil : null,
@@ -927,7 +929,7 @@ export default function HomePage() {
         {sekme === "fingoals" ? <FinancialGoals data={financialGoals} setData={setFinancialGoals} financeTotals={financeTotals} investmentTotals={investmentTotals} monthlyBalance={financeTotals.balance} /> : null}
 
         {/* Ana alanlar — sekme değil, üst katman */}
-        {activeArea === "tatil" ? <TatilPlanlayici data={tatil} setData={setTatil} /> : null}
+        {activeArea === "tatil" ? <TatilPlanlayici data={tatil} setData={setTatil} userId={session.user.id} /> : null}
 
         {activeArea === "saglik" ? <SaglikYonetimi data={saglik} setData={setSaglik} /> : null}
 
