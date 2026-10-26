@@ -56,6 +56,8 @@ hemen bulan, baktığında heyecanlanan** bir ekran.
   "kokoreç"→kore, "ekşi mayalı"→yalı, "Anadolu yakası"→Anadolu mutfağı,
   "1977'den beri"→tarihi. Kelime başına bağla, sonra her etiketin listesini
   isim isim oku ve elle düzelt.
+- **Kategori süzgeci serbest metinde kelime aramaz** (yaşandı: "sahne" geçen restoran Konser'e, "geç saat" açık kaburgacı After'a düştü). Etkinlik (konser, DJ, after, canlı müzik) ayrı, kaynaklı ve güven düzeyli bir eksendir; tür (kulüp/sahne) kanıtla verilir. Güvenli eşleşme yoksa "bulunamadı" + en yakın seçenek; doğrulanmamışlar yalnızca kullanıcı isterse, rozetle ve sonda. Bkz. docs/istanbul-veri-modeli.md, `npm test`.
+- Her kayıt kaynağını ve tarihini taşır; görsel ancak kaynağı mekânla eşleşiyorsa gösterilir. Kapanan/taşınan mekân listeden çıkar (KAPANAN).
 - İçki etiketleri (kokteyl/şarap/bira) yalnızca o türde bar olan yerlere: yoksa
   "en iyi kokteyl barları" listesinin başına restoranlar çıkar.
 

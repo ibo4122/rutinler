@@ -8,8 +8,10 @@ import {
 import {
   KATEGORI_GRUPLARI, KATEGORILER, kategoriBul, anaKategori, PLAN_TURLERI, planBul, planUyum, planUyumEtiketi, PLAN_ESIK,
   skorHesapla, nedenler, rezervasyon, muzik, kalabalik, alkol, acikAlan, kimIcinDegil, mesafeKm, acikMi,
-  michelinMi, michelinKategoriMi,
+  michelinMi, michelinKategoriMi, kategoriKaniti, kayitGuveni, tarihYaz,
 } from "../lib/istanbulSkor";
+import { BOS_FILTRE, eslesir, aktifSayisi, panelSayisi, sonuclariHesapla, dogrulanmamisFarki } from "../lib/istanbulFiltre";
+import { ETKINLIK_TURLERI, GUVEN_AD, GUVEN_SIRA } from "../lib/istanbulEtkinlik";
 import { GeriButon, useGeriAl } from "./GeriAl";
 
 // İstanbul'da Mekân Keşfet.
@@ -28,24 +30,12 @@ import { GeriButon, useGeriAl } from "./GeriAl";
 const VERI_TARIHI = "Ekim 2026";
 const SAYFA = 24;
 const FILTRE_ANAHTARI = "rutinler:istanbul:filtre:v6";
-const BOS = {
-  arama: "", kategoriler: [], planlar: [], semtler: [], fiyatlar: [], acik: false,
-  rezervasyon: "hepsi", uzaklik: 0, minPuan: 0, minGoogle: 0, minYorum: 0, liste: null, tumu: false,
-};
-
-const sade = (s) => String(s || "").toLocaleLowerCase("tr")
-  .replace(/ı/g, "i").replace(/ş/g, "s").replace(/ğ/g, "g").replace(/ü/g, "u").replace(/ö/g, "o").replace(/ç/g, "c").replace(/â/g, "a");
+const BOS = BOS_FILTRE;
 const sayiTR = (n) => new Intl.NumberFormat("tr-TR").format(n);
 const fiyatSimge = (f) => FIYATLAR.find((x) => x.id === f)?.simge || "";
 const bolgeBul = (id) => BOLGELER.find((b) => b.id === id) || null;
 const anaTur = (m) => turBul(m.turler[0]) || TURLER[0];
 
-// Arama dizini bir kez kurulur: ad, semt, bölge, imza, etiketler, tür, yemek, kategori.
-const DIZIN = Object.fromEntries(MEKANLAR.map((m) => [m.id, sade([
-  m.ad, m.semt, bolgeBul(m.bolge)?.ad, m.imza, m.etiketler.join(" "),
-  m.turler.map((t) => turBul(t)?.ad).join(" "), m.yemekler.map((y) => yemekBul(y)?.ad).join(" "),
-  KATEGORILER.filter((k) => k.test(m)).map((k) => k.ad).join(" "),
-].join(" "))]));
 // Genel listeler Michelin dışındaki mekânlardan oluşur.
 const GENEL = MEKANLAR.filter((m) => !michelinMi(m));
 const ANA_KATEGORI = Object.fromEntries(MEKANLAR.map((m) => [m.id, anaKategori(m)]));
@@ -95,54 +85,6 @@ function useCevrimici() {
   }, []);
   return var_;
 }
-
-// ---------- süzgeç ----------
-// "haric": sayım yaparken o eksen yok sayılır (seçenek yanındaki sayılar için).
-function eslesir(m, f, ctx, haric) {
-  const g = ctx.g[m.id];
-  if (f.liste && haric !== "liste" && !ONERILER.find((o) => o.id === f.liste)?.liste.some(([id]) => id === m.id)) return false;
-  if (f.arama.trim() && haric !== "arama") {
-    const kelimeler = sade(f.arama).split(/\s+/).filter(Boolean);
-    if (!kelimeler.every((k) => DIZIN[m.id].includes(k))) return false;
-  }
-  // Michelin ayrı bir dünya: Michelin türü seçilmedikçe genel listelerde yok
-  // (adıyla arandığında ve hazır listelerde bulunur). Michelin türü + mutfak
-  // seçilirse ikisi birlikte aranır: "Bib Gourmand" + "Kebap" = Bib kebapçılar.
-  const mk = f.kategoriler.filter(michelinKategoriMi);
-  const nk = f.kategoriler.filter((id) => !michelinKategoriMi(id));
-  if (haric !== "kategori") {
-    if (mk.length && !mk.some((id) => kategoriBul(id)?.test(m))) return false;
-    if (nk.length && !nk.some((id) => kategoriBul(id)?.test(m))) return false;
-  }
-  if (michelinMi(m) && !mk.length && !f.liste && haric !== "kategori") {
-    const ara = sade(f.arama.trim());
-    if (!ara || !sade(m.ad).includes(ara)) return false;
-  }
-  if (f.planlar.length && haric !== "plan" && !f.planlar.every((p) => planUyum(m, p) >= PLAN_ESIK)) return false;
-  if (f.semtler.length && haric !== "semt" && !f.semtler.includes(m.bolge)) return false;
-  if (f.fiyatlar.length && haric !== "fiyat" && !f.fiyatlar.includes(m.fiyat)) return false;
-  if (f.acik && haric !== "acik" && ctx.googleAktif && acikMi(g?.periyotlar) !== true) return false;
-  if (f.rezervasyon !== "hepsi" && haric !== "rezervasyon") {
-    const r = rezervasyon(m, g).id;
-    if (f.rezervasyon === "gerekmez" ? r !== "gerekmez" : r === "gerekmez") return false;
-  }
-  if (f.uzaklik && haric !== "uzaklik" && ctx.konum) {
-    const d = mesafeKm(ctx.konum, m, g);
-    if (d && d.km > f.uzaklik) return false;
-  }
-  if (f.minPuan && haric !== "puan" && m.puan < f.minPuan) return false;
-  if (ctx.googleAktif && haric !== "puan") {
-    if (f.minGoogle && !(g?.puan >= f.minGoogle)) return false;
-    if (f.minYorum && !((g?.yorum || 0) >= f.minYorum)) return false;
-  }
-  return true;
-}
-
-const aktifSayisi = (f) =>
-  f.kategoriler.length + f.planlar.length + f.semtler.length + f.fiyatlar.length + (f.acik ? 1 : 0) +
-  (f.rezervasyon !== "hepsi" ? 1 : 0) + (f.uzaklik ? 1 : 0) + (f.minPuan ? 1 : 0) + (f.minGoogle ? 1 : 0) + (f.minYorum ? 1 : 0) +
-  (f.liste ? 1 : 0) + (f.arama.trim() ? 1 : 0);
-const panelSayisi = (f) => f.fiyatlar.length + (f.acik ? 1 : 0) + (f.rezervasyon !== "hepsi" ? 1 : 0) + (f.uzaklik ? 1 : 0) + (f.minPuan ? 1 : 0) + (f.minGoogle ? 1 : 0) + (f.minYorum ? 1 : 0);
 
 // ======================= ANA BİLEŞEN ========================================
 
@@ -224,28 +166,26 @@ export default function IstanbulRehberi({ data, setData }) {
   const gorunumDegis = (v) => git(f, v);
 
   const secimVar = aktifSayisi(f) > 0 || f.tumu;
-  const sonuclar = useMemo(() => {
-    const l = MEKANLAR.filter((m) => eslesir(m, f, ctx)).map((m) => {
-      const g = google.veri[m.id];
-      return { m, g, skor: skorHesapla(m, f, g), mesafe: konum ? mesafeKm(konum, m, g) : null };
-    });
-    const s = {
-      skor: (a, b) => b.skor.toplam - a.skor.toplam || b.m.puan - a.m.puan,
-      google: (a, b) => (b.g?.puan || 0) - (a.g?.puan || 0) || b.skor.toplam - a.skor.toplam,
-      ucuz: (a, b) => a.m.fiyat - b.m.fiyat || b.skor.toplam - a.skor.toplam,
-      pahali: (a, b) => b.m.fiyat - a.m.fiyat || b.skor.toplam - a.skor.toplam,
-      yakin: (a, b) => (a.mesafe?.km ?? 999) - (b.mesafe?.km ?? 999) || b.skor.toplam - a.skor.toplam,
-    }[sirala] || ((a, b) => b.skor.toplam - a.skor.toplam);
-    // Zayıf mekânlar öne çıkarılmaz: düşük puan/az değerlendirme sona.
-    return l.sort((a, b) => (a.skor.zayif - b.skor.zayif) || s(a, b));
+  const sonuclar = useMemo(() => sonuclariHesapla(f, ctx, sirala),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [f, sirala, google.veri, google.aktif, konum]);
+    [f, sirala, google.veri, google.aktif, konum]);
+  // Doğrulanmamış bilgilerle kaç mekân daha gelirdi (kullanıcıya seçenek olarak sunulur).
+  const dogrulanmamisEk = useMemo(() => (secimVar ? dogrulanmamisFarki(f, ctx) : 0),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [f, google.veri, konum, secimVar]);
+
 
   // Daraltmayı gevşetme önerileri: her aktif seçim kaldırılınca kaç sonuç çıkar?
   const gevsetme = useMemo(() => {
     if (!secimVar || sonuclar.length >= 4) return [];
+    // Etkinlik seçiminde "kaldır" yerine en yakın anlamlı seçenek önerilir
+    // (After'ı kaldırıp 500 restoran göstermek bir çözüm değil).
+    const YAKIN = { after: ["kulup", "dj"], konser: ["canli"], kulup: ["dj", "dans"], dj: ["kulup"], dans: ["kulup", "dj"], canli: ["konser"] };
     const adaylar = [
-      ...f.kategoriler.map((id) => ({ ad: `"${kategoriBul(id)?.ad}" türünü kaldır`, yama: { kategoriler: f.kategoriler.filter((x) => x !== id) } })),
+      ...f.kategoriler.flatMap((id) => (YAKIN[id] || []).filter((y) => !f.kategoriler.includes(y)).map((y) => ({
+        ad: `Bunun yerine "${kategoriBul(y)?.ad}"`, yama: { kategoriler: f.kategoriler.map((x) => (x === id ? y : x)) },
+      }))),
+      ...f.kategoriler.filter((id) => !YAKIN[id]).map((id) => ({ ad: `"${kategoriBul(id)?.ad}" türünü kaldır`, yama: { kategoriler: f.kategoriler.filter((x) => x !== id) } })),
       ...f.planlar.map((id) => ({ ad: `"${planBul(id)?.ad}" planını kaldır`, yama: { planlar: f.planlar.filter((x) => x !== id) } })),
       ...(f.semtler.length ? [{ ad: "Semt seçimini kaldır", yama: { semtler: [] } }] : []),
       ...(f.fiyatlar.length ? [{ ad: "Fiyat süzgecini kaldır", yama: { fiyatlar: [] } }] : []),
@@ -385,11 +325,21 @@ export default function IstanbulRehberi({ data, setData }) {
                 </label>
               </div>
               {sirala === "yakin" || f.uzaklik ? <KonumDurumu durum={konumDurum} onTekrar={() => konumIste()} onSemt={() => setAcilir("semt")} /> : null}
+              <SecimTanimi f={f} />
+              {dogrulanmamisEk > 0 && sonuclar.length > 0 ? (
+                <div className="ist-ipucu">
+                  {sayiTR(dogrulanmamisEk)} mekân daha bu seçime uyuyor olabilir ama bilgisi güncel bir kaynakla doğrulanmadı.
+                  <button type="button" className="ist-link" onClick={() => degis({ dogrulanmamis: true })}>Onları da göster</button>
+                </div>
+              ) : null}
 
               {sonuclar.length === 0 ? (
-                <BosDurum baslik="Bu seçimlere uyan mekân bulamadık"
-                  metin="Seçimler birbirini fazla daraltmış olabilir. Aşağıdakilerden birini kaldırınca sonuçlar geri gelir."
-                  oneriler={gevsetme} degis={degis} temizle={temizle} />
+                <BosDurum baslik="Bu seçimlere güvenilir biçimde uyan mekân bulamadık"
+                  metin={dogrulanmamisEk > 0
+                    ? `Seçimine uyan ${dogrulanmamisEk} mekân var ama bilgileri güncel bir kaynakla doğrulanmadı. İstersen onları "doğrulanmamış" etiketiyle gösterebilir ya da seçimi genişletebilirsin.`
+                    : "Seçimler birbirini fazla daraltmış olabilir. Aşağıdakilerden birini kaldırınca sonuçlar geri gelir."}
+                  oneriler={[...(dogrulanmamisEk > 0 ? [{ ad: "Doğrulanmamışları da göster", yama: { dogrulanmamis: true }, sayi: sonuclar.length + dogrulanmamisEk }] : []), ...gevsetme]}
+                  degis={degis} temizle={temizle} />
               ) : (
                 <>
                   {gevsetme.length && sonuclar.length < 4 ? (
@@ -538,10 +488,10 @@ function Acilir({ baslik, children, onKapat, onTemizle, sonucSayisi, onGoster })
   );
 }
 
-function Cip({ secili, onClick, ikon, ad, sayi, renk }) {
+function Cip({ secili, onClick, ikon, ad, sayi, renk, baslik }) {
   const sifir = sayi === 0 && !secili;
   return (
-    <button type="button" role="checkbox" aria-checked={secili} className={`ist-cip${secili ? " secili" : ""}${sifir ? " sifir" : ""}`}
+    <button type="button" role="checkbox" aria-checked={secili} title={baslik || undefined} className={`ist-cip${secili ? " secili" : ""}${sifir ? " sifir" : ""}`}
       style={renk ? { "--r": renk } : undefined} onClick={onClick}>
       {ikon ? <span aria-hidden>{ikon}</span> : null}{ad}{sayi != null ? <em>{sayi}</em> : null}
     </button>
@@ -569,7 +519,7 @@ function KategoriSecici({ f, ctx, dizi }) {
           <fieldset key={g.id} className="ist-grup">
             <legend>{g.ikon} {g.ad}</legend>
             <div className="ist-cipler" role="group" aria-label={g.ad}>
-              {goster.map((k) => <Cip key={k.id} secili={f.kategoriler.includes(k.id)} onClick={() => dizi("kategoriler", k.id)} ikon={k.ikon} ad={k.ad} sayi={say(k)} />)}
+              {goster.map((k) => <Cip key={k.id} secili={f.kategoriler.includes(k.id)} onClick={() => dizi("kategoriler", k.id)} ikon={k.ikon} ad={k.ad} sayi={say(k)} baslik={k.tanim} />)}
               {kalan > 0 ? <button type="button" className="ist-cip daha" onClick={() => setAcik((s) => ({ ...s, [g.id]: true }))}>+{kalan} daha</button> : null}
               {tum ? <button type="button" className="ist-cip daha" onClick={() => setAcik((s) => ({ ...s, [g.id]: false }))}>Daha az</button> : null}
             </div>
@@ -684,6 +634,16 @@ function FiltrePaneli({ f, ctx, degis, dizi, google, konumDurum, konumIste }) {
           </>
         )}
       </div>
+
+      <div className="ist-filtre-alan">
+        <b>Bilgi doğruluğu</b>
+        <label className="ist-anahtar">
+          <input type="checkbox" checked={f.dogrulanmamis} onChange={(e) => degis({ dogrulanmamis: e.target.checked })} />
+          <span className="ist-anahtar-iz" aria-hidden><span /></span>
+          Doğrulanmamış bilgileri de göster
+        </label>
+        <p className="ist-dipnot">Kapalıyken konser, DJ, after, canlı müzik ve kulüp gibi seçimlerde yalnızca güncel bir kaynağın (etkinlik takvimi, 2025–2026 yayını ya da mekânın kendi sitesi) desteklediği mekânlar gelir. Açarsan eski ya da tek kaynaklı bilgiler "doğrulanmamış" etiketiyle ve listenin sonunda görünür.</p>
+      </div>
     </div>
   );
 }
@@ -718,6 +678,7 @@ function AktifEtiketler({ f, degis, dizi, temizle }) {
   if (f.minPuan) l.push({ k: "mp", ad: `Rehber ≥ ${String(f.minPuan).replace(".", ",")}`, sil: () => degis({ minPuan: 0 }) });
   if (f.minGoogle) l.push({ k: "mg", ad: `Google ≥ ${String(f.minGoogle).replace(".", ",")}`, sil: () => degis({ minGoogle: 0 }) });
   if (f.minYorum) l.push({ k: "my", ad: `${sayiTR(f.minYorum)}+ değerlendirme`, sil: () => degis({ minYorum: 0 }) });
+  if (f.dogrulanmamis) l.push({ k: "dg", ad: "Doğrulanmamışlar dahil", sil: () => degis({ dogrulanmamis: false }) });
   if (!l.length && !f.tumu) return null;
   return (
     <div className="ist-aktifler" aria-label="Seçili filtreler">
@@ -909,7 +870,10 @@ function MekanKart({ x, f, isaret, onDetay, googleAktif }) {
   const mz = muzik(m);
   const rz = rezervasyon(m, g);
   const planlar = (f.planlar.length ? f.planlar.map(planBul) : PLAN_TURLERI.filter((p) => planUyum(m, p.id) >= 0.85).slice(0, 2)).filter(Boolean);
-  const atmosfer = [...new Set([...m.ozellikler.filter((o) => o !== "michelin").map((o) => ozellikBul(o)?.kisa), ...m.etiketler.filter((e) => !/michelin|bib/i.test(e))]
+  // Atmosfer çipleri: etkinlik sözcükleri (DJ, canlı müzik, konser…) burada gösterilmez;
+  // onlar kaynaklı olarak "Neden?" ve kaynak satırında yer alır.
+  const atmosfer = [...new Set([...m.ozellikler.filter((o) => o !== "michelin").map((o) => ozellikBul(o)?.kisa),
+    ...m.etiketler.filter((e) => !/michelin|bib/i.test(e) && !/^(DJ|Canlı (müzik|caz)|Konser|Dans|Şov|Fasıl|Geç saat|Biletli|18\+)$/i.test(e))]
     .filter(Boolean).map((e) => e.charAt(0).toLocaleUpperCase("tr") + e.slice(1)))].slice(0, 3);
   return (
     <li className={`ist-kart${skor.zayif ? " zayif" : ""}`}>
@@ -945,6 +909,7 @@ function MekanKart({ x, f, isaret, onDetay, googleAktif }) {
         </div>
         {atmosfer.length ? <div className="ist-etiketler">{atmosfer.map((a) => <span key={a} className="ist-etiket">{a}</span>)}</div> : null}
         <div className="ist-kart-neden"><b>Neden?</b> {gerekce}</div>
+        <KaynakSatiri m={m} f={f} />
         <div className="ist-kart-eylem">
           <a className="ist-dugme" href={g?.harita || haritaLink(m.harita)} target="_blank" rel="noopener noreferrer">📍 Haritada gör</a>
           <button type="button" className="ist-dugme ana" onClick={onDetay}>Detayları incele</button>
@@ -1098,6 +1063,8 @@ function Detay({ m, g, f, ctx, isaret, not, googleAktif, onKapat, onSec, onListe
             <button type="button" className={`ist-dugme${git ? " vurgu-yesil" : ""}`} onClick={() => isaret.gitDegis(m.id)}>{git ? "✓ Gittim" : "Gittim olarak işaretle"}</button>
           </div>
 
+          <KaynakBolumu m={m} />
+
           <NotAlani key={m.id} ilk={not} onKaydet={(v) => isaret.notYaz(m.id, v)} />
 
           {benzer.length ? (
@@ -1117,6 +1084,78 @@ function Detay({ m, g, f, ctx, isaret, not, googleAktif, onKapat, onSec, onListe
         </div>
       </article>
     </div>
+  );
+}
+
+// Seçili etkinlik kategorilerinin bu uygulamada tam olarak ne demek olduğu.
+function SecimTanimi({ f }) {
+  const l = f.kategoriler.map(kategoriBul).filter((k) => k?.tanim);
+  if (!l.length) return null;
+  return (
+    <div className="ist-tanim">
+      {l.map((k) => <span key={k.id}><b>{k.ikon} {k.ad}:</b> {k.tanim}.</span>)}
+    </div>
+  );
+}
+
+const GUVEN_RENK = { yuksek: "#86efac", orta: "#fde68a", dusuk: "#fda4af" };
+function GuvenRozet({ guven }) {
+  return <span className="ist-guven" style={{ "--r": GUVEN_RENK[guven] }}>{GUVEN_AD[guven]}</span>;
+}
+
+// Kartta tek satır: bu öneri hangi kaynağa dayanıyor, ne kadar güncel.
+function KaynakSatiri({ m, f }) {
+  const etk = f.kategoriler.map(kategoriBul).map((k) => kategoriKaniti(m, k)).filter(Boolean)
+    .sort((a, b) => GUVEN_SIRA[b.guven] - GUVEN_SIRA[a.guven])[0];
+  const k = etk ? { ad: etk.kaynakAd, tarih: etk.tarih, guven: etk.guven }
+    : (() => { const x = [...m.kaynaklar].sort((a, b) => GUVEN_SIRA[b.guven] - GUVEN_SIRA[a.guven])[0]; return { ad: x?.ad, tarih: x?.tarih, guven: x?.guven || "dusuk" }; })();
+  return (
+    <div className="ist-kaynak-satir">
+      <GuvenRozet guven={k.guven} />
+      <span>Kaynak: {k.ad || "rehber notu"} · {tarihYaz(k.tarih)}</span>
+    </div>
+  );
+}
+
+const ALAN_AD = { kayit: "kayıt ve açıklama", adres: "adres", gorsel: "görsel", odul: "ödül", fiyat: "fiyat", etkinlik: "etkinlik bilgisi", iletisim: "iletişim", konum: "konum" };
+function KaynakBolumu({ m }) {
+  const kg = kayitGuveni(m);
+  return (
+    <section className="ist-kaynak-bolum" aria-label="Kaynaklar ve doğrulama">
+      <h4 className="ist-h4">Kaynaklar ve doğrulama <GuvenRozet guven={kg} /></h4>
+      {m.etkinlikler.length ? (
+        <ul className="ist-kanit-liste">
+          {m.etkinlikler.map((e, i) => (
+            <li key={e.id + i}>
+              <b>{ETKINLIK_TURLERI.find((x) => x.id === e.id)?.ad}</b>
+              <span>{e.not}</span>
+              <small>
+                <GuvenRozet guven={e.guven} /> {e.kaynakAd || "rehber"} · {tarihYaz(e.tarih)}
+                {e.url ? <> · <a href={e.url} target="_blank" rel="noopener noreferrer">kaynağı aç ↗</a></> : null}
+              </small>
+            </li>
+          ))}
+        </ul>
+      ) : <p className="ist-dipnot">Bu mekân için kayıtlı etkinlik bilgisi (konser, DJ, canlı müzik) yok.</p>}
+      <ul className="ist-kaynak-liste">
+        {m.kaynaklar.map((k, i) => (
+          <li key={(k.url || k.k) + i}>
+            <GuvenRozet guven={k.guven} />
+            <span>
+              {k.url ? <a href={k.url} target="_blank" rel="noopener noreferrer">{k.ad}</a> : k.ad}
+              {" · "}{tarihYaz(k.tarih)}{k.alanlar?.length ? ` · ${k.alanlar.map((a) => ALAN_AD[a] || a).join(", ")}` : ""}
+            </span>
+          </li>
+        ))}
+      </ul>
+      <p className="ist-dipnot">
+        Görsel: {m.gorsel ? (m.gorselKoken?.neden || "kaynağı kayıtlı") : m.gorselKoken?.eslesme === false || m.gorselKoken?.eslesme === null
+          ? "kaynağı mekânla eşleştirilemediği için gösterilmiyor"
+          : "doğrulanmış bir mekân fotoğrafı yok"}
+        {m.gorselKoken?.sayfa ? <> · <a href={m.gorselKoken.sayfa} target="_blank" rel="noopener noreferrer">sayfa ↗</a></> : null}.
+        {" "}Güven: güncel etkinlik takvimi ya da 2026 yayını "Doğrulandı", 2025 yayını ya da mekânın kendi sitesi "Kaynaklı", tarihsiz ya da eski kaynak "Doğrulanmamış".
+      </p>
+    </section>
   );
 }
 
@@ -1188,7 +1227,7 @@ function Kayitli({ kayit, g, onSec, isaret, listeIslem, onKesfet }) {
             <li key={m.id} className="ist-kayitli-satir">
               <button type="button" className="ist-kayitli-ana" onClick={() => onSec(m.id)}>
                 <Kapak m={m} g={g[m.id]} oran="1 / 1" ad={false} />
-                <span><b>{m.ad}</b><small>{ANA_KATEGORI[m.id]?.ad} · {m.semt} · {fiyatSimge(m.fiyat)}</small>{kayit.notlar[m.id] ? <i>“{kayit.notlar[m.id]}”</i> : null}</span>
+                <span><b>{m.ad}</b><small>{m.kapandi ? `⚠ ${m.kapandi}` : `${ANA_KATEGORI[m.id]?.ad || ""} · ${m.semt} · ${fiyatSimge(m.fiyat)}`}</small>{kayit.notlar[m.id] ? <i>“{kayit.notlar[m.id]}”</i> : null}</span>
               </button>
               <button type="button" className="ist-mini" onClick={() => (sekme === "favoriler" ? isaret.favDegis(m.id) : listeIslem.degistir(liste.id, m.id))}>Çıkar</button>
             </li>
@@ -1480,6 +1519,18 @@ const CSS = `
 .ist-etiket{font-size:11.5px;padding:3px 9px;border-radius:99px;border:1px solid var(--cizgi);color:var(--soluk)}
 .ist-kart-neden{font-size:12.5px;color:#f9d6e8;line-height:1.45;padding:8px 10px;border-radius:12px;background:rgba(244,114,182,.07);border:1px solid rgba(244,114,182,.18)}
 .ist-kart-neden b{color:var(--vurgu)}
+.ist-kaynak-satir{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:11.5px;color:var(--silik)}
+.ist-guven{--r:#86efac;display:inline-flex;align-items:center;height:20px;padding:0 8px;border-radius:99px;font-size:10.5px;font-weight:900;color:var(--r);border:1px solid color-mix(in srgb,var(--r) 45%,transparent);background:color-mix(in srgb,var(--r) 10%,transparent);white-space:nowrap}
+.ist-tanim{display:grid;gap:4px;padding:10px 12px;border-radius:12px;background:var(--panel);border:1px solid var(--cizgi);color:var(--soluk);font-size:12.5px;line-height:1.5;margin-bottom:12px}
+.ist-tanim b{color:var(--metin)}
+.ist-kaynak-bolum{padding:14px;border-radius:16px;background:#141417;border:1px solid rgba(255,255,255,.08);display:grid;gap:10px}
+.ist-kaynak-bolum .ist-h4{display:flex;align-items:center;gap:8px;margin:0}
+.ist-kanit-liste,.ist-kaynak-liste{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.ist-kanit-liste li{display:grid;gap:3px;padding:8px 10px;border-radius:10px;background:#1b1b1f}
+.ist-kanit-liste b{font-size:13px}
+.ist-kanit-liste span{font-size:13px;color:#ddd8cf}
+.ist-kanit-liste small,.ist-kaynak-liste li{display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:12px;color:#a19d94}
+.ist-kaynak-bolum a{color:#f9a8d4}
 .ist-kart-eylem{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:auto;padding-top:4px}
 /* boş durum */
 .ist-bos{display:grid;justify-items:center;text-align:center;gap:8px;padding:34px 18px;border-radius:20px;border:1px dashed var(--cizgi);background:var(--panel)}

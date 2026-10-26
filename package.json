@@ -6,7 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "test": "node --no-warnings --import ./scripts/uzanti-kancasi.mjs --test scripts/istanbul.test.mjs",
+    "rapor:istanbul": "node --no-warnings --import ./scripts/uzanti-kancasi.mjs scripts/istanbul-rapor.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "2.45.4",
