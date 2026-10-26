@@ -104,6 +104,25 @@ hemen bulan, baktığında heyecanlanan** bir ekran.
   medya sorguları için sınıf adları önekli (`ist-…`).
 - Dar ekran tespiti `matchMedia("(max-width: 980px)")`; masaüstünde sabit
   detay paneli, telefonda tam ekran sayfa.
+- **Geri Al** ortak sistemi: `components/GeriAl.jsx`. Veri dilimlerini page.js
+  izler; bileşen yalnızca `useGeriAl().etiketle("X silindi")` der. Kullanıcı
+  işlemi olmayan yazmalar (canlı fiyat) `sessiz()` ile geçmişe girmez. Yazarken
+  her tuş toast açmasın: metin alanları `onBlur`'da kaydeder.
+- Detay/alt sayfalar sol üstte `GeriButon` ile açılır; kaydedilmemiş giriş varsa
+  `kaydedilmemis={() => kirli.current}` ile onay sorar. Esc de kapatır.
+- Filtre çubuğu kalıbı: arama + açılır kontroller (masaüstünde panel, ≤640px'te
+  alttan açılan sayfa) + seçili etiketler (✕) + "Tümünü temizle". Seçenek
+  yanındaki sayı "o eksen hariç diğer filtrelere" göre sayılır. Sonuç azsa
+  hangi seçimi kaldırınca kaç sonuç geleceği tek tıkla önerilir.
+- Elde olmayan veri (Google puanı, saat, telefon) **uydurulmaz**: "Google verisi
+  bağlı değil" yazar, ilgili süzgeç devre dışı ve açıklamalı; tahmini alanlar
+  "rehber tahmini" rozeti taşır.
+- CSS tuzakları (yaşandı): (1) `backdrop-filter`/`transform` olan bir ata,
+  içindeki `position:fixed` perdeyi kendi kutusuna hapseder — açılır panelin
+  atasında kullanma. (2) Taşan bir grid'de `overflow-x:auto` olan öğe (galeri)
+  0 yüksekliğe çöker → `grid-auto-rows:max-content` + `grid-template-columns:minmax(0,1fr)`.
+- Gemini 2.5 Flash JSON yanıtında `thinkingConfig.thinkingBudget: 0` ver;
+  düşünme jetonları çıktı sınırını yiyip JSON'u yarıda kesiyor.
 - Google Haritalar: `maps.google.com/maps?q=…&output=embed` (anahtarsız),
   dış bağlantı `google.com/maps/search/?api=1&query=`; harita kutusu
   tıklanınca mekânı Google'da açar.

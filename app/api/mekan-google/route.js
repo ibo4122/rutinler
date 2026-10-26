@@ -15,9 +15,15 @@
 export const dynamic = "force-dynamic";
 
 const ANAHTAR = process.env.GOOGLE_PLACES_API_KEY;
+// Detay sayfası için saat, telefon, rezervasyon, alkol, açık alan, otopark ve
+// konum da istenir. Bu alanlar Places'in Enterprise (+Atmosphere) SKU'suna
+// düşer; CDN önbelleği sayesinde mekân başına günde en fazla bir istek gider.
 const ALANLAR = [
   "places.id", "places.displayName", "places.rating", "places.userRatingCount",
   "places.googleMapsUri", "places.photos", "places.formattedAddress", "places.websiteUri",
+  "places.regularOpeningHours", "places.nationalPhoneNumber", "places.reservable",
+  "places.servesBeer", "places.servesWine", "places.servesCocktails", "places.outdoorSeating",
+  "places.parkingOptions", "places.location", "places.priceLevel",
 ].join(",");
 
 const json = (veri, saniye = 0) =>
@@ -43,23 +49,36 @@ export async function GET(istek) {
     const yer = (await r.json()).places?.[0];
     if (!yer) return json({ aktif: true, bulunamadi: true }, 86400);
 
-    let foto = null;
-    const ad = yer.photos?.[0]?.name;
-    if (ad) {
-      const f = await fetch(`https://places.googleapis.com/v1/${ad}/media?maxWidthPx=1000&skipHttpRedirect=true`, {
+    // En fazla dört fotoğraf: ilki kapak, gerisi galeri.
+    const fotolar = [];
+    for (const ph of (yer.photos || []).slice(0, 4)) {
+      const f = await fetch(`https://places.googleapis.com/v1/${ph.name}/media?maxWidthPx=1000&skipHttpRedirect=true`, {
         headers: { "X-Goog-Api-Key": ANAHTAR },
       });
-      if (f.ok) foto = (await f.json()).photoUri || null;
+      if (f.ok) { const u = (await f.json()).photoUri; if (u) fotolar.push(u); }
     }
+    const po = yer.parkingOptions || {};
+    const otopark = [po.freeParkingLot && "ücretsiz otopark", po.paidParkingLot && "ücretli otopark", po.valetParking && "vale",
+      po.freeStreetParking && "sokakta ücretsiz park", po.paidStreetParking && "sokakta ücretli park"].filter(Boolean);
     return json({
       aktif: true,
+      guncelleme: new Date().toISOString(),
       ad: yer.displayName?.text || null,
       puan: yer.rating ?? null,
       yorum: yer.userRatingCount ?? null,
       adres: yer.formattedAddress || null,
       harita: yer.googleMapsUri || null,
       site: yer.websiteUri || null,
-      foto,
+      foto: fotolar[0] || null,
+      fotolar,
+      saatler: yer.regularOpeningHours?.weekdayDescriptions || null,
+      periyotlar: yer.regularOpeningHours?.periods || null,
+      telefon: yer.nationalPhoneNumber || null,
+      rezervasyon: yer.reservable ?? null,
+      alkol: { bira: !!yer.servesBeer, sarap: !!yer.servesWine, kokteyl: !!yer.servesCocktails },
+      acikAlan: yer.outdoorSeating ?? null,
+      otopark: otopark.length ? otopark.join(", ") : null,
+      konum: yer.location ? { lat: yer.location.latitude, lng: yer.location.longitude } : null,
     }, 86400);
   } catch (e) {
     return json({ aktif: true, hata: String(e?.message || e) });

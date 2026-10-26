@@ -1,41 +1,39 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import {
-  AKTIVITE_SEVIYELERI, HEDEFLER, MAKRO_SABLONLARI, EGZERSIZLER, OGUNLER,
+  AKTIVITE_SEVIYELERI, HEDEFLER, MAKRO_SABLONLARI, OGUNLER,
   bmrHesapla, tdeeHesapla, hedefKalori, haftalikDegisim, makroHesapla,
   bmiHesapla, idealKiloAraligi, yagOraniTahmin, yagYorumu, suIhtiyaci,
-  egzersizKalori, hedefeSure, bugun, tarihAdi,
+  hedefeSure, bugun, tarihAdi,
 } from "../lib/saglikKoc";
-import { KATEGORI_LISTESI, besinAra, kategoriBesinleri, BESIN_SAYISI } from "../lib/besinler";
-import { num, yeniId } from "./panelUI";
+import { num } from "./panelUI";
+import { useGeriAl } from "./GeriAl";
+import { GunOzeti, GunAkordeon, BesinSayfasi, gunToplami, saatinOgunu, SAGLIK_CSS } from "./SaglikGunluk";
 
-// Sağlık Yönetimi — fitness teması.
+// Sağlık Yönetimi.
 //
-// Finans alanı mavi-lacivert, tatil alanı turkuaz-fotoğraf. Burası bilinçli
-// olarak ikisine de benzemiyor: lime-yeşil enerji, turuncu "yakılan", büyük
-// halkalar ve iri rakamlar. Bir spor uygulaması gibi okunmalı, bir tablo gibi
-// değil — çünkü buraya her gün girilecek, haftada bir değil.
+// Ekranın ana sorusu "bugün ne aldım?": en üstte büyük kalori sayısı ve makro
+// kartları, hemen altında öğünler. Hedef/kalan bilgisi ikincil. Profil ve
+// hesaplamalar (BMR, makro hedefleri) bir kez kurulur; bu yüzden aşağıda,
+// kapalı bir bölümde durur — yalnızca profil eksikse en üstte açılır.
 //
-// Girdiler kasıtlı olarak büyük: telefonla, mutfakta, ayaküstü doldurulacak.
+// Kullanıcı akışları ve ekran hiyerarşisi: docs/saglik-istanbul-akislar.md
 
 const T = {
-  ana: "#4ade80",       // lime-yeşil — ana vurgu
+  ana: "#4ade80",
   koyu: "#15803d",
-  enerji: "#fb923c",    // turuncu — yakılan kalori
-  protein: "#f87171",
+  enerji: "#fb923c",
+  protein: "#60a5fa",
   karb: "#fbbf24",
   yag: "#a78bfa",
-  su: "#38bdf8",
+  su: "#7dd3fc",
   zemin: "rgba(4,24,14,.55)",
   kenar: "rgba(74,222,128,.22)",
 };
 
 const GORSELLER = {
-  hero: "https://upload.wikimedia.org/wikipedia/commons/thumb/6/6d/Good_Food_Display_-_NCI_Visuals_Online.jpg/1280px-Good_Food_Display_-_NCI_Visuals_Online.jpg",
   sebze: "https://upload.wikimedia.org/wikipedia/commons/thumb/2/24/Marketvegetables.jpg/1280px-Marketvegetables.jpg",
-  meyve: "https://upload.wikimedia.org/wikipedia/commons/thumb/f/f7/FruitArrangement.jpg/1280px-FruitArrangement.jpg",
-  spor: "https://upload.wikimedia.org/wikipedia/commons/thumb/d/dc/Small_group_fitness_sessions_bundall.jpg/500px-Small_group_fitness_sessions_bundall.jpg",
 };
 
 const bosProfil = {
@@ -48,10 +46,13 @@ const r0 = (v) => Math.round(num(v)).toLocaleString("tr-TR");
 const r1 = (v) => num(v).toFixed(1).replace(".", ",");
 
 export default function SaglikYonetimi({ data, setData }) {
+  const geriAl = useGeriAl();
   const kayit = data || {};
   const profil = { ...bosProfil, ...(kayit.profil || {}) };
   const [tarih, setTarih] = useState(bugun());
   const [profilAcik, setProfilAcik] = useState(!kayit.profil);
+  const [sayfa, setSayfa] = useState(null); // { mod, ogun, kayit?, kayitOgun? }
+  const profilRef = useRef(null);
 
   const pDegis = (alan, deger) =>
     setData((s) => ({ ...(s || {}), profil: { ...bosProfil, ...((s || {}).profil || {}), [alan]: deger } }));
@@ -59,6 +60,37 @@ export default function SaglikYonetimi({ data, setData }) {
   const gun = (kayit.gunler || {})[tarih] || { ogunler: {}, egzersizler: [] };
   const gunDegis = (yeni) =>
     setData((s) => ({ ...(s || {}), gunler: { ...((s || {}).gunler || {}), [tarih]: yeni } }));
+
+  // Ekleme ve düzenleme her zaman güncel günün üzerinden yapılır (sayfa açıkken
+  // başka bir kayıt eklenmiş olabilir).
+  const kayitlariEkle = (ogunId, items) => {
+    if (!items.length) return;
+    geriAl.etiketle(items.length === 1 ? `${items[0].ad} eklendi` : `${items.length} yiyecek eklendi`);
+    setData((s) => {
+      const gunler = (s || {}).gunler || {};
+      const g = gunler[tarih] || { ogunler: {}, egzersizler: [] };
+      return { ...(s || {}), gunler: { ...gunler, [tarih]: { ...g, ogunler: { ...(g.ogunler || {}), [ogunId]: [...((g.ogunler || {})[ogunId] || []), ...items] } } } };
+    });
+  };
+  const kaydiGuncelle = (eskiOgun, yeniOgun, x) => {
+    geriAl.etiketle("Kayıt güncellendi");
+    setData((s) => {
+      const gunler = (s || {}).gunler || {};
+      const g = gunler[tarih] || { ogunler: {}, egzersizler: [] };
+      const og = { ...(g.ogunler || {}) };
+      if (eskiOgun === yeniOgun || (yeniOgun === "ara1" && eskiOgun === "ara2")) {
+        og[eskiOgun] = (og[eskiOgun] || []).map((y) => (y.id === x.id ? x : y));
+      } else {
+        og[eskiOgun] = (og[eskiOgun] || []).filter((y) => y.id !== x.id);
+        og[yeniOgun] = [...(og[yeniOgun] || []), x];
+      }
+      return { ...(s || {}), gunler: { ...gunler, [tarih]: { ...g, ogunler: og } } };
+    });
+  };
+  const suEkle = () => {
+    geriAl.etiketle("+250 ml su eklendi");
+    gunDegis({ ...gun, su: num(gun.su) + 250 });
+  };
 
   const hesap = useMemo(() => {
     const yagTahmin = yagOraniTahmin({
@@ -78,29 +110,18 @@ export default function SaglikYonetimi({ data, setData }) {
       ? hedefeSure({ mevcutKilo: profil.kilo, hedefKilo: profil.hedefKilo, haftalikKg: haftalik })
       : null;
     return { eksik: false, bmr, tdee, hk, haftalik, makro, bmi, ideal, sure, yag, yagTahmin };
-  }, [profil]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [JSON.stringify(profil)]);
 
-  const gunToplam = useMemo(() => {
-    let kcal = 0, p = 0, k = 0, y = 0;
-    for (const o of OGUNLER) {
-      for (const item of gun.ogunler?.[o.id] || []) {
-        kcal += num(item.kcal); p += num(item.protein); k += num(item.karb); y += num(item.yag);
-      }
-    }
-    const yakilan = (gun.egzersizler || []).reduce((s, e) => s + num(e.kcal), 0);
-    return { kcal, protein: p, karb: k, yag: y, yakilan, net: kcal - yakilan };
-  }, [gun]);
-
+  const toplam = useMemo(() => gunToplami(gun), [gun]);
   const hedefKcal = hesap.eksik ? 0 : hesap.hk.deger;
-  const kalan = hedefKcal - gunToplam.net;
   const profilGoster = profilAcik || hesap.eksik;
 
-  return (
-    <section style={{ "--saglikAna": T.ana }}>
-      <Hero hesap={hesap} toplam={gunToplam} hedefKcal={hedefKcal} kalan={kalan} />
-
+  const profilKarti = (
+    <div ref={profilRef}>
       <Kart
-        baslik="Profilin" ikon="👤" aciklama="Hesabın tamamı bu bilgilere dayanıyor. Kilon değiştikçe burayı güncelle."
+        baslik="Profil & Hedefler" ikon="👤"
+        aciklama={hesap.eksik ? "Kalori hedefini hesaplamak için yaş, boy ve kilonu gir. Kayıt eklemek için beklemen gerekmez." : "Hesabın tamamı bu bilgilere dayanıyor. Kilon değiştikçe güncelle."}
         acik={profilGoster} onToggle={hesap.eksik ? undefined : () => setProfilAcik((v) => !v)}
         sag={!hesap.eksik ? <span style={{ color: T.ana, fontWeight: 900, fontSize: 15 }}>{r0(hesap.hk.deger)} kcal/gün</span> : null}
       >
@@ -153,14 +174,9 @@ export default function SaglikYonetimi({ data, setData }) {
 
         {hesap.eksik ? (
           <Bilgi tur="uyari">Hesabın çalışması için <strong>yaş, boy ve kilo</strong> gerekiyor.</Bilgi>
-        ) : null}
-      </Kart>
-
-      {hesap.eksik ? null : (
-        <>
-          <SonucPaneli hesap={hesap} profil={profil} />
-
-          <Kart baslik="Makro Hedeflerin" ikon="🥗" aciklama={hesap.makro.sablon.aciklama} gorsel={GORSELLER.sebze}>
+        ) : (
+          <>
+            <SonucPaneli hesap={hesap} profil={profil} />
             <div style={{ display: "flex", gap: 20, flexWrap: "wrap", alignItems: "center" }}>
               <MakroHalka makro={hesap.makro} toplam={hesap.hk.deger} />
               <div style={{ flex: 1, minWidth: 230, display: "grid", gap: 13 }}>
@@ -172,7 +188,7 @@ export default function SaglikYonetimi({ data, setData }) {
                   toplam={hesap.hk.deger} renk={T.yag} not="Hormon üretimi · altına inme" />
               </div>
             </div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 12, paddingTop: 4 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 12 }}>
               <Rozet etiket="Lif hedefi" deger={`${hesap.makro.lif} g`} ikon="🌾" />
               {hesap.yag ? <Rozet etiket="Vücut yağı" deger={`%${r1(hesap.yag)}`} alt={yagYorumu(profil.cinsiyet, hesap.yag)?.sinif} ikon="📏" /> : null}
               {hesap.bmr.yagsizKutle ? <Rozet etiket="Yağsız kütle" deger={`${r1(hesap.bmr.yagsizKutle)} kg`} ikon="💪" /> : null}
@@ -187,123 +203,63 @@ export default function SaglikYonetimi({ data, setData }) {
             ) : hesap.sure?.uyumsuz ? (
               <Bilgi tur="uyari">Hedef kilon ile seçtiğin hedef ters yönde. {num(profil.hedefKilo) < num(profil.kilo) ? "Kilo vermek" : "Kilo almak"} istiyorsan hedefini ona göre seç.</Bilgi>
             ) : null}
-          </Kart>
+          </>
+        )}
+      </Kart>
+    </div>
+  );
 
-          <GunlukPanel
-            tarih={tarih} setTarih={setTarih} gun={gun} onGun={gunDegis}
-            hedefKcal={hedefKcal} toplam={gunToplam} kalan={kalan} makro={hesap.makro}
-            kilo={num(profil.kilo)}
-          />
+  return (
+    <section>
+      <style dangerouslySetInnerHTML={{ __html: SAGLIK_CSS }} />
 
-          <HaftalikOzet gunler={kayit.gunler || {}} hedefKcal={hedefKcal} seciliTarih={tarih} onTarih={setTarih} />
-        </>
-      )}
+      <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 12, flexWrap: "wrap", margin: "2px 2px 14px" }}>
+        <div>
+          <div style={{ color: T.ana, fontSize: 11, fontWeight: 900, letterSpacing: ".14em", textTransform: "uppercase" }}>Sağlık</div>
+          <h2 style={{ color: "#fff", fontSize: 26, fontWeight: 900, margin: "4px 0 0", lineHeight: 1.15 }}>Beslenme günlüğün</h2>
+        </div>
+        {!hesap.eksik ? (
+          <button type="button" className="sg-btn"
+            onClick={() => { setProfilAcik(true); setTimeout(() => profilRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 30); }}>
+            👤 Profil & hedefler
+          </button>
+        ) : null}
+      </div>
+
+      {hesap.eksik ? profilKarti : null}
+
+      <GunOzeti tarih={tarih} setTarih={setTarih} toplam={toplam} hedefKcal={hedefKcal}
+        makro={hesap.eksik ? null : hesap.makro} kilo={num(profil.kilo)}
+        onEkle={() => setSayfa({ mod: "ara", ogun: saatinOgunu() })} />
+
+      <div className="sg-hizli">
+        <button type="button" className="sg-btn sg-btn-ana sg-btn-buyuk" onClick={() => setSayfa({ mod: "ara", ogun: saatinOgunu() })}>+ Besin ekle</button>
+        <button type="button" className="sg-btn sg-btn-buyuk" onClick={() => setSayfa({ mod: "foto", ogun: saatinOgunu() })}>📷 Fotoğrafla</button>
+        <button type="button" className="sg-btn sg-btn-su sg-btn-buyuk" onClick={suEkle}>💧 + Su</button>
+      </div>
+
+      <GunAkordeon gun={gun} onGun={gunDegis} hedefKcal={hedefKcal} kilo={num(profil.kilo)}
+        onEkle={(ogun) => setSayfa({ mod: "ara", ogun })}
+        onFoto={(ogun) => setSayfa({ mod: "foto", ogun })}
+        onDuzenle={(ogunId, x) => setSayfa({ mod: "duzenle", ogun: ogunId, kayitOgun: ogunId, kayit: x })} />
+
+      {!hesap.eksik ? (
+        <HaftalikOzet gunler={kayit.gunler || {}} hedefKcal={hedefKcal} seciliTarih={tarih} onTarih={setTarih} />
+      ) : null}
+
+      {!hesap.eksik ? profilKarti : null}
 
       <VeriPaneli kayit={kayit} />
+
+      {sayfa ? (
+        <BesinSayfasi key={`${sayfa.mod}-${sayfa.kayit?.id || ""}`} durum={sayfa} gunler={kayit.gunler || {}}
+          onKapat={() => setSayfa(null)} onEkle={kayitlariEkle} onGuncelle={kaydiGuncelle} />
+      ) : null}
     </section>
   );
 }
 
-// ======================= ÜST BÖLÜM ==========================================
-
-function Hero({ hesap, toplam, hedefKcal, kalan }) {
-  return (
-    <header style={{
-      position: "relative", overflow: "hidden", borderRadius: 22, marginBottom: 16,
-      border: `1px solid ${T.kenar}`, background: "rgba(4,24,14,.6)",
-    }}>
-      <img src={GORSELLER.hero} alt="" loading="lazy"
-        style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", opacity: 0.32 }} />
-      <div style={{
-        position: "absolute", inset: 0,
-        background: "linear-gradient(115deg, rgba(4,24,14,.94) 20%, rgba(4,24,14,.75) 55%, rgba(4,24,14,.45))",
-      }} />
-      <div style={{
-        position: "relative", display: "flex", gap: 22, alignItems: "center", flexWrap: "wrap",
-        padding: "22px 24px",
-      }}>
-        <div style={{ flex: 1, minWidth: 250 }}>
-          <div style={{ color: T.ana, fontSize: 11.5, fontWeight: 900, letterSpacing: ".1em", textTransform: "uppercase" }}>
-            Sağlık Yönetimi
-          </div>
-          <h2 style={{ color: "#fff", fontSize: 30, fontWeight: 900, margin: "9px 0 0", lineHeight: 1.15 }}>
-            Kalori ve Beslenme Takibi
-          </h2>
-          <p style={{ color: "#b6e8c9", fontSize: 13.5, margin: "10px 0 0", lineHeight: 1.65, maxWidth: 480 }}>
-            Önce vücudunun gerçekte ne kadar yaktığını hesaplıyoruz, sonra ne yediğini gün gün tutuyoruz.
-            <strong style={{ color: "#fff" }}> Bu ikisi arasındaki fark, her şeyi belirleyen tek sayı.</strong>
-          </p>
-          {!hesap.eksik ? (
-            <div style={{ display: "flex", gap: 9, flexWrap: "wrap", marginTop: 14 }}>
-              <HeroRozet ikon="🔥" etiket="Günlük harcama" deger={`${r0(hesap.tdee.deger)} kcal`} />
-              <HeroRozet ikon="🎯" etiket="Hedefin" deger={`${r0(hesap.hk.deger)} kcal`} renk={T.ana} />
-              <HeroRozet ikon="📅" etiket="Haftalık" deger={`${hesap.haftalik >= 0 ? "+" : ""}${r1(hesap.haftalik)} kg`} />
-            </div>
-          ) : null}
-        </div>
-        {!hesap.eksik ? (
-          <KaloriHalka hedef={hedefKcal} alinan={toplam.kcal} yakilan={toplam.yakilan} kalan={kalan} boyut={168} />
-        ) : null}
-      </div>
-    </header>
-  );
-}
-
-function HeroRozet({ ikon, etiket, deger, renk = "#cbd5e1" }) {
-  return (
-    <span style={{
-      display: "inline-flex", alignItems: "center", gap: 8, padding: "7px 13px", borderRadius: 999,
-      border: `1px solid ${renk}3a`, background: "rgba(2,20,12,.6)",
-    }}>
-      <span style={{ fontSize: 14 }}>{ikon}</span>
-      <span style={{ color: "#8fbfa3", fontSize: 10.5, fontWeight: 700 }}>{etiket}</span>
-      <strong style={{ color: renk, fontSize: 13.5, fontWeight: 900 }}>{deger}</strong>
-    </span>
-  );
-}
-
-// Kalori halkası — bu ekranın imzası. Dolu kısım alınan, taşma kırmızı.
-function KaloriHalka({ hedef, alinan, yakilan, kalan, boyut = 150 }) {
-  const net = alinan - yakilan;
-  const oran = hedef > 0 ? net / hedef : 0;
-  const r = boyut / 2 - 13;
-  const cevre = 2 * Math.PI * r;
-  const dolu = Math.min(1, Math.max(0, oran));
-  const asim = Math.min(1, Math.max(0, oran - 1));
-  const renk = oran > 1.05 ? "#fb7185" : oran > 0.85 ? T.ana : T.karb;
-
-  return (
-    <div style={{ position: "relative", width: boyut, height: boyut, flex: "0 0 auto" }}>
-      <svg width={boyut} height={boyut} style={{ transform: "rotate(-90deg)" }}>
-        <circle cx={boyut / 2} cy={boyut / 2} r={r} fill="none" stroke="rgba(255,255,255,.09)" strokeWidth="13" />
-        {/* dolu=0 iken yuvarlak uç tek başına bir nokta bırakıyor; hiç çizme. */}
-        {dolu > 0.001 ? (
-          <circle cx={boyut / 2} cy={boyut / 2} r={r} fill="none" stroke={renk} strokeWidth="13" strokeLinecap="round"
-            strokeDasharray={`${cevre * dolu} ${cevre}`} />
-        ) : null}
-        {asim > 0 ? (
-          <circle cx={boyut / 2} cy={boyut / 2} r={r} fill="none" stroke="#ef4444" strokeWidth="13" strokeLinecap="round"
-            strokeDasharray={`${cevre * asim} ${cevre}`} />
-        ) : null}
-      </svg>
-      <div style={{
-        position: "absolute", inset: 0, display: "grid", placeItems: "center", textAlign: "center",
-      }}>
-        <div>
-          <div style={{ color: renk, fontSize: boyut > 155 ? 30 : 25, fontWeight: 900, lineHeight: 1 }}>
-            {kalan >= 0 ? r0(kalan) : "+" + r0(-kalan)}
-          </div>
-          <div style={{ color: "#8fbfa3", fontSize: 10.5, fontWeight: 700, marginTop: 4 }}>
-            {kalan >= 0 ? "kcal kaldı" : "kcal aşım"}
-          </div>
-          <div style={{ color: "#5d8a70", fontSize: 9.5, marginTop: 3 }}>
-            {r0(alinan)} alındı{yakilan > 0 ? ` · ${r0(yakilan)} yakıldı` : ""}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
+// ======================= PROFİL & HEDEFLER ===================================
 
 function SonucPaneli({ hesap, profil }) {
   const kutular = [
@@ -533,368 +489,6 @@ function Rozet({ etiket, deger, alt, ikon }) {
 }
 
 // ======================= GÜNLÜK =============================================
-
-function GunlukPanel({ tarih, setTarih, gun, onGun, hedefKcal, toplam, kalan, makro, kilo }) {
-  const [acikOgun, setAcikOgun] = useState(null);
-  const gunKaydir = (adim) => {
-    const d = new Date(tarih + "T12:00:00");
-    d.setDate(d.getDate() + adim);
-    const yeni = d.toISOString().slice(0, 10);
-    if (yeni <= bugun()) setTarih(yeni);
-  };
-  const ogunEkle = (ogunId, item) =>
-    onGun({ ...gun, ogunler: { ...(gun.ogunler || {}), [ogunId]: [...((gun.ogunler || {})[ogunId] || []), item] } });
-  const ogunSil = (ogunId, id) =>
-    onGun({ ...gun, ogunler: { ...(gun.ogunler || {}), [ogunId]: ((gun.ogunler || {})[ogunId] || []).filter((x) => x.id !== id) } });
-
-  const okBtn = (pasif) => ({
-    flex: "0 0 auto", width: 36, height: 36, borderRadius: 11, cursor: pasif ? "default" : "pointer",
-    border: `1px solid ${T.kenar}`, background: "rgba(4,24,14,.7)", color: pasif ? "#2d4a38" : T.ana,
-    fontSize: 17, fontWeight: 900, display: "grid", placeItems: "center",
-  });
-
-  return (
-    <Kart baslik="Günlük Beslenme" ikon="📒"
-      aciklama="Yediğin her şeyi öğününe ekle; kalan kalorin ve makro dengen anında güncellensin."
-      sag={
-        <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <button type="button" onClick={(e) => { e.stopPropagation(); gunKaydir(-1); }} style={okBtn(false)}>‹</button>
-          <span style={{ color: "#fff", fontSize: 12.5, fontWeight: 900, whiteSpace: "nowrap", minWidth: 158, textAlign: "center" }}>
-            {tarih === bugun() ? "Bugün" : tarihAdi(tarih)}
-          </span>
-          <button type="button" onClick={(e) => { e.stopPropagation(); gunKaydir(1); }} disabled={tarih >= bugun()} style={okBtn(tarih >= bugun())}>›</button>
-        </span>
-      }
-    >
-      <div style={{
-        display: "flex", gap: 20, alignItems: "center", flexWrap: "wrap",
-        border: `1px solid ${T.kenar}`, background: "rgba(2,20,12,.5)", borderRadius: 18, padding: "16px 18px",
-      }}>
-        <KaloriHalka hedef={hedefKcal} alinan={toplam.kcal} yakilan={toplam.yakilan} kalan={kalan} boyut={150} />
-        <div style={{ flex: 1, minWidth: 220, display: "grid", gap: 12 }}>
-          <MakroMini ad="Protein" alinan={toplam.protein} hedef={makro.protein.gram} renk={T.protein} />
-          <MakroMini ad="Karbonhidrat" alinan={toplam.karb} hedef={makro.karb.gram} renk={T.karb} />
-          <MakroMini ad="Yağ" alinan={toplam.yag} hedef={makro.yag.gram} renk={T.yag} />
-        </div>
-      </div>
-
-      <div style={{ display: "grid", gap: 10 }}>
-        {OGUNLER.map((o) => {
-          const liste = (gun.ogunler || {})[o.id] || [];
-          const oKcal = liste.reduce((s, x) => s + num(x.kcal), 0);
-          const acik = acikOgun === o.id;
-          return (
-            <div key={o.id} style={{ border: `1px solid ${o.renk}2e`, borderRadius: 16, overflow: "hidden", background: `${o.renk}08` }}>
-              <button type="button" onClick={() => setAcikOgun(acik ? null : o.id)}
-                style={{
-                  width: "100%", display: "flex", alignItems: "center", gap: 12, padding: "13px 14px",
-                  cursor: "pointer", border: "none", textAlign: "left",
-                  background: `linear-gradient(120deg, ${o.renk}24, ${o.renk}07)`,
-                }}>
-                <span style={{
-                  flex: "0 0 auto", width: 38, height: 38, borderRadius: 12, display: "grid", placeItems: "center",
-                  background: `${o.renk}26`, fontSize: 19,
-                }}>{o.ikon}</span>
-                <span style={{ flex: 1, minWidth: 0 }}>
-                  <span style={{ display: "block", color: "#fff", fontWeight: 900, fontSize: 15 }}>{o.ad}</span>
-                  <span style={{ display: "block", color: "#7fae93", fontSize: 11, marginTop: 2 }}>
-                    {liste.length ? `${liste.length} kayıt` : "Boş"} · önerilen ~{r0(hedefKcal * o.pay)} kcal
-                  </span>
-                </span>
-                <span style={{ color: o.renk, fontWeight: 900, fontSize: 17, whiteSpace: "nowrap" }}>{r0(oKcal)}</span>
-                <span style={{
-                  flex: "0 0 auto", width: 30, height: 30, borderRadius: 10, display: "grid", placeItems: "center",
-                  background: acik ? `${o.renk}2e` : "rgba(255,255,255,.06)", color: acik ? o.renk : "#7fae93",
-                  fontWeight: 900, fontSize: 18,
-                }}>{acik ? "−" : "+"}</span>
-              </button>
-
-              {liste.length ? (
-                <div style={{ padding: "6px 14px 2px" }}>
-                  {liste.map((x) => (
-                    <div key={x.id} style={{
-                      display: "flex", alignItems: "center", gap: 10, padding: "9px 0",
-                      borderBottom: "1px solid rgba(255,255,255,.05)",
-                    }}>
-                      <span style={{ flex: 1, minWidth: 0 }}>
-                        <span style={{ display: "block", color: "#e2e8f0", fontSize: 13.5, fontWeight: 700 }}>{x.ad}</span>
-                        <span style={{ display: "block", color: "#5d8a70", fontSize: 11, marginTop: 2 }}>
-                          {r0(x.gram)} g · P {r1(x.protein)} · K {r1(x.karb)} · Y {r1(x.yag)}
-                        </span>
-                      </span>
-                      <span style={{ color: "#fff", fontWeight: 900, fontSize: 14.5, whiteSpace: "nowrap" }}>{r0(x.kcal)}</span>
-                      <button type="button" onClick={() => ogunSil(o.id, x.id)} title="Sil"
-                        style={{
-                          flex: "0 0 auto", width: 32, height: 32, borderRadius: 10, cursor: "pointer",
-                          border: "1px solid rgba(248,113,113,.3)", background: "rgba(248,113,113,.1)",
-                          color: "#fb7185", fontSize: 17, fontWeight: 900,
-                        }}>×</button>
-                    </div>
-                  ))}
-                </div>
-              ) : null}
-
-              {acik ? <BesinEkle renk={o.renk} onEkle={(item) => ogunEkle(o.id, item)} /> : null}
-            </div>
-          );
-        })}
-      </div>
-
-      <EgzersizPanel gun={gun} kilo={kilo}
-        onEkle={(e) => onGun({ ...gun, egzersizler: [...(gun.egzersizler || []), e] })}
-        onSil={(id) => onGun({ ...gun, egzersizler: (gun.egzersizler || []).filter((x) => x.id !== id) })} />
-    </Kart>
-  );
-}
-
-function MakroMini({ ad, alinan, hedef, renk }) {
-  const yuzde = hedef > 0 ? Math.min(100, (alinan / hedef) * 100) : 0;
-  const asti = alinan > hedef * 1.1;
-  return (
-    <div>
-      <div style={{ display: "flex", justifyContent: "space-between", gap: 8, marginBottom: 5 }}>
-        <span style={{ color: "#b6e8c9", fontSize: 12, fontWeight: 800 }}>{ad}</span>
-        <span style={{ color: asti ? "#fb7185" : renk, fontSize: 13, fontWeight: 900, whiteSpace: "nowrap" }}>
-          {Math.round(alinan)} <span style={{ color: "#5d8a70", fontSize: 11, fontWeight: 700 }}>/ {hedef} g</span>
-        </span>
-      </div>
-      <div style={{ height: 8, borderRadius: 999, background: "rgba(255,255,255,.07)", overflow: "hidden" }}>
-        <div style={{ width: `${yuzde}%`, height: "100%", background: asti ? "#fb7185" : `linear-gradient(90deg, ${renk}99, ${renk})`, borderRadius: 999 }} />
-      </div>
-    </div>
-  );
-}
-
-// Besin arama — ilk harften itibaren sonuç gösterir, kategori gezinmesi de var.
-function BesinEkle({ renk, onEkle }) {
-  const [terim, setTerim] = useState("");
-  const [secili, setSecili] = useState(null);
-  const [miktar, setMiktar] = useState("1");
-  const [birim, setBirim] = useState("porsiyon");
-  const [kategori, setKategori] = useState(null);
-
-  const sonuclar = terim.trim().length >= 1 ? besinAra(terim, 60) : [];
-  const kategoriListesi = kategori ? kategoriBesinleri(kategori).slice(0, 120) : [];
-  const gosterilen = sonuclar.length ? sonuclar : kategoriListesi;
-
-  const gram = secili ? (birim === "porsiyon" ? num(miktar) * secili.porsiyonGram : num(miktar)) : 0;
-  const hesapla = (alan) => (secili ? (secili[alan] * gram) / 100 : 0);
-
-  const ekle = () => {
-    if (!secili || gram <= 0) return;
-    onEkle({
-      id: yeniId(), besinId: secili.id,
-      ad: secili.marka ? `${secili.ad} (${secili.marka})` : secili.ad,
-      gram, kcal: hesapla("kcal"), protein: hesapla("protein"), karb: hesapla("karb"), yag: hesapla("yag"),
-    });
-    setSecili(null); setTerim(""); setMiktar("1"); setBirim("porsiyon"); setKategori(null);
-  };
-
-  if (secili) {
-    return (
-      <div style={{ padding: "13px 14px", borderTop: `1px solid ${renk}22`, display: "grid", gap: 12 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <span style={{ fontSize: 19 }}>{secili.ikon}</span>
-          <span style={{ flex: 1, minWidth: 0 }}>
-            <strong style={{ display: "block", color: "#fff", fontSize: 15 }}>{secili.ad}</strong>
-            <span style={{ display: "block", color: "#5d8a70", fontSize: 11, marginTop: 2 }}>
-              {secili.marka ? secili.marka + " · " : ""}{secili.kcal} kcal/100 g · {secili.kategoriAd}
-            </span>
-          </span>
-          <button type="button" onClick={() => setSecili(null)}
-            style={{ width: 34, height: 34, borderRadius: 11, cursor: "pointer", border: `1px solid ${T.kenar}`, background: "rgba(4,24,14,.7)", color: "#b6e8c9", fontSize: 17, fontWeight: 900 }}>×</button>
-        </div>
-
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 10 }}>
-          <BuyukGiris label="Miktar" deger={miktar} onChange={setMiktar} adim={birim === "gram" ? 10 : 0.5} ondalik min={0} />
-          <label style={{ display: "block", minWidth: 0 }}>
-            <span style={{ display: "block", color: "#b6e8c9", fontSize: 12.5, fontWeight: 800, marginBottom: 7 }}>Birim</span>
-            <select value={birim} onChange={(e) => setBirim(e.target.value)}
-              style={{
-                width: "100%", height: 52, borderRadius: 13, padding: "0 12px",
-                background: "rgba(2,20,12,.75)", border: `1.5px solid rgba(74,222,128,.18)`,
-                color: "#fff", fontSize: 14.5, fontWeight: 700, outline: "none",
-              }}>
-              <option value="porsiyon">{secili.porsiyonAd} ({secili.porsiyonGram} g)</option>
-              <option value="gram">gram</option>
-            </select>
-          </label>
-        </div>
-
-        <div style={{
-          display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(96px, 1fr))", gap: 10,
-          padding: "12px 14px", borderRadius: 14, background: `${renk}12`, border: `1px solid ${renk}33`,
-        }}>
-          <Ozet etiket="Toplam" deger={`${r0(gram)} g`} />
-          <Ozet etiket="Kalori" deger={`${r0(hesapla("kcal"))}`} renk={renk} buyuk />
-          <Ozet etiket="Protein" deger={`${r1(hesapla("protein"))} g`} />
-          <Ozet etiket="Karb." deger={`${r1(hesapla("karb"))} g`} />
-          <Ozet etiket="Yağ" deger={`${r1(hesapla("yag"))} g`} />
-        </div>
-
-        <button type="button" onClick={ekle}
-          style={{
-            height: 50, borderRadius: 14, cursor: "pointer", border: "none",
-            background: `linear-gradient(120deg, ${renk}, ${renk}bb)`, color: "#07140d",
-            fontSize: 15.5, fontWeight: 900,
-          }}>
-          Öğüne Ekle · {r0(hesapla("kcal"))} kcal
-        </button>
-      </div>
-    );
-  }
-
-  return (
-    <div style={{ padding: "13px 14px", borderTop: `1px solid ${renk}22` }}>
-      <div style={{ position: "relative", marginBottom: 10 }}>
-        <input
-          value={terim} placeholder="Besin ara — yoğurt, tavuk, pilav, gofret…"
-          onChange={(e) => { setTerim(e.target.value); setKategori(null); }}
-          style={{
-            width: "100%", height: 52, borderRadius: 14, padding: "0 44px 0 42px",
-            background: "rgba(2,20,12,.75)", border: `1.5px solid rgba(74,222,128,.2)`,
-            color: "#fff", fontSize: 15.5, fontWeight: 600, outline: "none",
-          }}
-        />
-        <span style={{ position: "absolute", left: 15, top: "50%", transform: "translateY(-50%)", fontSize: 16, pointerEvents: "none" }}>🔍</span>
-        {terim ? (
-          <button type="button" onClick={() => setTerim("")}
-            style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", width: 30, height: 30, borderRadius: 9, cursor: "pointer", border: "none", background: "rgba(255,255,255,.08)", color: "#b6e8c9", fontSize: 15, fontWeight: 900 }}>×</button>
-        ) : null}
-      </div>
-
-      {!terim.trim() ? (
-        <div style={{ display: "flex", gap: 7, flexWrap: "wrap", marginBottom: 10 }}>
-          {KATEGORI_LISTESI.map((k) => (
-            <button key={k.id} type="button" onClick={() => setKategori(kategori === k.id ? null : k.id)}
-              style={{
-                padding: "8px 13px", borderRadius: 999, cursor: "pointer", fontSize: 12.5, fontWeight: 800,
-                border: `1px solid ${kategori === k.id ? k.renk + "88" : "rgba(74,222,128,.16)"}`,
-                background: kategori === k.id ? `${k.renk}24` : "rgba(2,20,12,.5)",
-                color: kategori === k.id ? "#fff" : "#7fae93", whiteSpace: "nowrap",
-              }}>{k.ikon} {k.ad}</button>
-          ))}
-        </div>
-      ) : (
-        <div style={{ color: "#5d8a70", fontSize: 11.5, marginBottom: 8 }}>
-          {gosterilen.length ? `${gosterilen.length} sonuç` : "Sonuç yok"} · toplam {BESIN_SAYISI.toLocaleString("tr-TR")} besin
-        </div>
-      )}
-
-      {gosterilen.length ? (
-        <div style={{ maxHeight: 320, overflowY: "auto", display: "grid", gap: 5 }}>
-          {gosterilen.map((b) => (
-            <button key={b.id} type="button" onClick={() => setSecili(b)}
-              style={{
-                display: "flex", alignItems: "center", gap: 11, width: "100%", textAlign: "left", cursor: "pointer",
-                padding: "11px 12px", borderRadius: 12,
-                border: "1px solid rgba(74,222,128,.1)", background: "rgba(2,20,12,.5)",
-              }}>
-              <span style={{ fontSize: 17, flex: "0 0 auto" }}>{b.ikon}</span>
-              <span style={{ flex: 1, minWidth: 0 }}>
-                <span style={{ display: "block", color: "#e2e8f0", fontSize: 13.5, fontWeight: 700 }}>{b.ad}</span>
-                <span style={{ display: "block", color: "#5d8a70", fontSize: 11, marginTop: 2 }}>
-                  {b.marka ? <span style={{ color: "#7fae93", fontWeight: 700 }}>{b.marka} · </span> : null}
-                  {b.porsiyonAd} ≈ {b.porsiyonGram} g · P{b.protein} K{b.karb} Y{b.yag}
-                </span>
-              </span>
-              <span style={{ color: b.renk, fontWeight: 900, fontSize: 14, whiteSpace: "nowrap", textAlign: "right" }}>
-                {b.kcal}<br /><span style={{ fontSize: 9, color: "#5d8a70", fontWeight: 700 }}>kcal/100g</span>
-              </span>
-            </button>
-          ))}
-        </div>
-      ) : terim.trim() ? (
-        <div style={{ color: "#7fae93", fontSize: 12.5, padding: "10px 2px", lineHeight: 1.65 }}>
-          "{terim}" bulunamadı. Benzer bir besin seçip gramajı düzenleyebilir ya da paketteki değerlere göre
-          en yakın kalemi kullanabilirsin.
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
-function Ozet({ etiket, deger, renk = "#fff", buyuk }) {
-  return (
-    <span style={{ minWidth: 0 }}>
-      <span style={{ display: "block", color: "#5d8a70", fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".04em" }}>{etiket}</span>
-      <span style={{ display: "block", color: renk, fontSize: buyuk ? 20 : 15, fontWeight: 900, marginTop: 3, whiteSpace: "nowrap" }}>{deger}</span>
-    </span>
-  );
-}
-
-function EgzersizPanel({ gun, kilo, onEkle, onSil }) {
-  const [tur, setTur] = useState(EGZERSIZLER[0].ad);
-  const [dakika, setDakika] = useState("30");
-  const liste = gun.egzersizler || [];
-  const toplam = liste.reduce((s, e) => s + num(e.kcal), 0);
-  const secili = EGZERSIZLER.find((e) => e.ad === tur) || EGZERSIZLER[0];
-  const tahmin = egzersizKalori(secili.met, kilo, dakika);
-
-  return (
-    <div style={{ border: `1px solid ${T.enerji}33`, borderRadius: 16, overflow: "hidden", background: `${T.enerji}08` }}>
-      <div style={{
-        display: "flex", alignItems: "center", gap: 12, padding: "13px 14px",
-        background: `linear-gradient(120deg, ${T.enerji}24, ${T.enerji}07)`,
-      }}>
-        <span style={{
-          flex: "0 0 auto", width: 38, height: 38, borderRadius: 12, display: "grid", placeItems: "center",
-          background: `${T.enerji}26`, fontSize: 19,
-        }}>🔥</span>
-        <span style={{ flex: 1, color: "#fff", fontWeight: 900, fontSize: 15 }}>Egzersiz</span>
-        <span style={{ color: T.enerji, fontWeight: 900, fontSize: 17 }}>−{r0(toplam)} kcal</span>
-      </div>
-
-      <div style={{ padding: "13px 14px", display: "grid", gap: 12 }}>
-        {liste.map((e) => (
-          <div key={e.id} style={{ display: "flex", alignItems: "center", gap: 10, borderBottom: "1px solid rgba(255,255,255,.05)", paddingBottom: 9 }}>
-            <span style={{ flex: 1, minWidth: 0 }}>
-              <span style={{ display: "block", color: "#e2e8f0", fontSize: 13.5, fontWeight: 700 }}>{e.ad}</span>
-              <span style={{ display: "block", color: "#5d8a70", fontSize: 11 }}>{e.dakika} dakika</span>
-            </span>
-            <span style={{ color: T.enerji, fontWeight: 900, fontSize: 14.5 }}>−{r0(e.kcal)}</span>
-            <button type="button" onClick={() => onSil(e.id)} title="Sil"
-              style={{ width: 32, height: 32, borderRadius: 10, cursor: "pointer", border: "1px solid rgba(248,113,113,.3)", background: "rgba(248,113,113,.1)", color: "#fb7185", fontSize: 17, fontWeight: 900 }}>×</button>
-          </div>
-        ))}
-
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 10 }}>
-          <label style={{ display: "block", minWidth: 0, gridColumn: "span 2" }}>
-            <span style={{ display: "block", color: "#b6e8c9", fontSize: 12.5, fontWeight: 800, marginBottom: 7 }}>Aktivite</span>
-            <select value={tur} onChange={(e) => setTur(e.target.value)}
-              style={{
-                width: "100%", height: 52, borderRadius: 13, padding: "0 12px",
-                background: "rgba(2,20,12,.75)", border: "1.5px solid rgba(251,146,60,.22)",
-                color: "#fff", fontSize: 14.5, fontWeight: 700, outline: "none",
-              }}>
-              {EGZERSIZLER.map((e) => <option key={e.ad} value={e.ad}>{e.ikon} {e.ad}</option>)}
-            </select>
-          </label>
-          <BuyukGiris label="Süre" deger={dakika} onChange={setDakika} birim="dk" adim={5} min={0} max={600} />
-        </div>
-
-        <button type="button"
-          onClick={() => {
-            if (!kilo || !num(dakika)) return;
-            onEkle({ id: yeniId(), ad: `${secili.ikon} ${secili.ad}`, dakika: num(dakika), kcal: tahmin });
-            setDakika("30");
-          }}
-          style={{
-            height: 50, borderRadius: 14, cursor: "pointer", border: "none",
-            background: `linear-gradient(120deg, ${T.enerji}, ${T.enerji}bb)`, color: "#20100a",
-            fontSize: 15.5, fontWeight: 900,
-          }}>
-          {kilo ? `Egzersizi Ekle · −${r0(tahmin)} kcal` : "Önce kilonu gir"}
-        </button>
-        {kilo ? (
-          <div style={{ color: "#5d8a70", fontSize: 11, lineHeight: 1.6 }}>
-            {String(secili.met).replace(".", ",")} MET × {r1(kilo)} kg × {r1(num(dakika) / 60)} saat
-          </div>
-        ) : null}
-      </div>
-    </div>
-  );
-}
 
 function HaftalikOzet({ gunler, hedefKcal, seciliTarih, onTarih }) {
   const son7 = useMemo(() => {
