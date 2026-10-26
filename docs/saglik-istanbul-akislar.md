@@ -24,6 +24,7 @@ Tasarımdan önce yazıldı; ekranlar bu akışlara göre kuruldu. Ortak kural:
 ### Ekran hiyerarşisi
 ```
 Sağlık
+├─ Profil & hedefler (en üstte, kapalı satır: günlük hedef; açılınca başında ← Geri)
 ├─ Gün çubuğu (‹ Bugün ›)
 ├─ Günün özeti (premium kart): alınan kcal · P/K/Y/lif/su kartları · ince hedef çubuğu
 ├─ Hızlı eylemler: + Besin ekle · 📷 Fotoğrafla · + Su
@@ -33,9 +34,7 @@ Sağlık
 │  ├─ Su tüketimi
 │  ├─ Egzersizler
 │  └─ Günlük notlar
-├─ Son 7 gün
-├─ Profil & hedefler (makro hedefleri, vücut ölçüleri)
-└─ Veri paneli
+└─ Son 7 gün
 Besin ekleme sayfası (alt sayfa / telefonda tam ekran): ← Geri · öğün seçimi · Ara | Fotoğraf | Elle gir
 ```
 
@@ -49,9 +48,16 @@ Besin ekleme sayfası (alt sayfa / telefonda tam ekran): ← Geri · öğün se�
 5. **Saklamak:** Kaydet (favori) ya da "Listeye ekle" → Kayıtlı ekranı: Favoriler + kendi listelerin.
 6. **Sonuç yoksa:** hangi filtrenin daralttığı söylenir, tek tıkla gevşetilir.
 
+### Adım geçmişi
+Her seçim (tür, plan, semt, filtre, hazır liste, Keşfet/Kayıtlı) bir adımdır. Üstte her zaman "← Geri" + nerede olduğun (Keşfet › Hamburger · Kadıköy); telefonda altta yüzen Geri düğmesi. Geri bir önceki hale döner, "Tümü"ye basıp baştan seçmek gerekmez. Kesintisiz arama tek adım sayılır.
+
+### Michelin
+Michelin mekânları (yıldız, Bib Gourmand, seçki) genel listelerde yer almaz. Mekân Türü'nde ilk grup "Michelin Rehberi"dir; keşifte ayrı bölümü vardır. Michelin türü + mutfak birlikte seçilirse ikisine uyanlar gelir (Bib Gourmand + Kebap). Adıyla aramada ve hazır listelerde görünürler.
+
 ### Ekran hiyerarşisi
 ```
 İstanbul'da Mekân Keşfet
+├─ ← Geri · Keşfet › seçimler (yapışkan)
 ├─ Arama + [Mekân Türü ▾] [Plan Türü ▾] [Semt ▾] [Filtreler]
 ├─ Seçili etiketler (✕) · Tümünü temizle
 ├─ Seçim yoksa: keşif (yemek rafı, hazır listeler, semtler)

@@ -8,6 +8,7 @@ import {
 import {
   KATEGORI_GRUPLARI, KATEGORILER, kategoriBul, anaKategori, PLAN_TURLERI, planBul, planUyum, planUyumEtiketi, PLAN_ESIK,
   skorHesapla, nedenler, rezervasyon, muzik, kalabalik, alkol, acikAlan, kimIcinDegil, mesafeKm, acikMi,
+  michelinMi, michelinKategoriMi,
 } from "../lib/istanbulSkor";
 import { GeriButon, useGeriAl } from "./GeriAl";
 
@@ -45,6 +46,8 @@ const DIZIN = Object.fromEntries(MEKANLAR.map((m) => [m.id, sade([
   m.turler.map((t) => turBul(t)?.ad).join(" "), m.yemekler.map((y) => yemekBul(y)?.ad).join(" "),
   KATEGORILER.filter((k) => k.test(m)).map((k) => k.ad).join(" "),
 ].join(" "))]));
+// Genel listeler Michelin dışındaki mekânlardan oluşur.
+const GENEL = MEKANLAR.filter((m) => !michelinMi(m));
 const ANA_KATEGORI = Object.fromEntries(MEKANLAR.map((m) => [m.id, anaKategori(m)]));
 
 // ---------- canlı Google verisi (anahtar varsa) ----------
@@ -102,7 +105,19 @@ function eslesir(m, f, ctx, haric) {
     const kelimeler = sade(f.arama).split(/\s+/).filter(Boolean);
     if (!kelimeler.every((k) => DIZIN[m.id].includes(k))) return false;
   }
-  if (f.kategoriler.length && haric !== "kategori" && !f.kategoriler.some((id) => kategoriBul(id)?.test(m))) return false;
+  // Michelin ayrı bir dünya: Michelin türü seçilmedikçe genel listelerde yok
+  // (adıyla arandığında ve hazır listelerde bulunur). Michelin türü + mutfak
+  // seçilirse ikisi birlikte aranır: "Bib Gourmand" + "Kebap" = Bib kebapçılar.
+  const mk = f.kategoriler.filter(michelinKategoriMi);
+  const nk = f.kategoriler.filter((id) => !michelinKategoriMi(id));
+  if (haric !== "kategori") {
+    if (mk.length && !mk.some((id) => kategoriBul(id)?.test(m))) return false;
+    if (nk.length && !nk.some((id) => kategoriBul(id)?.test(m))) return false;
+  }
+  if (michelinMi(m) && !mk.length && !f.liste && haric !== "kategori") {
+    const ara = sade(f.arama.trim());
+    if (!ara || !sade(m.ad).includes(ara)) return false;
+  }
   if (f.planlar.length && haric !== "plan" && !f.planlar.every((p) => planUyum(m, p) >= PLAN_ESIK)) return false;
   if (f.semtler.length && haric !== "semt" && !f.semtler.includes(m.bolge)) return false;
   if (f.fiyatlar.length && haric !== "fiyat" && !f.fiyatlar.includes(m.fiyat)) return false;
@@ -153,7 +168,13 @@ export default function IstanbulRehberi({ data, setData }) {
   useEffect(() => {
     try {
       const k = JSON.parse(localStorage.getItem(FILTRE_ANAHTARI) || "null");
-      if (k && typeof k === "object") { setF({ ...BOS, ...k.f, uzaklik: 0 }); if (k.sirala && k.sirala !== "yakin") setSirala(k.sirala); }
+      if (k && typeof k === "object") {
+        const geriYuklenen = { ...BOS, ...k.f, uzaklik: 0 };
+        setF(geriYuklenen);
+        if (k.sirala && k.sirala !== "yakin") setSirala(k.sirala);
+        // Hatırlanan seçimlerle açılınca da "← Geri" başlangıca dönebilsin.
+        if (aktifSayisi(geriYuklenen) || geriYuklenen.tumu) setGecmis([{ f: { ...BOS }, gorunum: "kesif" }]);
+      }
     } catch {}
     setHazir(true);
   }, []);
@@ -174,9 +195,33 @@ export default function IstanbulRehberi({ data, setData }) {
   };
 
   const ctx = { g: google.veri, googleAktif: google.aktif, konum };
-  const degis = (yama) => setF((x) => ({ ...x, ...yama, tumu: yama.tumu ?? x.tumu }));
-  const dizi = (alan, deger) => setF((x) => ({ ...x, [alan]: x[alan].includes(deger) ? x[alan].filter((v) => v !== deger) : [...x[alan], deger] }));
-  const temizle = () => setF({ ...BOS });
+
+  // Adım geçmişi: her seçim (tür, plan, semt, filtre, liste, görünüm) bir adım.
+  // "← Geri" bir önceki hale döner — "Tümü"ye basıp baştan seçmek gerekmez.
+  // Yazarken her harf ayrı adım olmasın: kesintisiz arama tek adım sayılır.
+  const [gecmis, setGecmis] = useState([]);
+  const sonArama = useRef(0);
+  const git = (yeniF, yeniGorunum = gorunum, arama = false) => {
+    if (yeniGorunum === gorunum && JSON.stringify(yeniF) === JSON.stringify(f)) return;
+    const aramaDevam = arama && Date.now() - sonArama.current < 1500;
+    sonArama.current = arama ? Date.now() : 0;
+    if (!aramaDevam) setGecmis((g) => [...g.slice(-59), { f, gorunum }]);
+    setF(yeniF);
+    setGorunum(yeniGorunum);
+  };
+  const geri = () => {
+    const son = gecmis[gecmis.length - 1];
+    if (!son) return;
+    setGecmis((g) => g.slice(0, -1));
+    sonArama.current = 0;
+    setF(son.f);
+    setGorunum(son.gorunum);
+    setAcilir(null);
+  };
+  const degis = (yama) => git({ ...f, ...yama, tumu: yama.tumu ?? f.tumu }, gorunum, Object.keys(yama).length === 1 && "arama" in yama);
+  const dizi = (alan, deger) => git({ ...f, [alan]: f[alan].includes(deger) ? f[alan].filter((v) => v !== deger) : [...f[alan], deger] });
+  const temizle = () => git({ ...BOS });
+  const gorunumDegis = (v) => git(f, v);
 
   const secimVar = aktifSayisi(f) > 0 || f.tumu;
   const sonuclar = useMemo(() => {
@@ -275,8 +320,8 @@ export default function IstanbulRehberi({ data, setData }) {
           <p className="ist-alt">Yeme-içme, buluşma ve eğlence planına uygun mekânları keşfet.</p>
         </div>
         <div className="ist-gorunum" role="tablist" aria-label="Görünüm">
-          <button type="button" role="tab" aria-selected={gorunum === "kesif"} className={gorunum === "kesif" ? "secili" : ""} onClick={() => setGorunum("kesif")}>Keşfet</button>
-          <button type="button" role="tab" aria-selected={gorunum === "kayitli"} className={gorunum === "kayitli" ? "secili" : ""} onClick={() => setGorunum("kayitli")}>
+          <button type="button" role="tab" aria-selected={gorunum === "kesif"} className={gorunum === "kesif" ? "secili" : ""} onClick={() => gorunumDegis("kesif")}>Keşfet</button>
+          <button type="button" role="tab" aria-selected={gorunum === "kayitli"} className={gorunum === "kayitli" ? "secili" : ""} onClick={() => gorunumDegis("kayitli")}>
             ♥ Kayıtlı{kayitliSayisi ? <span className="ist-rozet-sayi">{kayitliSayisi}</span> : null}
           </button>
         </div>
@@ -293,10 +338,17 @@ export default function IstanbulRehberi({ data, setData }) {
       ) : null}
 
       {gorunum === "kayitli" ? (
-        <Kayitli kayit={kayit} g={google.veri} onSec={setSeciliId} isaret={isaret} listeIslem={listeIslem} onKesfet={() => setGorunum("kesif")} />
+        <div className="ist-arac"><GeriCubugu gecmis={gecmis} geri={geri} f={f} gorunum={gorunum} /></div>
+      ) : null}
+      {gecmis.length ? (
+        <button type="button" className="ist-geri-yuzen" onClick={geri} aria-label="Bir önceki adıma dön">← Geri</button>
+      ) : null}
+
+      {gorunum === "kayitli" ? (
+        <Kayitli kayit={kayit} g={google.veri} onSec={setSeciliId} isaret={isaret} listeIslem={listeIslem} onKesfet={() => gorunumDegis("kesif")} />
       ) : (
         <>
-          <AracCubugu f={f} ctx={ctx} acilir={acilir} setAcilir={setAcilir} degis={degis} dizi={dizi} temizle={temizle}
+          <AracCubugu gecmis={gecmis} geri={geri} gorunum={gorunum} f={f} ctx={ctx} acilir={acilir} setAcilir={setAcilir} degis={degis} dizi={dizi} temizle={temizle}
             sonucSayisi={sonuclar.length} google={google} konumDurum={konumDurum} konumIste={konumIste} onGoster={() => { setAcilir(null); degis({ tumu: true }); sonucaGit(); }} />
 
           <AktifEtiketler f={f} degis={degis} dizi={dizi} temizle={temizle} />
@@ -384,7 +436,30 @@ export default function IstanbulRehberi({ data, setData }) {
 
 // ======================= ARAÇ ÇUBUĞU ========================================
 
-function AracCubugu({ f, ctx, acilir, setAcilir, degis, dizi, temizle, sonucSayisi, google, konumDurum, konumIste, onGoster }) {
+// Her ekranda aynı yerde: "← Geri" + şu an nerede olduğun.
+function GeriCubugu({ gecmis, geri, f, gorunum }) {
+  const iz = gorunum === "kayitli" ? ["Kayıtlı mekânlar"] : [
+    f.liste ? ONERILER.find((o) => o.id === f.liste)?.ad : null,
+    ...f.kategoriler.map((id) => kategoriBul(id)?.ad),
+    ...f.planlar.map((id) => planBul(id)?.ad),
+    ...f.semtler.map((id) => bolgeBul(id)?.ad),
+    f.arama.trim() ? `"${f.arama.trim()}"` : null,
+    panelSayisi(f) ? `${panelSayisi(f)} filtre` : null,
+  ].filter(Boolean);
+  return (
+    <div className="ist-gezinti">
+      <button type="button" className="ist-geri" onClick={geri} disabled={!gecmis.length}
+        title={gecmis.length ? "Bir önceki adıma dön" : "Geri gidilecek adım yok"}>← Geri</button>
+      <span className="ist-iz">
+        <b>{gorunum === "kayitli" ? "Kayıtlı" : "Keşfet"}</b>
+        {iz.length && gorunum !== "kayitli" ? <> › {iz.join(" · ")}</> : !iz.length ? " › tüm İstanbul" : null}
+      </span>
+      {gecmis.length ? <span className="ist-adim">{gecmis.length} adım</span> : null}
+    </div>
+  );
+}
+
+function AracCubugu({ gecmis, geri, gorunum, f, ctx, acilir, setAcilir, degis, dizi, temizle, sonucSayisi, google, konumDurum, konumIste, onGoster }) {
   const etiket = (secili, bul, bos) => {
     if (!secili.length) return bos;
     const adlar = secili.map((id) => bul(id)?.ad).filter(Boolean);
@@ -394,6 +469,7 @@ function AracCubugu({ f, ctx, acilir, setAcilir, degis, dizi, temizle, sonucSayi
   const fs = panelSayisi(f);
   return (
     <div className="ist-arac">
+      <GeriCubugu gecmis={gecmis} geri={geri} f={f} gorunum={gorunum} />
       <div className="ist-arama">
         <span aria-hidden>🔍</span>
         <input value={f.arama} onChange={(e) => degis({ arama: e.target.value })} placeholder="Mekân, mutfak ya da semt ara"
@@ -475,7 +551,13 @@ function Cip({ secili, onClick, ikon, ad, sayi, renk }) {
 const ILK_GOSTER = 6;
 function KategoriSecici({ f, ctx, dizi }) {
   const [acik, setAcik] = useState({});
-  const say = (k) => MEKANLAR.filter((m) => k.test(m) && eslesir(m, f, ctx, "kategori")).length;
+  // Sayı = bu seçenek tek başına (Michelin ile mutfak birlikte) seçilse kaç mekân gelir.
+  const mk = f.kategoriler.filter(michelinKategoriMi);
+  const nk = f.kategoriler.filter((id) => !michelinKategoriMi(id));
+  const say = (k) => {
+    const kat = k.michelin ? [...nk, k.id] : [...mk, k.id];
+    return MEKANLAR.filter((m) => eslesir(m, { ...f, kategoriler: kat }, ctx)).length;
+  };
   return (
     <div className="ist-gruplar">
       {KATEGORI_GRUPLARI.map((g) => {
@@ -494,7 +576,9 @@ function KategoriSecici({ f, ctx, dizi }) {
           </fieldset>
         );
       })}
-      <p className="ist-dipnot">Birden fazla tür seçebilirsin; seçtiklerinden <b>herhangi birine</b> uyan mekânlar gelir.</p>
+      <p className="ist-dipnot">Birden fazla tür seçebilirsin; seçtiklerinden <b>herhangi birine</b> uyan mekânlar gelir.
+        Michelin mekânları genel listelerde yer almaz, yalnızca <b>Michelin Rehberi</b> türlerinden birini seçince gelir;
+        bir mutfakla birlikte seçersen (ör. Bib Gourmand + Kebap) ikisine birden uyanlar listelenir.</p>
     </div>
   );
 }
@@ -663,7 +747,7 @@ function Kesif({ ctx, onKategori, onPlan, onListe, onSemt, onTumu }) {
         <div className="ist-karolar">
           {KESIF_KATEGORILER.map((id) => {
             const k = kategoriBul(id);
-            const l = MEKANLAR.filter(k.test);
+            const l = GENEL.filter(k.test);
             const g = foto(l);
             return (
               <button key={id} type="button" className="ist-karo" onClick={() => onKategori(id)}>
@@ -679,10 +763,12 @@ function Kesif({ ctx, onKategori, onPlan, onListe, onSemt, onTumu }) {
         <BolumBasligi baslik="Planın ne?" alt="Plan türü seç; o plana gerçekten uyan mekânlar öne çıksın." />
         <div className="ist-cipler">
           {PLAN_TURLERI.map((p) => (
-            <Cip key={p.id} secili={false} onClick={() => onPlan(p.id)} ikon={p.ikon} ad={p.ad} sayi={MEKANLAR.filter((m) => planUyum(m, p.id) >= PLAN_ESIK).length} />
+            <Cip key={p.id} secili={false} onClick={() => onPlan(p.id)} ikon={p.ikon} ad={p.ad} sayi={GENEL.filter((m) => planUyum(m, p.id) >= PLAN_ESIK).length} />
           ))}
         </div>
       </section>
+
+      <MichelinBolumu onKategori={onKategori} />
 
       <section>
         <BolumBasligi baslik="Hazır listeler" alt="Ne arayacağını bilmiyorsan: her mekânın neden listede olduğu yazıyor." />
@@ -707,7 +793,7 @@ function Kesif({ ctx, onKategori, onPlan, onListe, onSemt, onTumu }) {
         <BolumBasligi baslik="Semt semt" alt="Bulunduğun ya da gideceğin semti seç." />
         <div className="ist-semtler">
           {BOLGELER.map((b) => {
-            const l = MEKANLAR.filter((m) => m.bolge === b.id);
+            const l = GENEL.filter((m) => m.bolge === b.id);
             const g = foto(l);
             return (
               <button key={b.id} type="button" className="ist-semt" onClick={() => onSemt(b.id)}>
@@ -719,8 +805,34 @@ function Kesif({ ctx, onKategori, onPlan, onListe, onSemt, onTumu }) {
         </div>
       </section>
 
-      <button type="button" className="ist-dugme genis" onClick={onTumu}>Tüm mekânları skora göre listele ({MEKANLAR.length})</button>
+      <button type="button" className="ist-dugme genis" onClick={onTumu}>Tüm mekânları skora göre listele ({GENEL.length})</button>
     </div>
+  );
+}
+
+// Michelin mekânları genel listeden ayrı, kendi bölümünde.
+function MichelinBolumu({ onKategori }) {
+  const grup = KATEGORI_GRUPLARI.find((g) => g.michelin);
+  return (
+    <section className="ist-michelin">
+      <BolumBasligi baslik="✦ Michelin Rehberi İstanbul 2026" alt="Yıldızlılar, Bib Gourmand'lar ve seçkideki restoranlar ayrı tutulur; genel listelerde görünmez." />
+      <div className="ist-michelin-karolar">
+        {grup.kategoriler.map((k) => {
+          const l = MEKANLAR.filter(k.test).sort((a, b) => b.puan - a.puan);
+          const g = l.find((m) => m.gorsel)?.gorsel;
+          return (
+            <button key={k.id} type="button" className="ist-michelin-karo" onClick={() => onKategori(k.id)}>
+              {g ? <img src={g} alt="" loading="lazy" referrerPolicy="no-referrer" /> : null}
+              <span className="ist-karo-ic">
+                <span className="ist-michelin-ikon" aria-hidden>{k.ikon}</span>
+                <b>{k.ad}</b>
+                <em>{l.length} restoran · {l.slice(0, 3).map((m) => m.ad).join(", ")}</em>
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    </section>
   );
 }
 
@@ -772,6 +884,22 @@ function Kapak({ m, g, oran = "16 / 10", ad = true }) {
   );
 }
 
+// Konum satırı: semt kalın, bölge ve yaka yanında, varsa uzaklık. Tıklanınca haritada açar.
+function Konum({ m, g, mesafe, buyuk }) {
+  const b = bolgeBul(m.bolge);
+  return (
+    <a className={`ist-konum${buyuk ? " buyuk" : ""}`} href={g?.harita || haritaLink(m.harita)} target="_blank" rel="noopener noreferrer"
+      title="Google Haritalar'da aç">
+      <span className="ist-konum-pin" aria-hidden>📍</span>
+      <span className="ist-konum-metin">
+        <b>{m.semt}</b>
+        <span>{b ? b.ad : ""}{b ? ` · ${b.yaka === "avrupa" ? "Avrupa" : "Anadolu"} yakası` : ""}</span>
+      </span>
+      {mesafe ? <em>{mesafe.yaklasik ? "~" : ""}{mesafe.km.toLocaleString("tr-TR", { maximumFractionDigits: 1 })} km</em> : null}
+    </a>
+  );
+}
+
 function MekanKart({ x, f, isaret, onDetay, googleAktif }) {
   const { m, g, skor, mesafe } = x;
   const k = ANA_KATEGORI[m.id];
@@ -788,8 +916,11 @@ function MekanKart({ x, f, isaret, onDetay, googleAktif }) {
       <button type="button" className="ist-kart-foto" onClick={onDetay} aria-label={`${m.ad} detaylarını incele`}>
         <Kapak m={m} g={g} ad={false} />
         <SkorRozet skor={skor} />
-        {acik != null ? <span className={`ist-acik${acik ? " evet" : ""}`}>{acik ? "Şimdi açık" : "Şu an kapalı"}</span> : null}
-        {m.odul ? <span className="ist-odul-rozet">{ODULLER[m.odul].kisa}</span> : null}
+        <span className="ist-foto-ust">
+          {m.odul ? <span className="ist-odul-rozet">✦ {ODULLER[m.odul].kisa}</span> : null}
+          {acik != null ? <span className={`ist-acik${acik ? " evet" : ""}`}>{acik ? "Şimdi açık" : "Şu an kapalı"}</span> : null}
+        </span>
+        <span className="ist-foto-konum">📍 {m.semt}</span>
       </button>
       <div className="ist-kart-govde">
         <div className="ist-kart-ust">
@@ -797,11 +928,10 @@ function MekanKart({ x, f, isaret, onDetay, googleAktif }) {
           <button type="button" className={`ist-kaydet${fav ? " secili" : ""}`} onClick={() => isaret.favDegis(m.id)}
             aria-pressed={fav} aria-label={fav ? `${m.ad} kayıtlılardan çıkar` : `${m.ad} kaydet`}>{fav ? "♥" : "♡"}</button>
         </div>
+        <Konum m={m} g={g} mesafe={mesafe} />
         <div className="ist-kart-meta">
           {k ? <span style={{ color: anaTur(m).renk, fontWeight: 800 }}>{k.ikon} {k.ad}</span> : null}
-          <span>{m.semt}</span>
           <span className="ist-fiyat">{fiyatSimge(m.fiyat)}</span>
-          {mesafe ? <span>{mesafe.yaklasik ? "~" : ""}{mesafe.km.toLocaleString("tr-TR", { maximumFractionDigits: 1 })} km</span> : null}
         </div>
         <div className="ist-kart-puanlar">
           <GooglePuani g={g} googleAktif={googleAktif} kisa />
@@ -842,7 +972,7 @@ function Detay({ m, g, f, ctx, isaret, not, googleAktif, onKapat, onSec, onListe
   const planlar = PLAN_TURLERI.map((p) => ({ p, v: planUyum(m, p.id) })).sort((a, b) => b.v - a.v);
   const uygun = planlar.filter((x) => x.v >= PLAN_ESIK);
   const benzer = useMemo(() => MEKANLAR
-    .filter((x) => x.id !== m.id && ANA_KATEGORI[x.id]?.id === k?.id && (x.bolge === m.bolge || x.yaka === m.yaka))
+    .filter((x) => x.id !== m.id && michelinMi(x) === michelinMi(m) && ANA_KATEGORI[x.id]?.id === k?.id && (x.bolge === m.bolge || x.yaka === m.yaka))
     .map((x) => ({ x, s: skorHesapla(x, f, ctx.g[x.id]).toplam })).sort((a, b) => b.s - a.s || (a.x.bolge === m.bolge ? -1 : 1)).slice(0, 6),
   // eslint-disable-next-line react-hooks/exhaustive-deps
   [m.id]);
@@ -877,8 +1007,8 @@ function Detay({ m, g, f, ctx, isaret, not, googleAktif, onKapat, onSec, onListe
             <div style={{ minWidth: 0 }}>
               <div className="ist-ust-etiket" style={{ color: anaTur(m).renk }}>{k ? `${k.ikon} ${k.ad}` : anaTur(m).ad}</div>
               <h3 className="ist-detay-ad">{m.ad}</h3>
+              <Konum m={m} g={g} mesafe={ctx.konum ? mesafeKm(ctx.konum, m, g) : null} buyuk />
               <div className="ist-kart-meta">
-                <span>{m.semt}{b ? ` · ${b.ad}` : ""}</span>
                 <span className="ist-fiyat">{fiyatSimge(m.fiyat)} {FIYATLAR.find((x) => x.id === m.fiyat)?.ad}</span>
                 {acik != null ? <span className={`ist-acik satir${acik ? " evet" : ""}`}>{acik ? "Şimdi açık" : "Şu an kapalı"}</span> : null}
               </div>
@@ -1155,7 +1285,16 @@ const CSS = `
 .ist-uyari span{color:var(--soluk)}
 /* araç çubuğu */
 .ist-arac{position:relative;display:grid;gap:10px;margin-bottom:10px}
-@media (min-width:981px){.ist-arac{position:sticky;top:8px;z-index:30;padding:10px;margin:0 -10px 10px;border-radius:18px;background:rgba(11,11,13,.96)}}
+@media (min-width:981px){.ist-arac{position:sticky;top:8px;z-index:30;padding:10px;margin:0 -10px 10px;border-radius:18px;background:rgba(11,11,13,.97)}}
+.ist-gezinti{display:flex;align-items:center;gap:10px;min-width:0}
+.ist-geri{flex:0 0 auto;display:inline-flex;align-items:center;gap:6px;height:40px;padding:0 16px 0 12px;border-radius:12px;cursor:pointer;font-weight:900;font-size:14px;
+  background:#f4f1ea;color:#0b0b0d;border:none;box-shadow:0 6px 16px rgba(0,0,0,.35);transition:transform .15s,opacity .15s}
+.ist-geri:hover:not(:disabled){transform:translateY(-1px)}
+.ist-geri:disabled{background:var(--panel2);color:var(--silik);box-shadow:none;cursor:default}
+.ist-iz{flex:1;min-width:0;font-size:13px;color:var(--soluk);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ist-iz b{color:var(--metin)}
+.ist-adim{flex:0 0 auto;font-size:11.5px;color:var(--silik);font-weight:800}
+.ist-geri-yuzen{display:none}
 .ist-arama{display:flex;align-items:center;gap:10px;height:52px;padding:0 8px 0 16px;border-radius:16px;background:var(--panel);border:1.5px solid var(--cizgi);box-shadow:0 8px 24px rgba(0,0,0,.25)}
 .ist-arama:focus-within{border-color:var(--vurgu)}
 .ist-arama input{flex:1;min-width:0;background:none;border:none;outline:none;color:var(--metin);font-size:15.5px;font-weight:600}
@@ -1298,7 +1437,28 @@ const CSS = `
 .ist-acik{position:absolute;left:10px;top:10px;padding:4px 9px;border-radius:99px;font-size:11px;font-weight:900;background:rgba(10,10,12,.82);color:#fda4af;border:1px solid rgba(253,164,175,.4)}
 .ist-acik.evet{color:#86efac;border-color:rgba(134,239,172,.45)}
 .ist-acik.satir{position:static}
-.ist-odul-rozet{position:absolute;left:10px;bottom:10px;padding:4px 9px;border-radius:99px;font-size:11px;font-weight:900;background:rgba(10,10,12,.85);color:#e8c25a;border:1px solid rgba(232,194,90,.45)}
+.ist-foto-ust{position:absolute;left:10px;top:10px;display:flex;flex-direction:column;align-items:flex-start;gap:6px}
+.ist-foto-ust .ist-acik{position:static}
+.ist-foto-konum{position:absolute;left:10px;bottom:10px;max-width:calc(100% - 20px);padding:5px 10px;border-radius:99px;font-size:12px;font-weight:900;color:#fff;background:rgba(10,10,12,.82);border:1px solid rgba(255,255,255,.18);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ist-konum{display:flex;align-items:center;gap:9px;padding:8px 10px;border-radius:12px;background:rgba(244,114,182,.07);border:1px solid rgba(244,114,182,.22);color:var(--metin);text-decoration:none;min-width:0}
+.ist-konum:hover{border-color:rgba(244,114,182,.5)}
+.ist-konum-pin{font-size:16px;flex:0 0 auto}
+.ist-konum-metin{flex:1;min-width:0;display:grid}
+.ist-konum-metin b{font-size:14px;font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ist-konum-metin span{font-size:11.5px;color:var(--soluk);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ist-konum em{font-style:normal;font-size:12px;font-weight:900;color:#f9a8d4;flex:0 0 auto}
+.ist-konum.buyuk{margin-top:6px;padding:10px 12px}
+.ist-konum.buyuk b{font-size:16px}
+.ist-michelin{padding:18px;border-radius:22px;background:linear-gradient(160deg,rgba(232,194,90,.12),rgba(232,194,90,.02));border:1px solid rgba(232,194,90,.35)}
+.ist-michelin .ist-bolum-bas h3{color:#f3d98b}
+.ist-michelin-karolar{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.ist-michelin-karo{position:relative;aspect-ratio:16/10;border-radius:16px;overflow:hidden;cursor:pointer;border:1px solid rgba(232,194,90,.4);background:#17140b;padding:0;color:#fff;text-align:left;transition:transform .2s}
+.ist-michelin-karo:hover{transform:translateY(-2px)}
+.ist-michelin-karo img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.ist-michelin-karo b{font-size:17px;font-weight:900}
+.ist-michelin-karo em{font-style:normal;font-size:11.5px;color:#eee;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.ist-michelin-ikon{color:#e8c25a;font-size:20px}
+.ist-odul-rozet{padding:4px 9px;border-radius:99px;font-size:11px;font-weight:900;background:rgba(10,10,12,.85);color:#e8c25a;border:1px solid rgba(232,194,90,.45)}
 .ist-kart-govde{display:flex;flex-direction:column;gap:8px;padding:12px 14px 14px;flex:1}
 .ist-kart-ust{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
 .ist-kart-ust h4{margin:0;font-size:18px;font-weight:900;letter-spacing:-.01em;line-height:1.2}
@@ -1438,6 +1598,10 @@ const CSS = `
   .ist-detay-govde{padding:0 14px 28px}
   .ist-galeri{margin:0 -14px;padding:0 14px}
   .ist-detay-perde.ust{padding:0;align-items:flex-end}
+  .ist-geri-yuzen{display:inline-flex;align-items:center;position:fixed;left:14px;bottom:84px;z-index:60;height:46px;padding:0 18px;border-radius:99px;border:none;
+    background:#f4f1ea;color:#0b0b0d;font-weight:900;font-size:15px;box-shadow:0 10px 26px rgba(0,0,0,.55);cursor:pointer}
+  .ist-michelin-karolar{grid-template-columns:1fr}
+  .ist-michelin{padding:14px}
   .ist-kucuk-sayfa{width:100%;border-radius:22px 22px 0 0;max-height:85vh}
   .ist-kayitli-liste{grid-template-columns:1fr}
   .ist-skor-parca li{grid-template-columns:1fr 60px 40px}

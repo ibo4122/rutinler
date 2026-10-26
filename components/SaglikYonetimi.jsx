@@ -8,15 +8,16 @@ import {
   hedefeSure, bugun, tarihAdi,
 } from "../lib/saglikKoc";
 import { num } from "./panelUI";
-import { useGeriAl } from "./GeriAl";
+import { GeriButon, useGeriAl } from "./GeriAl";
 import { GunOzeti, GunAkordeon, BesinSayfasi, gunToplami, saatinOgunu, SAGLIK_CSS } from "./SaglikGunluk";
 
 // Sağlık Yönetimi.
 //
 // Ekranın ana sorusu "bugün ne aldım?": en üstte büyük kalori sayısı ve makro
 // kartları, hemen altında öğünler. Hedef/kalan bilgisi ikincil. Profil ve
-// hesaplamalar (BMR, makro hedefleri) bir kez kurulur; bu yüzden aşağıda,
-// kapalı bir bölümde durur — yalnızca profil eksikse en üstte açılır.
+// hesaplamalar (BMR, makro hedefleri) en üstte, kapalı bir satırdır (günlük
+// kalori hedefi görünür); açılınca başında "← Geri" ile günlüğe dönülür.
+// Profil eksikse açık gelir.
 //
 // Kullanıcı akışları ve ekran hiyerarşisi: docs/saglik-istanbul-akislar.md
 
@@ -125,6 +126,12 @@ export default function SaglikYonetimi({ data, setData }) {
         acik={profilGoster} onToggle={hesap.eksik ? undefined : () => setProfilAcik((v) => !v)}
         sag={!hesap.eksik ? <span style={{ color: T.ana, fontWeight: 900, fontSize: 15 }}>{r0(hesap.hk.deger)} kcal/gün</span> : null}
       >
+        {!hesap.eksik ? (
+          <div>
+            <GeriButon onClick={() => { setProfilAcik(false); profilRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }); }}
+              etiket="Geri — günlüğe dön" />
+          </div>
+        ) : null}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(230px, 1fr))", gap: 12 }}>
           <IkiliSecim label="Cinsiyet" deger={profil.cinsiyet} onChange={(v) => pDegis("cinsiyet", v)}
             secenekler={[["erkek", "♂ Erkek"], ["kadin", "♀ Kadın"]]} />
@@ -218,15 +225,9 @@ export default function SaglikYonetimi({ data, setData }) {
           <div style={{ color: T.ana, fontSize: 11, fontWeight: 900, letterSpacing: ".14em", textTransform: "uppercase" }}>Sağlık</div>
           <h2 style={{ color: "#fff", fontSize: 26, fontWeight: 900, margin: "4px 0 0", lineHeight: 1.15 }}>Beslenme günlüğün</h2>
         </div>
-        {!hesap.eksik ? (
-          <button type="button" className="sg-btn"
-            onClick={() => { setProfilAcik(true); setTimeout(() => profilRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 30); }}>
-            👤 Profil & hedefler
-          </button>
-        ) : null}
       </div>
 
-      {hesap.eksik ? profilKarti : null}
+      {profilKarti}
 
       <GunOzeti tarih={tarih} setTarih={setTarih} toplam={toplam} hedefKcal={hedefKcal}
         makro={hesap.eksik ? null : hesap.makro} kilo={num(profil.kilo)}
@@ -247,9 +248,6 @@ export default function SaglikYonetimi({ data, setData }) {
         <HaftalikOzet gunler={kayit.gunler || {}} hedefKcal={hedefKcal} seciliTarih={tarih} onTarih={setTarih} />
       ) : null}
 
-      {!hesap.eksik ? profilKarti : null}
-
-      <VeriPaneli kayit={kayit} />
 
       {sayfa ? (
         <BesinSayfasi key={`${sayfa.mod}-${sayfa.kayit?.id || ""}`} durum={sayfa} gunler={kayit.gunler || {}}
@@ -558,87 +556,6 @@ function HaftalikOzet({ gunler, hedefKcal, seciliTarih, onTarih }) {
         </div>
       ) : null}
     </Kart>
-  );
-}
-
-// ======================= VERİ SAKLAMA =======================================
-
-function VeriPaneli({ kayit }) {
-  const [acik, setAcik] = useState(false);
-  const gunler = kayit.gunler || {};
-  const gunSayisi = Object.keys(gunler).length;
-  const kayitSayisi = Object.values(gunler).reduce((s, g) => {
-    const o = Object.values(g.ogunler || {}).reduce((t, l) => t + (l?.length || 0), 0);
-    return s + o + (g.egzersizler?.length || 0);
-  }, 0);
-  const tarihler = Object.keys(gunler).sort();
-
-  const disaAktar = () => {
-    try {
-      const blob = new Blob([JSON.stringify({ disaAktarim: new Date().toISOString(), ...kayit }, null, 2)], { type: "application/json" });
-      const a = document.createElement("a");
-      a.href = URL.createObjectURL(blob);
-      a.download = `saglik-verilerim-${bugun()}.json`;
-      a.click();
-      URL.revokeObjectURL(a.href);
-    } catch {}
-  };
-
-  return (
-    <section style={{ border: "1px solid rgba(74,222,128,.18)", borderRadius: 18, overflow: "hidden", background: "rgba(2,20,12,.45)", marginBottom: 14 }}>
-      <button type="button" onClick={() => setAcik((v) => !v)}
-        style={{
-          width: "100%", display: "flex", alignItems: "center", gap: 12, padding: "13px 15px",
-          cursor: "pointer", border: "none", textAlign: "left", background: "transparent",
-        }}>
-        <span style={{ fontSize: 17 }}>🔐</span>
-        <span style={{ flex: 1, minWidth: 0 }}>
-          <span style={{ display: "block", color: "#fff", fontWeight: 900, fontSize: 14.5 }}>Verilerin nerede tutuluyor?</span>
-          <span style={{ display: "block", color: "#7fae93", fontSize: 11.5, marginTop: 2 }}>
-            {gunSayisi} gün · {kayitSayisi} kayıt · hesabına bağlı, buluta kaydediliyor
-          </span>
-        </span>
-        <span style={{ color: T.ana, fontWeight: 900, fontSize: 18 }}>{acik ? "−" : "+"}</span>
-      </button>
-
-      {acik ? (
-        <div style={{ padding: "4px 15px 15px", display: "grid", gap: 12 }}>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(215px, 1fr))", gap: 11 }}>
-            <VeriKutu ikon="☁️" baslik="Bulut (ana kayıt)"
-              metin="Supabase veritabanında, yalnızca senin hesabına bağlı tek bir satırda. Her değişiklikten ~0,7 saniye sonra otomatik kaydediliyor; başka bir cihazdan girdiğinde aynı veriyi görürsün." />
-            <VeriKutu ikon="💾" baslik="Tarayıcı yedeği"
-              metin="Aynı veri bu tarayıcıda da yedekleniyor. İnternet kesilirse kayıp olmaz; bulut boşsa yerel yedekten geri yüklenir. Yedek kullanıcıya özel anahtarda tutulur." />
-            <VeriKutu ikon="👁️" baslik="Gizlilik"
-              metin="Satır yalnızca senin kullanıcı kimliğinle okunabilir (RLS). Beslenme kaydın ne başka kullanıcılara ne de üçüncü taraflara gönderiliyor." />
-          </div>
-
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 11 }}>
-            <Rozet etiket="Kayıtlı gün" deger={String(gunSayisi)} ikon="📅" />
-            <Rozet etiket="Besin + egzersiz" deger={String(kayitSayisi)} ikon="🧾" />
-            <Rozet etiket="İlk kayıt" deger={tarihler[0] ? tarihAdi(tarihler[0]).split(",")[0] : "—"} ikon="⏱" />
-            <Rozet etiket="Son kayıt" deger={tarihler.length ? tarihAdi(tarihler[tarihler.length - 1]).split(",")[0] : "—"} ikon="🕐" />
-          </div>
-
-          <button type="button" onClick={disaAktar}
-            style={{
-              height: 46, borderRadius: 13, cursor: "pointer",
-              border: `1px solid ${T.ana}55`, background: `${T.ana}18`, color: T.ana,
-              fontSize: 13.5, fontWeight: 900,
-            }}>
-            ⬇ Tüm sağlık verimi JSON olarak indir
-          </button>
-        </div>
-      ) : null}
-    </section>
-  );
-}
-
-function VeriKutu({ ikon, baslik, metin }) {
-  return (
-    <div style={{ border: "1px solid rgba(74,222,128,.14)", borderRadius: 14, padding: "12px 13px", background: "rgba(4,24,14,.5)" }}>
-      <div style={{ color: "#fff", fontWeight: 900, fontSize: 13 }}>{ikon} {baslik}</div>
-      <div style={{ color: "#7fae93", fontSize: 11.5, marginTop: 6, lineHeight: 1.65 }}>{metin}</div>
-    </div>
   );
 }
 

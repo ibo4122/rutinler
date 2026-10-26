@@ -110,6 +110,8 @@ hemen bulan, baktığında heyecanlanan** bir ekran.
   her tuş toast açmasın: metin alanları `onBlur`'da kaydeder.
 - Detay/alt sayfalar sol üstte `GeriButon` ile açılır; kaydedilmemiş giriş varsa
   `kaydedilmemis={() => kirli.current}` ile onay sorar. Esc de kapatır.
+- **Adım adım Geri** (kullanıcı istedi: "her adımdan sonra geri gitmek istiyorum"): filtre/görünüm değişiklikleri bir geçmiş yığınına yazılır; üstte her zaman "← Geri" + konum izi, telefonda yüzen Geri. Hatırlanan filtrelerle açılınca yığına başlangıç hali konur. Kullanıcıyı "Tümü"ye basmaya zorlama.
+- Konum her kartta belirgin: fotoğraf üstünde 📍 semt + gövdede semt/bölge/yaka satırı (haritaya bağlı).
 - Filtre çubuğu kalıbı: arama + açılır kontroller (masaüstünde panel, ≤640px'te
   alttan açılan sayfa) + seçili etiketler (✕) + "Tümünü temizle". Seçenek
   yanındaki sayı "o eksen hariç diğer filtrelere" göre sayılır. Sonuç azsa
