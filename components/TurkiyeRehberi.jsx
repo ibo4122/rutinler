@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useGezinme } from "./useGezinme";
 import { BOLGELER_TR, ILLER, YER_TURLERI, ilBul, bolgeBul, bolgeIlleri } from "../lib/turkiye";
 import { TURLAR, TUR_SEGMENTLERI, YAKIT_VARSAYILAN, turBul, turunIlleri, turKm, ilinTurlari } from "../lib/turkiyeTurlari";
 import { num, tl, satirInput, Kutu, KutuIzgara, Tablo, Alan, Izgara, Not } from "./panelUI";
@@ -23,14 +24,20 @@ const sade = (s) =>
     .replace(/ı/g, "i").replace(/ş/g, "s").replace(/ğ/g, "g")
     .replace(/ü/g, "u").replace(/ö/g, "o").replace(/ç/g, "c").replace(/â/g, "a");
 
-export default function TurkiyeRehberi({ planlar, hayaller, onDefter, acilis }) {
+export default function TurkiyeRehberi({ planlar, hayaller, onDefter, acilis, onGeri }) {
   // Defterden "Rehberde aç" denince doğrudan o il/tur sayfasıyla başlar.
-  const [gorunum, setGorunum] = useState(() => ({
+  // Gezinme tarayıcı geçmişine bağlı: telefonun geri hareketi de bir önceki
+  // il/tur/listeye döner. Defterden açıldıysa ve rehberde geri gidilecek adım
+  // yoksa "Geri" Defter'e döner (onGeri).
+  const nav = useGezinme("turkiye", {
     ekran: acilis?.ekran || "liste",
     sekme: acilis?.ekran === "il" ? "iller" : "turlar",
     id: acilis?.id || null,
-  }));
-  const git = (ekran, id = null) => { setGorunum((g) => ({ ...g, ekran, id })); if (typeof window !== "undefined") window.scrollTo(0, 0); };
+  });
+  const gorunum = nav.durum;
+  const git = (ekran, id = null) => { nav.git({ ...gorunum, ekran, id }); if (typeof window !== "undefined") window.scrollTo(0, 0); };
+  const geri = () => (nav.geriVar ? nav.geri() : onGeri ? onGeri() : git("liste"));
+  const geriEtiketi = nav.geriVar ? "← Geri" : onGeri ? "← Seyahat Defterim" : "← Türkiye Rehberi";
 
   const defterDurumu = (ref) => {
     const eslesir = (k) => (ref.ilId && k.ilId === ref.ilId) || (ref.turId && k.turId === ref.turId);
@@ -41,11 +48,11 @@ export default function TurkiyeRehberi({ planlar, hayaller, onDefter, acilis }) 
   };
 
   if (gorunum.ekran === "il" && gorunum.id) {
-    return <IlSayfasi il={ilBul(gorunum.id)} onGeri={() => git("liste")} onTur={(id) => git("tur", id)}
+    return <IlSayfasi il={ilBul(gorunum.id)} onGeri={geri} geriEtiketi={geriEtiketi} onTur={(id) => git("tur", id)}
       durum={defterDurumu({ ilId: gorunum.id })} onDefter={onDefter} />;
   }
   if (gorunum.ekran === "tur" && gorunum.id) {
-    return <TurSayfasi tur={turBul(gorunum.id)} onGeri={() => git("liste")} onIl={(id) => git("il", id)}
+    return <TurSayfasi tur={turBul(gorunum.id)} onGeri={geri} geriEtiketi={geriEtiketi} onIl={(id) => git("il", id)}
       durum={defterDurumu({ turId: gorunum.id })} onDefter={onDefter} />;
   }
 
@@ -60,7 +67,7 @@ export default function TurkiyeRehberi({ planlar, hayaller, onDefter, acilis }) 
         ].map((s) => {
           const aktif = gorunum.sekme === s.id;
           return (
-            <button key={s.id} type="button" onClick={() => setGorunum((g) => ({ ...g, sekme: s.id }))}
+            <button key={s.id} type="button" onClick={() => nav.degistir({ ...gorunum, sekme: s.id })}
               style={{
                 flex: "1 1 220px", textAlign: "left", padding: "13px 16px", borderRadius: 15, cursor: "pointer",
                 border: `1.5px solid ${aktif ? KIRMIZI + "aa" : "rgba(148,163,184,.2)"}`,
@@ -318,7 +325,7 @@ function DefterButonlari({ refObj, durum, onDefter, tarihli, gun }) {
 
 // ======================= İL SAYFASI =========================================
 
-function IlSayfasi({ il, onGeri, onTur, durum, onDefter }) {
+function IlSayfasi({ il, onGeri, geriEtiketi = "← Türkiye Rehberi", onTur, durum, onDefter }) {
   const [heroIdx, setHeroIdx] = useState(0);
   if (!il) return null;
   const b = bolgeBul(il.bolge);
@@ -329,7 +336,7 @@ function IlSayfasi({ il, onGeri, onTur, durum, onDefter }) {
 
   return (
     <section>
-      <GeriButonu onClick={onGeri}>← Türkiye Rehberi</GeriButonu>
+      <GeriButonu onClick={onGeri}>{geriEtiketi}</GeriButonu>
 
       <div style={{ position: "relative", borderRadius: 22, overflow: "hidden", marginBottom: 14, border: `1px solid ${b.renk}55`, background: `linear-gradient(135deg, ${b.renk}55, ${b.renk}12)` }}>
         <div style={{ position: "relative", height: 290 }}>
@@ -438,7 +445,7 @@ function IlSayfasi({ il, onGeri, onTur, durum, onDefter }) {
 
 // ======================= TUR SAYFASI ========================================
 
-function TurSayfasi({ tur, onGeri, onIl, durum, onDefter }) {
+function TurSayfasi({ tur, onGeri, geriEtiketi = "← Türkiye Rehberi", onIl, durum, onDefter }) {
   const [kisi, setKisi] = useState("2");
   const [segment, setSegment] = useState("konfor");
   const [aracla, setAracla] = useState(true);
@@ -468,7 +475,7 @@ function TurSayfasi({ tur, onGeri, onIl, durum, onDefter }) {
 
   return (
     <section>
-      <GeriButonu onClick={onGeri}>← Türkiye Rehberi</GeriButonu>
+      <GeriButonu onClick={onGeri}>{geriEtiketi}</GeriButonu>
 
       <header style={{ position: "relative", borderRadius: 22, overflow: "hidden", marginBottom: 14, border: `1px solid ${tur.renk}66`, minHeight: 280 }}>
         <div style={{ position: "absolute", inset: 0, display: "flex" }}>

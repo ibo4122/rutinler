@@ -120,3 +120,44 @@ test("Her kategori yapısal alanla çalışır ve arama kategoriye sızmaz", () 
   assert.ok(l.length > 0);
   assert.ok(l.every((m) => eslesir(m, { ...BOS_FILTRE, arama: "kaburga" }, ctx)));
 });
+
+test("Rakı iki ayrı deneyim: hiçbir mekân iki listede birden yok; eller havaya kanıt ister", async () => {
+  const { rakiDeneyimi } = await import("../lib/istanbulSkor.js");
+  const sakin = idler(sec(["raki"])), muzikli = idler(sec(["raki-eglence"])), dans = sec(["dans"]);
+  assert.ok(sakin.length >= 10 && muzikli.length >= 4);
+  for (const id of sakin) assert.ok(!muzikli.includes(id), `${id} hem sakin hem müzikli`);
+  for (const id of muzikli) assert.equal(rakiDeneyimi(bul(id)), "eglence");
+  for (const m of dans) {
+    const e = m.etkinlikler.find((x) => x.id === "dans");
+    assert.ok(e && GUVEN_SIRA[e.guven] >= 2 && e.url, `${m.ad}: eller havaya için kaynaklı dans kanıtı yok`);
+  }
+  assert.ok(sakin.includes("eleosbeyoglu"), "Eleos Beyoğlu sakin rakı listesinde olmalı");
+  assert.ok(idler(dans).includes("ziyadefasil"), "Ziyade Fasıl eller havaya listesinde olmalı");
+});
+
+test("Kullanıcının sorduğu mekânlar bulunuyor", () => {
+  const ara = (q) => idler(sonuclariHesapla({ ...BOS_FILTRE, arama: q }, ctx).map((x) => x.m));
+  assert.ok(ara("zapata").includes("zapata"));
+  assert.ok(ara("gg pizza").includes("ggpizza"));
+  assert.ok(ara("soho").includes("cecconis"));
+  assert.ok(ara("eleos").includes("eleosbeyoglu"));
+  assert.ok(idler(sec(["hamburger"])).indexOf("zapata") < 5, "Zapata hamburger listesinin ilk 5'inde olmalı");
+});
+
+test("Vize: rehberdeki her ülkenin resmî kaydı var; Arjantin doğrulandı", async () => {
+  const { SEHIRLER } = await import("../lib/destinasyonlar.js");
+  const { vizeBul, ULKE_VIZELERI, VIZE_KAYNAK } = await import("../lib/vize.js");
+  for (const s of SEHIRLER) assert.ok(vizeBul(s.ulke), `${s.ad} (${s.ulke}) için vize kaydı yok`);
+  const ar = vizeBul("Arjantin");
+  assert.equal(ar.durum, "muaf");
+  assert.match(ar.umuma, /90/);
+  assert.ok(ar.kaynak?.url?.startsWith("https://www.mfa.gov.tr/"));
+  for (const v of ULKE_VIZELERI) {
+    assert.ok(v.umuma && v.diger && v.kontrol, `${v.ulke}: eksik alan`);
+    if (v.kaynak) assert.ok(/^https:\/\//.test(v.kaynak.url));
+  }
+  assert.ok(VIZE_KAYNAK.url.includes("mfa.gov.tr"));
+  // Eski hatalar: Japonya vizesiz, BAE vizeye tabi.
+  assert.equal(vizeBul("Japonya").durum, "muaf");
+  assert.equal(vizeBul("Birleşik Arap Emirlikleri").durum, "tabi");
+});

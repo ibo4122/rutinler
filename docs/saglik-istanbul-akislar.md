@@ -79,3 +79,9 @@ Michelin mekânları (yıldız, Bib Gourmand, seçki) genel listelerde yer almaz
 | Atmosfer/servis/menü | 5 | Editoryal not, ödüller |
 
 Google verisi yoksa skor kalan bileşenlerle hesaplanır ve kartta **"Google verisi bağlı değil"** yazar; rehber puanı hiçbir yerde Google puanı gibi gösterilmez. Sponsorlu içerik yok; eklenirse ayrı bölümde "Sponsorlu" etiketiyle gösterilir ve skoru etkilemez.
+
+## Gezinme ve tarayıcı geri hareketi (Ekim 2026)
+`components/useGezinme.js`: Tatil (Keşfet › şehir, Defter › şehir/il/tur, Vize), Türkiye Rehberi (liste › il/tur) ve İstanbul (seçim adımları, mekân detayı) tarayıcı geçmişine bağlı. Ekrandaki "← Geri" ile telefonun/tarayıcının geri hareketi aynı yere döner; Defter'den açılan sayfada Geri "← Seyahat Defterim" yazar. Sayfa yenilenmez (Next.js 14.1+ yerel pushState).
+
+## Vize Rehberi
+`lib/vize.js` + `components/VizeRehberi.jsx`: T.C. Dışişleri Bakanlığı tablosu (son kontrol 28.10.2026), umuma mahsus pasaport varsayılan, diğer pasaport türleri ayrı satırda, ülkeye özel resmî bağlantılar. Şehir sayfalarındaki vize satırı da buradan gelir.

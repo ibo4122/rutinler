@@ -8,11 +8,12 @@ import {
 import {
   KATEGORI_GRUPLARI, KATEGORILER, kategoriBul, anaKategori, PLAN_TURLERI, planBul, planUyum, planUyumEtiketi, PLAN_ESIK,
   skorHesapla, nedenler, rezervasyon, muzik, kalabalik, alkol, acikAlan, kimIcinDegil, mesafeKm, acikMi,
-  michelinMi, michelinKategoriMi, kategoriKaniti, kayitGuveni, tarihYaz,
+  michelinMi, michelinKategoriMi, kategoriKaniti, kayitGuveni, tarihYaz, rakiDeneyimi,
 } from "../lib/istanbulSkor";
 import { BOS_FILTRE, eslesir, aktifSayisi, panelSayisi, sonuclariHesapla, dogrulanmamisFarki } from "../lib/istanbulFiltre";
 import { ETKINLIK_TURLERI, GUVEN_AD, GUVEN_SIRA } from "../lib/istanbulEtkinlik";
 import { GeriButon, useGeriAl } from "./GeriAl";
+import { useGezinme } from "./useGezinme";
 
 // İstanbul'da Mekân Keşfet.
 //
@@ -92,13 +93,14 @@ export default function IstanbulRehberi({ data, setData }) {
   const geriAl = useGeriAl();
   const google = useGoogle();
   const cevrimici = useCevrimici();
-  const [f, setF] = useState(BOS);
+  // Gezinme durumu (seçimler, Keşfet/Kayıtlı, açık mekân) tarayıcı geçmişine
+  // bağlı: ekrandaki "← Geri" ile telefonun geri hareketi aynı adıma döner.
+  const nav = useGezinme("istanbul", { f: BOS, gorunum: "kesif", secili: null });
+  const { f, gorunum, secili: seciliId } = nav.durum;
   const [hazir, setHazir] = useState(false);
   const [acilir, setAcilir] = useState(null); // kategori | plan | semt | filtre
   const [sirala, setSirala] = useState("skor");
   const [gosterilen, setGosterilen] = useState(SAYFA);
-  const [seciliId, setSeciliId] = useState(null);
-  const [gorunum, setGorunum] = useState("kesif"); // kesif | kayitli
   const [listeyeEkle, setListeyeEkle] = useState(null);
   const [konum, setKonum] = useState(null);
   const [konumDurum, setKonumDurum] = useState("yok"); // yok | isteniyor | var | izinyok | hata
@@ -112,10 +114,10 @@ export default function IstanbulRehberi({ data, setData }) {
       const k = JSON.parse(localStorage.getItem(FILTRE_ANAHTARI) || "null");
       if (k && typeof k === "object") {
         const geriYuklenen = { ...BOS, ...k.f, uzaklik: 0 };
-        setF(geriYuklenen);
         if (k.sirala && k.sirala !== "yakin") setSirala(k.sirala);
-        // Hatırlanan seçimlerle açılınca da "← Geri" başlangıca dönebilsin.
-        if (aktifSayisi(geriYuklenen) || geriYuklenen.tumu) setGecmis([{ f: { ...BOS }, gorunum: "kesif" }]);
+        // Hatırlanan seçimler başlangıçtan sonraki bir adım olarak açılır; böylece
+        // "← Geri" (ve telefonun geri hareketi) başlangıç ekranına dönebilir.
+        if (aktifSayisi(geriYuklenen) || geriYuklenen.tumu) nav.git({ f: geriYuklenen, gorunum: "kesif", secili: null });
       }
     } catch {}
     setHazir(true);
@@ -141,25 +143,20 @@ export default function IstanbulRehberi({ data, setData }) {
   // Adım geçmişi: her seçim (tür, plan, semt, filtre, liste, görünüm) bir adım.
   // "← Geri" bir önceki hale döner — "Tümü"ye basıp baştan seçmek gerekmez.
   // Yazarken her harf ayrı adım olmasın: kesintisiz arama tek adım sayılır.
-  const [gecmis, setGecmis] = useState([]);
   const sonArama = useRef(0);
   const git = (yeniF, yeniGorunum = gorunum, arama = false) => {
     if (yeniGorunum === gorunum && JSON.stringify(yeniF) === JSON.stringify(f)) return;
     const aramaDevam = arama && Date.now() - sonArama.current < 1500;
     sonArama.current = arama ? Date.now() : 0;
-    if (!aramaDevam) setGecmis((g) => [...g.slice(-59), { f, gorunum }]);
-    setF(yeniF);
-    setGorunum(yeniGorunum);
+    const yeni = { f: yeniF, gorunum: yeniGorunum, secili: null };
+    if (aramaDevam) nav.degistir(yeni); else nav.git(yeni);
   };
-  const geri = () => {
-    const son = gecmis[gecmis.length - 1];
-    if (!son) return;
-    setGecmis((g) => g.slice(0, -1));
-    sonArama.current = 0;
-    setF(son.f);
-    setGorunum(son.gorunum);
-    setAcilir(null);
-  };
+  const geri = () => { sonArama.current = 0; setAcilir(null); nav.geri(); };
+  // Mekân detayı da bir adım: geri hareketi detayı kapatır, önceki listeye döner.
+  const detayAc = (id) => nav.git({ ...nav.durum, secili: id });
+  const detayKapat = () => (nav.geriVar ? nav.geri() : nav.degistir({ ...nav.durum, secili: null }));
+  // Telefonda yanlışlıkla açık kalan açılır paneller geri hareketinde kapansın.
+  useEffect(() => { setAcilir(null); }, [nav.adim]);
   const degis = (yama) => git({ ...f, ...yama, tumu: yama.tumu ?? f.tumu }, gorunum, Object.keys(yama).length === 1 && "arama" in yama);
   const dizi = (alan, deger) => git({ ...f, [alan]: f[alan].includes(deger) ? f[alan].filter((v) => v !== deger) : [...f[alan], deger] });
   const temizle = () => git({ ...BOS });
@@ -278,17 +275,17 @@ export default function IstanbulRehberi({ data, setData }) {
       ) : null}
 
       {gorunum === "kayitli" ? (
-        <div className="ist-arac"><GeriCubugu gecmis={gecmis} geri={geri} f={f} gorunum={gorunum} /></div>
+        <div className="ist-arac"><GeriCubugu adim={nav.adim} geri={geri} f={f} gorunum={gorunum} /></div>
       ) : null}
-      {gecmis.length ? (
+      {nav.adim && !seciliId ? (
         <button type="button" className="ist-geri-yuzen" onClick={geri} aria-label="Bir önceki adıma dön">← Geri</button>
       ) : null}
 
       {gorunum === "kayitli" ? (
-        <Kayitli kayit={kayit} g={google.veri} onSec={setSeciliId} isaret={isaret} listeIslem={listeIslem} onKesfet={() => gorunumDegis("kesif")} />
+        <Kayitli kayit={kayit} g={google.veri} onSec={detayAc} isaret={isaret} listeIslem={listeIslem} onKesfet={() => gorunumDegis("kesif")} />
       ) : (
         <>
-          <AracCubugu gecmis={gecmis} geri={geri} gorunum={gorunum} f={f} ctx={ctx} acilir={acilir} setAcilir={setAcilir} degis={degis} dizi={dizi} temizle={temizle}
+          <AracCubugu adim={nav.adim} geri={geri} gorunum={gorunum} f={f} ctx={ctx} acilir={acilir} setAcilir={setAcilir} degis={degis} dizi={dizi} temizle={temizle}
             sonucSayisi={sonuclar.length} google={google} konumDurum={konumDurum} konumIste={konumIste} onGoster={() => { setAcilir(null); degis({ tumu: true }); sonucaGit(); }} />
 
           <AktifEtiketler f={f} degis={degis} dizi={dizi} temizle={temizle} />
@@ -351,7 +348,7 @@ export default function IstanbulRehberi({ data, setData }) {
                   ) : null}
                   <ul className="ist-kartlar">
                     {sonuclar.slice(0, gosterilen).map((x) => (
-                      <MekanKart key={x.m.id} x={x} f={f} isaret={isaret} onDetay={() => setSeciliId(x.m.id)} googleAktif={google.aktif} />
+                      <MekanKart key={x.m.id} x={x} f={f} isaret={isaret} onDetay={() => detayAc(x.m.id)} googleAktif={google.aktif} />
                     ))}
                   </ul>
                   {sonuclar.length > gosterilen ? (
@@ -374,7 +371,7 @@ export default function IstanbulRehberi({ data, setData }) {
 
       {secili ? (
         <Detay m={secili} g={google.veri[secili.id]} f={f} ctx={ctx} isaret={isaret} not={kayit.notlar[secili.id] || ""}
-          googleAktif={google.aktif} onKapat={() => setSeciliId(null)} onSec={setSeciliId}
+          googleAktif={google.aktif} onKapat={detayKapat} onSec={detayAc}
           onListeyeEkle={() => setListeyeEkle(secili.id)} listeSayisi={kayit.listeler.filter((l) => l.mekanlar.includes(secili.id)).length} />
       ) : null}
       {listeyeEkle ? (
@@ -387,7 +384,7 @@ export default function IstanbulRehberi({ data, setData }) {
 // ======================= ARAÇ ÇUBUĞU ========================================
 
 // Her ekranda aynı yerde: "← Geri" + şu an nerede olduğun.
-function GeriCubugu({ gecmis, geri, f, gorunum }) {
+function GeriCubugu({ adim, geri, f, gorunum }) {
   const iz = gorunum === "kayitli" ? ["Kayıtlı mekânlar"] : [
     f.liste ? ONERILER.find((o) => o.id === f.liste)?.ad : null,
     ...f.kategoriler.map((id) => kategoriBul(id)?.ad),
@@ -398,18 +395,18 @@ function GeriCubugu({ gecmis, geri, f, gorunum }) {
   ].filter(Boolean);
   return (
     <div className="ist-gezinti">
-      <button type="button" className="ist-geri" onClick={geri} disabled={!gecmis.length}
-        title={gecmis.length ? "Bir önceki adıma dön" : "Geri gidilecek adım yok"}>← Geri</button>
+      <button type="button" className="ist-geri" onClick={geri} disabled={!adim}
+        title={adim ? "Bir önceki adıma dön" : "Geri gidilecek adım yok"}>← Geri</button>
       <span className="ist-iz">
         <b>{gorunum === "kayitli" ? "Kayıtlı" : "Keşfet"}</b>
         {iz.length && gorunum !== "kayitli" ? <> › {iz.join(" · ")}</> : !iz.length ? " › tüm İstanbul" : null}
       </span>
-      {gecmis.length ? <span className="ist-adim">{gecmis.length} adım</span> : null}
+      {adim ? <span className="ist-adim">{adim} adım</span> : null}
     </div>
   );
 }
 
-function AracCubugu({ gecmis, geri, gorunum, f, ctx, acilir, setAcilir, degis, dizi, temizle, sonucSayisi, google, konumDurum, konumIste, onGoster }) {
+function AracCubugu({ adim, geri, gorunum, f, ctx, acilir, setAcilir, degis, dizi, temizle, sonucSayisi, google, konumDurum, konumIste, onGoster }) {
   const etiket = (secili, bul, bos) => {
     if (!secili.length) return bos;
     const adlar = secili.map((id) => bul(id)?.ad).filter(Boolean);
@@ -419,7 +416,7 @@ function AracCubugu({ gecmis, geri, gorunum, f, ctx, acilir, setAcilir, degis, d
   const fs = panelSayisi(f);
   return (
     <div className="ist-arac">
-      <GeriCubugu gecmis={gecmis} geri={geri} f={f} gorunum={gorunum} />
+      <GeriCubugu adim={adim} geri={geri} f={f} gorunum={gorunum} />
       <div className="ist-arama">
         <span aria-hidden>🔍</span>
         <input value={f.arama} onChange={(e) => degis({ arama: e.target.value })} placeholder="Mekân, mutfak ya da semt ara"
@@ -692,7 +689,7 @@ function AktifEtiketler({ f, degis, dizi, temizle }) {
 
 // ======================= KEŞİF ==============================================
 
-const KESIF_KATEGORILER = ["kebap", "hamburger", "pizza", "balik", "meyhane", "kahvalti", "kokteyl", "rooftop", "susi", "fine", "canli", "kulup"];
+const KESIF_KATEGORILER = ["kebap", "hamburger", "pizza", "balik", "raki", "raki-eglence", "kahvalti", "kokteyl", "rooftop", "susi", "dans", "kulup"];
 
 function Kesif({ ctx, onKategori, onPlan, onListe, onSemt, onTumu }) {
   const kullanilan = new Set();
@@ -845,6 +842,18 @@ function Kapak({ m, g, oran = "16 / 10", ad = true }) {
   );
 }
 
+// Rakı mekânları iki deneyime ayrılır; "eller havaya" yalnızca kaynakla belgelenen dans/fasıl için.
+function RakiDeneyimi({ m, dusukDahil, uzun }) {
+  const d = rakiDeneyimi(m, dusukDahil);
+  if (!d) return null;
+  if (d === "eglence") {
+    const dans = m.etkinlikler.some((e) => e.id === "dans");
+    return <span>{dans ? "🎉 Eller havaya: dans/şovlu gece" : "🎶 Müzikli rakı sofrası (fasıl/canlı)"}{uzun ? " — müzik bilgisi kaynaklı, aşağıda" : ""}</span>;
+  }
+  if (d === "sakin") return <span>🥃 Sakin rakı sofrası: sohbet, yemek{m.ozellikler.some((o) => o === "manzara" || o === "bogaz") ? ", manzara" : ""}</span>;
+  return <span>🥃 Rakı sofrası · müzik bilgisi doğrulanmadı</span>;
+}
+
 // Konum satırı: semt kalın, bölge ve yaka yanında, varsa uzaklık. Tıklanınca haritada açar.
 function Konum({ m, g, mesafe, buyuk }) {
   const b = bolgeBul(m.bolge);
@@ -905,6 +914,7 @@ function MekanKart({ x, f, isaret, onDetay, googleAktif }) {
         <div className="ist-kart-bilgi">
           <span title={mz.not}>🎵 Müzik: {mz.ad.toLocaleLowerCase("tr")}</span>
           <span>📅 {rz.ad}</span>
+          <RakiDeneyimi m={m} dusukDahil={f.dogrulanmamis} />
           {planlar.map((p) => <span key={p.id}>{p.ikon} {p.ad}{f.planlar.length ? `: ${planUyumEtiketi(planUyum(m, p.id)).toLocaleLowerCase("tr")}` : ""}</span>)}
         </div>
         {atmosfer.length ? <div className="ist-etiketler">{atmosfer.map((a) => <span key={a} className="ist-etiket">{a}</span>)}</div> : null}
@@ -1039,6 +1049,7 @@ function Detay({ m, g, f, ctx, isaret, not, googleAktif, onKapat, onSec, onListe
               <Bilgi ad="Kategori" deger={[...new Set(KATEGORILER.filter((x) => x.test(m)).map((x) => x.ad))].slice(0, 5).join(", ")} />
               <Bilgi ad="Atmosfer" deger={[...m.ozellikler.filter((o) => o !== "michelin").map((o) => ozellikBul(o)?.ad), kalabalik(m)].filter(Boolean).join(" · ")} />
               <Bilgi ad="Müzik seviyesi" deger={`${mz.ad} — ${mz.not}`} kaynak="rehber tahmini" />
+              {rakiDeneyimi(m, true) ? <Bilgi ad="Rakı deneyimi" deger={<RakiDeneyimi m={m} dusukDahil uzun />} /> : null}
               <Bilgi ad="Fiyat" deger={`${fiyatSimge(m.fiyat)} · ${FIYATLAR.find((x) => x.id === m.fiyat)?.ad}`} />
               <Bilgi ad="Çalışma saatleri" deger={g?.saatler ? <ul className="ist-saatler">{g.saatler.map((s) => <li key={s}>{s}</li>)}</ul> : "Google bağlıyken görünür — güncel saatler için Google Haritalar'a bak."} kaynak={g?.saatler ? "Google" : null} />
               <Bilgi ad="Rezervasyon" deger={rz.ad} kaynak={rz.kaynak === "google" ? "Google" : "rehber tahmini"} />

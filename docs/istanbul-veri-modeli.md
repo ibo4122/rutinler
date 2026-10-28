@@ -29,6 +29,11 @@
 - **After**: kulüp gecesinin 04:00 ve sonrasına sürdüğü *belgelenmiş* mekân. Geç saate kadar yemek veren yerler After değildir; Plan Türü › **Geç Saat Planı**'na girer.
 - **Gece kulübü** bir türdür, etkinlik değil; kaynakla verilir.
 
+### Rakı deneyimi ve "eller havaya"
+- **Rakı — sakin sohbet & manzara**: rakı mekânı ve hiçbir müzik/dans kaydı yok.
+- **Rakı — müzikli / eller havaya**: fasıl, canlı müzik ya da dans kaynakla belgelenmiş (yemek.com fasıl rehberi Eyl 2026, Gazete Oksijen Haz 2026, mekân sitesi).
+- **Eller Havaya — dans & eğlence** (Eğlence grubu): yalnızca dans/şov kanıtı olan yerler. Müziği yalnızca eski bir kaynakta geçen meyhane iki listeye de girmez; "doğrulanmamışları da göster" ile görünür.
+
 ### Güven düzeyi
 - **Doğrulandı (yüksek)**: 2026 tarihli etkinlik takvimi/bilet sayfası ya da 2026 yayını.
 - **Kaynaklı (orta)**: 2025 yayını ya da mekânın kendi sitesi.

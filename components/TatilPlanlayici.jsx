@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  SEHIRLER, PARALAR, VIZELER, BOLGELER, SIRALAMALAR, KONAKLAMA_SEVIYELERI,
+  SEHIRLER, PARALAR, BOLGELER, SIRALAMALAR, KONAKLAMA_SEVIYELERI,
   PUAN_BASLIKLARI, genelPuan, YURTDISI_HARC, SIGORTA_GUNLUK, seviyeNormalle,
 } from "../lib/destinasyonlar";
 import { ROTALAR } from "../lib/rotalar";
@@ -10,6 +10,9 @@ import { ILLER } from "../lib/turkiye";
 import { num, tl, yeniId, satirInput, Kutu, KutuIzgara, Tablo, Alan, Izgara, Not } from "./panelUI";
 import TurkiyeRehberi from "./TurkiyeRehberi";
 import SeyahatDefteri from "./SeyahatDefteri";
+import { useGezinme } from "./useGezinme";
+import VizeRehberi from "./VizeRehberi";
+import { sehirVizesi, vizesizMi, VIZE_KAYNAK, VIZE_KONTROL } from "../lib/vize";
 
 // Seyahat Planlayıcı — üç bölüm, üç ayrı kimlik:
 //   KEŞFET (turkuaz)        — dünya şehirleri; şehir sayfasında saat saat rota ve canlı bütçe
@@ -33,8 +36,11 @@ const kisaTarih = (iso) => {
 
 export default function TatilPlanlayici({ data, setData, userId }) {
   const kayit = data || {};
-  const [gorunum, setGorunum] = useState("kesfet");
-  const [seciliId, setSeciliId] = useState(null);
+  // Gezinme tarayıcı geçmişine bağlı (useGezinme): telefonun/tarayıcının geri
+  // hareketi ve ekrandaki "← Geri" aynı yere, bir önceki ekrana döner — şehir
+  // sayfası Defter'den açıldıysa Defter'e, Keşfet'ten açıldıysa Keşfet'e.
+  const nav = useGezinme("tatil", { gorunum: "kesfet", seciliId: null, rehber: { ekran: "liste", id: null, anahtar: 0 } });
+  const { gorunum, seciliId, rehber: rehberAcilis } = nav.durum;
 
   const kurlar = {
     ...Object.fromEntries(Object.entries(PARALAR).map(([k, v]) => [k, v.kur])),
@@ -50,13 +56,13 @@ export default function TatilPlanlayici({ data, setData, userId }) {
     setData((s) => ({ ...(s || {}), kurlar: { ...((s || {}).kurlar || {}), [kod]: num(deger) } }));
 
   const yukari = () => { if (typeof window !== "undefined") window.scrollTo(0, 0); };
-  const sehirAc = (id) => { setSeciliId(id); setGorunum("sehir"); yukari(); };
-  const defterAc = () => { setGorunum("defter"); yukari(); };
+  const sehirAc = (id) => { nav.git({ ...nav.durum, gorunum: "sehir", seciliId: id, sehirKaynak: nav.durum.gorunum === "sehir" ? nav.durum.sehirKaynak : nav.durum.gorunum }); yukari(); };
+  const defterAc = () => { nav.git({ ...nav.durum, gorunum: "defter" }); yukari(); };
+  const geriDon = (yedek) => { if (nav.geriVar) nav.geri(); else { nav.git({ ...nav.durum, gorunum: yedek }); } yukari(); };
   // Türkiye Rehberi kendi iç gezinmesini tutar; dışarıdan (defterden) belirli
   // bir il ya da tura açılması gerekince "acilis" ile başlatılır, anahtar
   // değiştiği için bileşen o sayfadan yeniden kurulur.
-  const [rehberAcilis, setRehberAcilis] = useState({ ekran: "liste", id: null, anahtar: 0 });
-  const rehberAc = (ekran, id) => { setRehberAcilis((r) => ({ ekran, id, anahtar: r.anahtar + 1 })); setGorunum("turkiye"); yukari(); };
+  const rehberAc = (ekran, id) => { nav.git({ ...nav.durum, gorunum: "turkiye", rehber: { ekran, id, anahtar: rehberAcilis.anahtar + 1 } }); yukari(); };
 
   const planlar = Array.isArray(kayit.planlar) ? kayit.planlar : [];
   const hayaller = Array.isArray(kayit.hayaller) ? kayit.hayaller : [];
@@ -78,13 +84,20 @@ export default function TatilPlanlayici({ data, setData, userId }) {
 
   return (
     <section>
-      <UstGezinme gorunum={gorunum} onGorunum={(g) => { if (g === "turkiye") setRehberAcilis((r) => ({ ekran: "liste", id: null, anahtar: r.anahtar + 1 })); setGorunum(g); yukari(); }}
+      <UstGezinme gorunum={gorunum} onGorunum={(g) => {
+          if (g === gorunum && g !== "turkiye") return;
+          nav.git({ ...nav.durum, gorunum: g, rehber: g === "turkiye" ? { ekran: "liste", id: null, anahtar: rehberAcilis.anahtar + 1 } : rehberAcilis });
+          yukari();
+        }}
         planSayisi={planlar.filter((p) => p.durum !== "gidildi").length}
         gidilenSayisi={planlar.filter((p) => p.durum === "gidildi").length} />
 
       {gorunum === "turkiye" ? (
         <TurkiyeRehberi key={rehberAcilis.anahtar} acilis={rehberAcilis}
+          onGeri={rehberAcilis.ekran !== "liste" ? () => geriDon("defter") : undefined}
           planlar={planlar} hayaller={hayaller} onDefter={defteraEkle} />
+      ) : gorunum === "vize" ? (
+        <VizeRehberi onSehir={sehirAc} />
       ) : gorunum === "kesfet" ? (
         <KesfetEkrani kurlar={kurlar} planlar={planlar} onSehir={sehirAc} />
       ) : gorunum === "sehir" && seciliId ? (
@@ -95,7 +108,9 @@ export default function TatilPlanlayici({ data, setData, userId }) {
           planlar={planlar}
           onAyar={(alan, deger) => ayarDegis(seciliId, alan, deger)}
           onKur={kurDegis}
-          onGeri={() => { setGorunum("kesfet"); window.scrollTo(0, 0); }}
+          onGeri={() => geriDon("kesfet")}
+          geriEtiketi={nav.durum.sehirKaynak === "defter" ? "← Seyahat Defterim" : nav.durum.sehirKaynak === "vize" ? "← Vize Rehberi" : "← Tüm şehirler"}
+          onVize={() => { nav.git({ ...nav.durum, gorunum: "vize" }); yukari(); }}
           onPlanla={(plan) => { setData((s) => ({ ...(s || {}), planlar: [...(Array.isArray((s || {}).planlar) ? s.planlar : []), plan] })); defterAc(); }}
         />
       ) : (
@@ -116,9 +131,10 @@ function UstGezinme({ gorunum, onGorunum, planSayisi, gidilenSayisi }) {
     { id: "kesfet", ad: "Keşfet", ikon: "🧭", rozet: `${SEHIRLER.length} şehir`, renk: "#2dd4bf" },
     { id: "turkiye", ad: "Türkiye Rehberi", ikon: "🇹🇷", rozet: `${ILLER.length} il · 10 rota`, renk: "#e11d48" },
     { id: "defter", ad: "Seyahat Defterim", ikon: "📔", rozet: `${planSayisi} plan · ${gidilenSayisi} gidildi`, renk: "#e7b85c" },
+    { id: "vize", ad: "Vize Rehberi", ikon: "🛂", rozet: "ülke ülke giriş şartları", renk: "#60a5fa" },
   ];
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: 9, marginBottom: 16 }}>
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 155px), 1fr))", gap: 9, marginBottom: 16 }}>
       {sekmeler.map((s) => {
         const aktif = gorunum === s.id || (s.id === "kesfet" && gorunum === "sehir");
         return (
@@ -160,7 +176,7 @@ function KesfetEkrani({ kurlar, planlar, onSehir }) {
   const liste = useMemo(() => {
     const t = arama.trim().toLocaleLowerCase("tr");
     let l = SEHIRLER.filter((s) => (bolge === "hepsi" ? true : s.bolge === bolge));
-    if (sadeceVizesiz) l = l.filter((s) => s.vize === "yok" || s.vize === "kimlik");
+    if (sadeceVizesiz) l = l.filter((s) => vizesizMi(sehirVizesi(s).kayit));
     if (t) l = l.filter((s) => s.ad.toLocaleLowerCase("tr").includes(t) || s.ulke.toLocaleLowerCase("tr").includes(t));
     const sure = (s) => parseFloat(String(s.ucusSure).replace(",", ".")) || 99;
     const k = [...l];
@@ -315,7 +331,7 @@ function PuanRozeti({ puan, buyuk }) {
 
 function SehirKarti({ sehir, sira, gunlukTL, durum, onAc }) {
   const puan = genelPuan(sehir.puan);
-  const vize = VIZELER[sehir.vize];
+  const vize = sehirVizesi(sehir);
   const gun = uzunluk(sehir.id) || sehir.onerilenGun;
   return (
     <button type="button" onClick={onAc}
@@ -409,7 +425,7 @@ function MiniCubuk({ ad, deger, renk }) {
 
 // ======================= ŞEHİR SAYFASI =====================================
 
-function SehirSayfasi({ sehir, ayar, kurlar, planlar, onAyar, onKur, onGeri, onPlanla }) {
+function SehirSayfasi({ sehir, ayar, kurlar, planlar, onAyar, onKur, onGeri, geriEtiketi = "← Tüm şehirler", onPlanla, onVize }) {
   const [heroIdx, setHeroIdx] = useState(0);
   const rota = ROTALAR[sehir.id] || [];
   const varsayilan = {
@@ -420,7 +436,7 @@ function SehirSayfasi({ sehir, ayar, kurlar, planlar, onAyar, onKur, onGeri, onP
 
   const para = PARALAR[sehir.para];
   const kur = num(kurlar[sehir.para]) || para.kur;
-  const vize = VIZELER[sehir.vize];
+  const vize = sehirVizesi(sehir);
   const yerelTL = (t) => num(t) * kur;
   const yerel = (t) => para.simge + Math.round(num(t)).toLocaleString("tr-TR");
 
@@ -510,7 +526,7 @@ function SehirSayfasi({ sehir, ayar, kurlar, planlar, onAyar, onKur, onGeri, onP
         style={{
           border: "1px solid rgba(148,163,184,.25)", background: "rgba(2,6,23,.45)", color: "#cbd5e1",
           borderRadius: 11, padding: "8px 14px", cursor: "pointer", fontSize: 12.5, fontWeight: 800, marginBottom: 13,
-        }}>← Tüm şehirler</button>
+        }}>{geriEtiketi}</button>
 
       <div style={{
         position: "relative", borderRadius: 22, overflow: "hidden", marginBottom: 14,
@@ -664,7 +680,15 @@ function SehirSayfasi({ sehir, ayar, kurlar, planlar, onAyar, onKur, onGeri, onP
           </div>
         </div>
 
-        <Not tur="bilgi"><strong>{vize.ad}.</strong> {vize.not} <em>Vize bedeli bütçeye dahil edilmiyor.</em></Not>
+        <Not tur="bilgi">
+          <strong>{vize.ad}.</strong> {vize.not} <em>Vize bedeli bütçeye dahil edilmiyor.</em>
+          <span style={{ display: "block", marginTop: 6, fontSize: 11.5, color: "#94a3b8" }}>
+            T.C. umuma mahsus (bordo) pasaport için · Kaynak: <a href={vize.kayit?.kaynak?.url || VIZE_KAYNAK.url} target="_blank" rel="noopener noreferrer" style={{ color: "#5eead4" }}>{vize.kayit?.kaynak?.ad || "T.C. Dışişleri Bakanlığı"}</a>
+            {" · "}son kontrol {new Date(VIZE_KONTROL).toLocaleDateString("tr-TR")}
+            {vize.kayit?.diger ? <> · Diğer pasaportlar: {vize.kayit.diger}</> : null}
+            {onVize ? <> · <button type="button" onClick={onVize} style={{ background: "none", border: "none", padding: 0, color: "#5eead4", cursor: "pointer", fontWeight: 800, fontSize: 11.5, textDecoration: "underline" }}>Tüm ülkelerin vize bilgisi →</button></> : null}
+          </span>
+        </Not>
       </Kart>
 
       <KutuIzgara min={158}>
